@@ -546,6 +546,28 @@ function getMasterPageFragment(name) {
     .status-chip-Выдано { background: #dbeafe; color: #1d4ed8; }
     .status-chip-В { background: #fff3cd; color: #92400e; }
     .status-chip-Готово { background: #d4edda; color: #166534; }
+
+    /* ===== Dashboard: ПА ===== */
+    .legend-partial { background: #fed7aa; }
+    .pa-grid-item.partial { background: #fed7aa; color: #9a3412; }
+    .pa-grid-item.partial:hover { transform: scale(1.05); }
+
+    /* ===== Dashboard: Узлы ===== */
+    .unit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+    .unit-card { background: #f8fafc; border-radius: 10px; padding: 14px 16px; border: 1px solid #e2e8f0; }
+    .unit-card.warn { border-color: #ef4444; background: #fef2f2; }
+    .unit-card-name { font-weight: 600; color: #0f172a; font-size: 14px; margin-bottom: 8px; }
+    .unit-card-kpis { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: #64748b; margin-bottom: 8px; }
+    .unit-card-kpis b { color: #0f172a; }
+    .unit-card-pct { margin-left: auto; font-weight: 700; color: #0f172a; }
+
+    /* ===== Dashboard: Операции ===== */
+    .op-list { display: flex; flex-direction: column; gap: 10px; }
+    .op-row { display: flex; align-items: center; gap: 12px; }
+    .op-row-label { min-width: 140px; font-size: 13px; color: #334155; font-weight: 500; }
+    .op-row-track { flex: 1; height: 18px; background: #e2e8f0; border-radius: 9px; overflow: hidden; }
+    .op-row-fill { height: 100%; border-radius: 9px; transition: width 0.3s; min-width: 4px; }
+    .op-row-pct { min-width: 90px; text-align: right; font-size: 12px; color: #64748b; }
     
   </style>
   
@@ -689,8 +711,33 @@ function getMasterPageFragment(name) {
   
   <div id="section-dashboard" class="section">
     <div class="section-card">
-      <h3 class="section-title">📊 Аналитика</h3>
+      <div class="section-title-row">
+        <h3 class="section-title">📊 Аналитика</h3>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span id="dashUpdated" style="font-size:12px;color:#94a3b8;"></span>
+          <button class="btn-ghost" onclick="loadDashboard()">🔄 Обновить</button>
+        </div>
+      </div>
       <div class="kpi-grid" id="dashKpis"></div>
+    </div>
+    <div class="section-card">
+      <h3 class="section-title">🏭 Загрузка ПА</h3>
+      <div class="pa-grid-legend">
+        <span><span class="legend-dot legend-free"></span> Свободен</span>
+        <span><span class="legend-dot legend-assigned"></span> Назначен</span>
+        <span><span class="legend-dot legend-partial"></span> Частично готов</span>
+        <span><span class="legend-dot legend-done"></span> Готово</span>
+      </div>
+      <div class="pa-grid" id="dashPaGrid"></div>
+      <div id="dashPaDetail" class="pa-load-detail"></div>
+    </div>
+    <div class="section-card">
+      <h3 class="section-title">📦 Загрузка по узлам</h3>
+      <div class="unit-grid" id="dashUnits"></div>
+    </div>
+    <div class="section-card">
+      <h3 class="section-title">⚙️ Загрузка по типам обработки</h3>
+      <div id="dashOps"></div>
     </div>
   </div>
   
@@ -738,6 +785,7 @@ function getMasterPageFragment(name) {
     const MASTER_NAME = ${JSON.stringify(safeName)};
     let allData = [];
     let selectedRows = new Set();
+    let currentSection = 'operational';
     let expandedNodes = new Set(); // Для сохранения состояния раскрытия
     
     function showToast(msg) {
@@ -1463,6 +1511,7 @@ function getMasterPageFragment(name) {
     const loadedSections = new Set();
     
     function showSection(name) {
+      currentSection = name;
       document.querySelectorAll('.section').forEach(function(s) { s.classList.remove('active'); });
       const el = document.getElementById('section-' + name);
       if (el) el.classList.add('active');
@@ -1501,55 +1550,146 @@ function getMasterPageFragment(name) {
     // ========================
     // DASHBOARD
     // ========================
+    let lastDashboardData = null;
+    
     function loadDashboard() {
       const kpiEl = document.getElementById('dashKpis');
-      if (!kpiEl) return;
+      if (!kpiEl || kpiEl.closest('.section') === null) return;
       kpiEl.innerHTML = '<div class="empty-state"><div class="icon">⏳</div><p>Загрузка...</p></div>';
+      const gridEl = document.getElementById('dashPaGrid');
+      if (gridEl) gridEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:#94a3b8;">Загрузка...</div>';
+      const unitsEl = document.getElementById('dashUnits');
+      if (unitsEl) unitsEl.innerHTML = '<div class="empty-state"><div class="icon">⏳</div><p>Загрузка...</p></div>';
+      const opsEl = document.getElementById('dashOps');
+      if (opsEl) opsEl.innerHTML = '<div class="empty-state"><div class="icon">⏳</div><p>Загрузка...</p></div>';
       google.script.run
-        .withSuccessHandler(function(summary) {
-          google.script.run
-            .withSuccessHandler(function(launches) {
-              renderDashboard(summary || {}, launches || []);
-            })
-            .withFailureHandler(function() {
-              kpiEl.innerHTML = '<div class="empty-state"><div class="icon">❌</div><p>Ошибка загрузки</p></div>';
-            })
-            .getLaunchRecords();
+        .withSuccessHandler(function(data) {
+          renderDashboard(data || {});
         })
         .withFailureHandler(function() {
           kpiEl.innerHTML = '<div class="empty-state"><div class="icon">❌</div><p>Ошибка загрузки</p></div>';
         })
-        .getPALoadSummary();
+        .getDashboardSummary();
     }
     
     function kpiCard(value, label) {
       return '<div class="kpi-card"><div class="kpi-value">' + value + '</div><div class="kpi-label">' + label + '</div></div>';
     }
     
-    function renderDashboard(summary, launches) {
-      const el = document.getElementById('dashKpis');
-      if (!el) return;
-      let activePa = 0;
-      let donePa = 0;
-      let totalItems = 0;
-      let doneItems = 0;
-      Object.keys(summary).forEach(function(pa) {
-        const s = summary[pa];
-        if (!s || !s.total) return;
-        totalItems += s.total;
-        doneItems += (s.done || 0);
-        if (s.done >= s.total) {
-          donePa++;
+    function renderDashboard(d) {
+      lastDashboardData = d;
+      const k = d.kpis || {};
+      
+      const kpiEl = document.getElementById('dashKpis');
+      if (kpiEl) {
+        kpiEl.innerHTML =
+          kpiCard(k.totalLaunches != null ? k.totalLaunches : 0, 'Всего запусков') +
+          kpiCard(k.activePAs != null ? k.activePAs : 0, 'Активных ПА') +
+          kpiCard(k.completedPAs != null ? k.completedPAs : 0, 'ПА комплект готов') +
+          kpiCard((k.readinessPct != null ? k.readinessPct : 0) + '%', 'Готовность') +
+          kpiCard(k.totalCatalogItems != null ? k.totalCatalogItems : 0, 'Позиций в Catalog') +
+          kpiCard(k.launchedItems != null ? k.launchedItems : 0, 'Запущено в пр-во') +
+          kpiCard(k.inWorkItems != null ? k.inWorkItems : 0, 'В работе') +
+          kpiCard(k.closedItems != null ? k.closedItems : 0, 'Закрыто ОТК');
+      }
+      
+      // Сетка ПА
+      const gridEl = document.getElementById('dashPaGrid');
+      if (gridEl) {
+        const paGrid = d.paGrid || [];
+        let html = '';
+        paGrid.forEach(function(pa) {
+          const countText = pa.totalItems > 0 ? pa.totalItems + ' поз.' : '';
+          html += '<div class="pa-grid-item ' + pa.status + '" data-pa="' + pa.paNumber + '" onclick="showDashPaDetail(this)" title="ПА ' + pa.paNumber + ' — готово ' + pa.completedItems + '/' + pa.totalItems + ' (' + pa.readinessPct + '%)">';
+          html += pa.paNumber;
+          if (countText) html += '<span class="pa-count">' + countText + '</span>';
+          html += '</div>';
+        });
+        gridEl.innerHTML = html;
+      }
+      
+      // Карточки узлов
+      const unitsEl = document.getElementById('dashUnits');
+      if (unitsEl) {
+        const units = d.units || [];
+        if (units.length === 0) {
+          unitsEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:20px;">Нет данных</div>';
         } else {
-          activePa++;
+          let h = '';
+          units.forEach(function(u) {
+            const warn = u.readinessPct < 50;
+            h += '<div class="unit-card' + (warn ? ' warn' : '') + '">';
+            h += '<div class="unit-card-name">' + u.name + '</div>';
+            h += '<div class="unit-card-kpis">';
+            h += '<span>Всего: <b>' + u.totalItems + '</b></span>';
+            h += '<span>Запущено: <b>' + u.launchedItems + '</b></span>';
+            h += '<span>Готово: <b>' + u.completedItems + '</b></span>';
+            h += '<span class="unit-card-pct">' + u.readinessPct + '%</span>';
+            h += '</div>';
+            h += '<div class="progress-track"><div class="progress-fill' + (u.readinessPct >= 100 ? ' green' : '') + '" style="width:' + Math.max(u.readinessPct, 2) + '%"></div></div>';
+            h += '</div>';
+          });
+          unitsEl.innerHTML = h;
         }
-      });
-      const pct = totalItems ? Math.round(doneItems / totalItems * 100) : 0;
-      el.innerHTML =
-        kpiCard(launches.length, 'Всего запусков') +
-        kpiCard(activePa, 'Активных ПА') +
-        kpiCard(donePa, 'ПА комплект готов') +
-        kpiCard(pct + '%', 'Готовность');
+      }
+      
+      // Полосы по типам обработки
+      const opsEl = document.getElementById('dashOps');
+      if (opsEl) {
+        const ops = d.operations || [];
+        if (ops.length === 0) {
+          opsEl.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>Нет данных</p></div>';
+        } else {
+          let h = '<div class="op-list">';
+          ops.forEach(function(op) {
+            const pct = op.loadPct;
+            const color = pct >= 70 ? '#22c55e' : (pct >= 30 ? '#f59e0b' : '#ef4444');
+            h += '<div class="op-row">';
+            h += '<span class="op-row-label">' + op.label + '</span>';
+            h += '<div class="op-row-track"><div class="op-row-fill" style="width:' + Math.max(pct, 2) + '%;background:' + color + '"></div></div>';
+            h += '<span class="op-row-pct">' + op.launchedItems + '/' + op.totalItems + ' (' + pct + '%)</span>';
+            h += '</div>';
+          });
+          h += '</div>';
+          opsEl.innerHTML = h;
+        }
+      }
+      
+      // Последнее обновление
+      const upd = document.getElementById('dashUpdated');
+      if (upd) upd.textContent = 'Обновлено: ' + (d.lastUpdated || '');
+    }
+    
+    function showDashPaDetail(element) {
+      const paNumber = element.getAttribute('data-pa');
+      const detail = document.getElementById('dashPaDetail');
+      if (!paNumber || !detail) return;
+      if (paNumber === detail.getAttribute('data-opened-pa')) {
+        detail.classList.remove('show');
+        detail.removeAttribute('data-opened-pa');
+        return;
+      }
+      detail.setAttribute('data-opened-pa', paNumber);
+      const pa = (lastDashboardData && lastDashboardData.paGrid || []).find(function(p) { return p.paNumber === paNumber; });
+      let html = '<b>ПА ' + paNumber + ' — назначено: ' + (pa ? pa.launches.length : 0) + '</b>';
+      if (!pa || pa.launches.length === 0) {
+        html += '<div style="color:#94a3b8;font-size:13px;margin-top:6px;">Нет назначений</div>';
+      } else {
+        html += '<table class="agg-table">';
+        html += '<tr><th>Код</th><th>Наименование</th><th>Кол-во</th><th>Статус</th></tr>';
+        pa.launches.forEach(function(l) {
+          const sc = (!l.status || l.status === '—') ? '--' : getStatusClass(l.status);
+          html += '<tr>';
+          html += '<td>' + l.itemCode + '</td>';
+          html += '<td>' + l.itemName + '</td>';
+          html += '<td>' + l.qty + '</td>';
+          html += '<td><span class="status-chip status-chip-' + sc + '">' + (l.status || '—') + '</span></td>';
+          html += '</tr>';
+        });
+        html += '</table>';
+      }
+      detail.innerHTML = html;
+      detail.classList.add('show');
     }
     
     // ========================
@@ -1773,6 +1913,11 @@ function getMasterPageFragment(name) {
     
     restoreSidebar();
     loadCatalog();
+    
+    // Автообновление дашборда каждые 60 сек (только когда вкладка активна)
+    setInterval(function() {
+      if (currentSection === 'dashboard') loadDashboard();
+    }, 60000);
   </script>
   `;
 }

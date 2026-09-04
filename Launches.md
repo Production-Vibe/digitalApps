@@ -284,3 +284,317 @@ function checkLaunchesSheet() {
   Logger.log('secondRow: ' + JSON.stringify(data[1] || null));
   Logger.log('thirdRow: ' + JSON.stringify(data[2] || null));
 }
+
+// ============================================================================
+// АНАЛИТИКА + ОПЕРАТИВНЫЙ БЛОК (для нач. цеха)
+// ============================================================================
+
+/**
+ * Удалить запуск по ID из листа Launches.
+ * @param {string} launchId — ID запуска (например "ЗП-260901-120000")
+ */
+function deleteLaunch(launchId) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_LAUNCHES);
+  if (!sheet) return { error: 'Лист Launches не найден' };
+  
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(launchId)) {
+      sheet.deleteRow(i + 1);
+      return { status: 'ok' };
+    }
+  }
+  
+  return { error: 'Запуск не найден: ' + launchId };
+}
+
+/**
+ * Обновить поля запуска по ID.
+ * @param {string} launchId — ID запуска
+ * @param {Object} fields — { qty?: number, paNumbers?: string }
+ */
+function updateLaunch(launchId, fields) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_LAUNCHES);
+  if (!sheet) return { error: 'Лист Launches не найден' };
+  if (!fields) return { error: 'Пустой запрос' };
+  
+  const data = sheet.getDataRange().getValues();
+  let foundRow = null;
+  
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(launchId)) {
+      foundRow = i + 1;
+      break;
+    }
+  }
+  
+  if (!foundRow) return { error: 'Запуск не найден: ' + launchId };
+  
+  const newQty = fields.qty;
+  const newPaNumbers = fields.paNumbers;
+  
+  // Проверка занятости новых ПА (если меняем ПА)
+  if (newPaNumbers !== undefined) {
+    const occupied = getOccupiedPANumbers();
+    // Исключаем сам этот запуск из занятых, иначе не сможем оставить тот же ПА
+    const parts = String(newPaNumbers).split(',');
+    const conflicts = [];
+    parts.forEach(function(part) {
+      part = part.trim();
+      if (!part) return;
+      const nums = expandPARange(part);
+      nums.forEach(function(num) {
+        if (occupied[num] && !isInCurrentLaunch(data, foundRow, num)) {
+          conflicts.push(num);
+        }
+      });
+    });
+    if (conflicts.length > 0) {
+      return { error: 'ПА заняты: ' + conflicts.join(', ') };
+    }
+    
+    sheet.getRange(foundRow, 6).setValue(newPaNumbers);
+  }
+  
+  if (newQty !== undefined) {
+    sheet.getRange(foundRow, 5).setValue(Number(newQty) || 0);
+  }
+  
+  return { status: 'ok' };
+}
+
+// Вспомогательная: проверяет, входит ли номер ПА в текущий запуск (строку)
+function isInCurrentLaunch(data, rowIndex, paNumber) {
+  const raw = String(data[rowIndex - 1][5] || '');
+  const nums = expandPARange(raw);
+  return nums.indexOf(paNumber) > -1;
+}
+
+/**
+ * История запусков с фильтрацией и пагинацией.
+ * @param {Object} filters — { status?, paNumber?, search?, dateFrom?, dateTo?, page?, pageSize? }
+ */
+function getLaunchesHistory(filters) {
+  filters = filters || {};
+  const launches = getLaunchRecords();
+  
+  // Фильтр по статусу
+  var status = filters.status;
+  if (status) {
+    launches = launches.filter(function(l) { return l.status === status; });
+  }
+  
+  // Фильтр по номеру ПА
+  var paNumber = filters.paNumber;
+  if (paNumber) {
+    launches = launches.filter(function(l) {
+      if (!l.paNumbers) return false;
+      const nums = expandPARange(String(l.paNumbers));
+      return nums.indexOf(String(paNumber).padStart(3, '0')) > -1;
+    });
+  }
+  
+  // Поиск по коду/наименованию
+  var search = filters.search;
+  if (search) {
+    var q = String(search).toLowerCase().trim();
+    launches = launches.filter(function(l) {
+      return String(l.itemCode).toLowerCase().indexOf(q) > -1 ||
+             String(l.itemName).toLowerCase().indexOf(q) > -1;
+    });
+  }
+  
+  // Фильтр по дате
+  var dateFrom = filters.dateFrom;
+  var dateTo = filters.dateTo;
+  if (dateFrom || dateTo) {
+    launches = launches.filter(function(l) {
+      var t = new Date(l.createdAt);
+      if (dateFrom && t < new Date(dateFrom)) return false;
+      if (dateTo && t > new Date(dateTo).setHours(23, 59, 59, 999)) return false;
+      return true;
+    });
+  }
+  
+  // Сортируем по дате (новые сверху)
+  launches.sort(function(a, b) {
+    return new Date(b.createdAt) - new Date(a.createdAt);
+  });
+  
+  // Пагинация
+  var page = Math.max(parseInt(filters.page) || 1, 1);
+  var pageSize = Math.max(parseInt(filters.pageSize) || 20, 1);
+  var total = launches.length;
+  var start = (page - 1) * pageSize;
+  var items = launches.slice(start, start + pageSize);
+  
+  return {
+    items: items,
+    total: total,
+    page: page,
+    pageSize: pageSize,
+    totalPages: Math.ceil(total / pageSize)
+  };
+}
+
+/**
+ * Агрегированные данные для дашборда нач. цеха.
+ */
+function getDashboardSummary() {
+  const launches = getLaunchRecords();
+  const catalog = getCatalogForMaster();
+  
+  // ---------- KPIs ----------
+  let activePa = 0;
+  let completedPa = 0;
+  let totalLaunchedQty = 0;
+  let inWorkItems = 0;
+  let closedItems = 0;
+  
+  // Группируем по ПА
+  const paMap = {}; // { paNumber: { total, completed, launches: [] } }
+  launches.forEach(function(l) {
+    if (!l.paNumbers) return;
+    const parts = String(l.paNumbers).split(',');
+    parts.forEach(function(part) {
+      part = part.trim();
+      if (!part) return;
+      const nums = expandPARange(part);
+      nums.forEach(function(num) {
+        if (!paMap[num]) {
+          paMap[num] = { total: 0, completed: 0, launches: [] };
+        }
+        paMap[num].total++;
+        paMap[num].launches.push(l);
+        if (l.status === 'Готово') paMap[num].completed++;
+        if (l.status === 'В работе') inWorkItems++;
+        if (l.status === 'Готово') closedItems++;
+        totalLaunchedQty += l.qty || 0;
+      });
+    });
+  });
+  
+  Object.keys(paMap).forEach(function(num) {
+    if (paMap[num].completed >= paMap[num].total) {
+      completedPa++;
+    } else {
+      activePa++;
+    }
+  });
+  
+  const totalLaunchedItems = launches.length;
+  const totalCatalogItems = catalog.length;
+  const launchedDistinct = new Set(launches.map(function(l) { return l.itemCode; })).size;
+  const readinessPct = totalLaunchedItems ? Math.round(closedItems / totalLaunchedItems * 100) : 0;
+  
+  const kpis = {
+    totalLaunches: totalLaunchedItems,
+    activePAs: activePa,
+    completedPAs: completedPa,
+    readinessPct: readinessPct,
+    totalCatalogItems: totalCatalogItems,
+    launchedItems: launchedDistinct,
+    inWorkItems: inWorkItems,
+    closedItems: closedItems
+  };
+  
+  // ---------- Сетка ПА ----------
+  const paGrid = [];
+  for (let i = 1; i <= 120; i++) {
+    const num = String(i).padStart(3, '0');
+    const g = paMap[num] || { total: 0, completed: 0, launches: [] };
+    let status = 'free';
+    if (g.total > 0) {
+      if (g.completed >= g.total) {
+        status = 'done';
+      } else if (g.completed > 0) {
+        status = 'partial';
+      } else {
+        status = 'assigned';
+      }
+    }
+    paGrid.push({
+      paNumber: num,
+      status: status,
+      launches: g.launches.slice(0, 50),
+      totalItems: g.total,
+      completedItems: g.completed,
+      readinessPct: g.total ? Math.round(g.completed / g.total * 100) : 0
+    });
+  }
+  
+  // ---------- Узлы (группировка catalog по unit) ----------
+  const unitMap = {};
+  catalog.forEach(function(it) {
+    const u = it.unit || 'Без узла';
+    if (!unitMap[u]) {
+      unitMap[u] = { name: u, totalItems: 0, launchedItems: 0, completedItems: 0 };
+    }
+    unitMap[u].totalItems++;
+  });
+  
+  // Запущенные/готовые по узлам (по itemUnit из лончей или из catalog)
+  launches.forEach(function(l) {
+    const u = l.unit || 'Без узла';
+    if (!unitMap[u]) {
+      unitMap[u] = { name: u, totalItems: 0, launchedItems: 0, completedItems: 0 };
+    }
+    unitMap[u].launchedItems++;
+    if (l.status === 'Готово') unitMap[u].completedItems++;
+  });
+  
+  const units = Object.keys(unitMap).map(function(u) {
+    const g = unitMap[u];
+    g.readinessPct = g.launchedItems ? Math.round(g.completedItems / g.launchedItems * 100) : 0;
+    return g;
+  });
+  units.sort(function(a, b) {
+    return (a.readinessPct - b.readinessPct) || a.name.localeCompare(b.name, 'ru');
+  });
+  
+  // ---------- Типы обработки ----------
+  const opMeta = [
+    { key: 'cutting', label: 'Резка' },
+    { key: 'thermo', label: 'Термообработка' },
+    { key: 'plasma', label: 'Плазма' },
+    { key: 'turning', label: 'Токарная' },
+    { key: 'milling', label: 'Фрезерная' },
+    { key: 'drilling', label: 'Сверлильная' },
+    { key: 'metalwork', label: 'Слесарная' },
+    { key: 'bending', label: 'Гибка' },
+    { key: 'coating', label: 'Покрытие' }
+  ];
+  
+  const operations = opMeta.map(function(m) {
+    let totalItems = 0;
+    let launchedItems = 0;
+    catalog.forEach(function(it) {
+      const val = it[m.key];
+      if (val === '+' || val === '1' || val === 'ДА') totalItems++;
+    });
+    launches.forEach(function(l) {
+      const item = catalog.find(function(c) { return c.code === l.itemCode; });
+      if (item) {
+        const val = item[m.key];
+        if (val === '+' || val === '1' || val === 'ДА') launchedItems++;
+      }
+    });
+    return {
+      key: m.key,
+      label: m.label,
+      totalItems: totalItems,
+      launchedItems: launchedItems,
+      loadPct: totalItems ? Math.round(launchedItems / totalItems * 100) : 0
+    };
+  });
+  
+  return {
+    kpis: kpis,
+    paGrid: paGrid,
+    units: units,
+    operations: operations,
+    lastUpdated: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd.MM.yyyy HH:mm:ss')
+  };
+}
