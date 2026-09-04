@@ -16,7 +16,7 @@ function getShiftWorkload() {
   
   const rows = [];
   launches.forEach(function(l) {
-    if (l.status === 'Готово') return;
+    if (l.status === 'Готово' || l.status === 'Выдано') return;
     const cat = catByCode[String(l.itemCode)] || {};
     rows.push({
       id: l.id,
@@ -333,7 +333,8 @@ function shiftPageFragment(safeName) {
             }).join('');
           }
         })
-        .withFailureHandler(function() { el.innerHTML = '<div class="empty">Ошибка</div>'; });
+        .withFailureHandler(function() { el.innerHTML = '<div class="empty">Ошибка</div>'; })
+        .getShiftActiveOperators();
     }
 
     function loadMachines() {
