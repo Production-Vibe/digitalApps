@@ -13,6 +13,7 @@ function getMasterPageFragment(name) {
     .filters { display: flex; gap: 8px; padding: 12px 16px; background: #fff; position: sticky; top: 60px; z-index: 9; flex-wrap: wrap; align-items: center; }
     .filters select, .filters button { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: #fff; }
     .filters button { background: #0f172a; color: #fff; cursor: pointer; }
+    .filters input[type="text"], .filters input[type="date"], .filters input[type="number"] { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: #fff; height: 38px; box-sizing: border-box; }
     
     .container { 
       max-width: 800px; 
@@ -738,6 +739,54 @@ function getMasterPageFragment(name) {
     <div class="section-card">
       <h3 class="section-title">⚙️ Загрузка по типам обработки</h3>
       <div id="dashOps"></div>
+    </div>
+    
+    <div class="section-card" id="historyBlock">
+      <div class="section-title-row">
+        <h3 class="section-title">📜 История запусков</h3>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span id="histInfo" style="font-size:12px;color:#94a3b8;"></span>
+          <button class="btn-ghost" onclick="loadLaunchesHistory()">🔄 Обновить</button>
+        </div>
+      </div>
+      <div class="filters" style="position:static;">
+        <select id="histStatus" onchange="loadLaunchesHistory()">
+          <option value="">Все статусы</option>
+          <option value="К запуску">К запуску</option>
+          <option value="Выдано">Выдано</option>
+          <option value="В работе">В работе</option>
+          <option value="Готово">Готово</option>
+        </select>
+        <input type="text" id="histSearch" placeholder="🔍 Код или наименование" onkeydown="if(event.key==='Enter')loadLaunchesHistory();">
+        <input type="date" id="histDateFrom" title="Дата с" onchange="loadLaunchesHistory()">
+        <input type="date" id="histDateTo" title="Дата по" onchange="loadLaunchesHistory()">
+        <button onclick="loadLaunchesHistory()">Найти</button>
+        <button class="ops-clear" onclick="clearHistFilters()">Сброс</button>
+      </div>
+      <div id="histTableWrap"><div class="empty-state"><div class="icon">⏳</div><p>Загрузка...</p></div></div>
+      <div id="histPager" style="display:none;justify-content:space-between;align-items:center;padding:8px 0 0;"></div>
+    </div>
+  </div>
+  
+  <!-- Модалка редактирования запуска -->
+  <div class="pa-modal" id="editLaunchModal" style="display:none;">
+    <div class="pa-modal-card">
+      <div class="pa-modal-header">
+        <span>✏️ Редактирование запуска</span>
+        <button class="pa-modal-close" onclick="closeEditLaunch()">✕</button>
+      </div>
+      <div class="pa-modal-body">
+        <div id="editLaunchInfo" style="font-size:13px;color:#64748b;margin-bottom:10px;"></div>
+        <label class="field-label">Номера ПА</label>
+        <input type="text" id="editPaNumbers" placeholder="Например: 001 или 009-011" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">
+        <label class="field-label">Кол-во</label>
+        <input type="number" id="editQty" min="0" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">
+        <div id="editLaunchHint" style="font-size:12px;color:#b45309;margin-bottom:10px;"></div>
+        <div class="pa-modal-actions">
+          <button onclick="confirmEditLaunch()">✅ Сохранить</button>
+          <button onclick="closeEditLaunch()">Отмена</button>
+        </div>
+      </div>
     </div>
   </div>
   
@@ -1502,7 +1551,7 @@ function getMasterPageFragment(name) {
     // SIDEBAR
     // ========================
     const SECTION_LOADERS = {
-      dashboard: loadDashboard,
+      dashboard: function() { loadDashboard(); loadLaunchesHistory(); },
       paLoad: loadPaLoad,
       units: loadUnitsSummary,
       operations: loadOperationsSummary,
@@ -1690,6 +1739,176 @@ function getMasterPageFragment(name) {
       }
       detail.innerHTML = html;
       detail.classList.add('show');
+    }
+    
+    // ========================
+    // ИСТОРИЯ ЗАПУСКОВ
+    // ========================
+    let histData = null;
+    let editingLaunchId = null;
+    
+    function loadLaunchesHistory() {
+      const statusEl = document.getElementById('histStatus');
+      if (!statusEl) return;
+      loadLaunchesHistoryPage({
+        status: statusEl.value,
+        search: document.getElementById('histSearch').value.trim(),
+        dateFrom: document.getElementById('histDateFrom').value,
+        dateTo: document.getElementById('histDateTo').value,
+        page: 1,
+        pageSize: 20
+      });
+    }
+    
+    let histLastFilters = null;
+    
+    function loadLaunchesHistoryPage(filters) {
+      histLastFilters = Object.assign({}, filters);
+      const wrap = document.getElementById('histTableWrap');
+      if (!wrap) return;
+      wrap.innerHTML = '<div class="empty-state"><div class="icon">⏳</div><p>Загрузка...</p></div>';
+      const info = document.getElementById('histInfo');
+      if (info) info.textContent = '';
+      const pager = document.getElementById('histPager');
+      if (pager) pager.style.display = 'none';
+      google.script.run
+        .withSuccessHandler(function(data) {
+          histData = data || { items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
+          renderLaunchesHistory();
+        })
+        .withFailureHandler(function() {
+          wrap.innerHTML = '<div class="empty-state"><div class="icon">❌</div><p>Ошибка загрузки</p></div>';
+        })
+        .getLaunchesHistory(filters);
+    }
+    
+    function clearHistFilters() {
+      document.getElementById('histStatus').value = '';
+      document.getElementById('histSearch').value = '';
+      document.getElementById('histDateFrom').value = '';
+      document.getElementById('histDateTo').value = '';
+      loadLaunchesHistory();
+    }
+    
+    function renderLaunchesHistory() {
+      const wrap = document.getElementById('histTableWrap');
+      if (!wrap) return;
+      const items = histData.items || [];
+      if (items.length === 0) {
+        wrap.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>Запусков не найдено</p></div>';
+      } else {
+        let h = '<table class="agg-table" style="width:100%;">';
+        h += '<tr><th>Дата</th><th>Код</th><th>Наименование</th><th>Узел</th><th>ПА</th><th>Кол-во</th><th>Статус</th><th>Кто</th><th style="width:80px;"></th></tr>';
+        items.forEach(function(l) {
+          const sc = (!l.status || l.status === '—') ? '--' : getStatusClass(l.status);
+          h += '<tr>';
+          h += '<td>' + l.createdAt + '</td>';
+          h += '<td>' + l.itemCode + '</td>';
+          h += '<td>' + l.itemName + '</td>';
+          h += '<td>' + l.unit + '</td>';
+          h += '<td>' + l.paNumbers + '</td>';
+          h += '<td>' + l.qty + '</td>';
+          h += '<td><span class="status-chip status-chip-' + sc + '">' + (l.status || '—') + '</span></td>';
+          h += '<td>' + l.createdBy + '</td>';
+          h += '<td style="white-space:nowrap;">';
+          h += '<button class="btn-ghost" style="padding:4px 8px;font-size:12px;margin-right:4px;" data-id="' + l.id + '" data-qty="' + l.qty + '" data-pa="' + l.paNumbers + '" title="Редактировать" onclick="openEditLaunch(this)">✏️</button>';
+          if (l.status === 'Готово') {
+            h += '<button class="btn-ghost" style="padding:4px 8px;font-size:12px;opacity:.35;cursor:not-allowed;" title="Завершён — отмена недоступна">🗑️</button>';
+          } else {
+            h += '<button class="btn-ghost" style="padding:4px 8px;font-size:12px;color:#ef4444;" data-id="' + l.id + '" data-code="' + l.itemCode + '" title="Отменить" onclick="cancelLaunch(this)">🗑️</button>';
+          }
+          h += '</td>';
+          h += '</tr>';
+        });
+        h += '</table>';
+        wrap.innerHTML = h;
+      }
+      
+      const info = document.getElementById('histInfo');
+      if (info) info.textContent = 'Всего: ' + histData.total;
+      
+      const pager = document.getElementById('histPager');
+      if (pager) {
+        const tp = histData.totalPages || 0;
+        const pc = histData.page || 1;
+        if (tp > 1) {
+          pager.style.display = 'flex';
+          pager.innerHTML =
+            '<span style="font-size:13px;color:#64748b;">Стр. ' + pc + ' из ' + tp + '</span>' +
+            '<div>' +
+            (pc > 1 ? '<button class="btn-ghost" onclick="historyPage(' + (pc - 1) + ')">← Назад</button>' : '') +
+            (pc < tp ? '<button class="btn-ghost" style="margin-left:6px;" onclick="historyPage(' + (pc + 1) + ')">Вперёд →</button>' : '') +
+            '</div>';
+        } else {
+          pager.style.display = 'none';
+        }
+      }
+    }
+    
+    function historyPage(page) {
+      loadLaunchesHistoryPage({
+        status: document.getElementById('histStatus').value,
+        search: document.getElementById('histSearch').value.trim(),
+        dateFrom: document.getElementById('histDateFrom').value,
+        dateTo: document.getElementById('histDateTo').value,
+        page: page,
+        pageSize: 20
+      });
+    }
+    
+    function cancelLaunch(btn) {
+      const id = btn.getAttribute('data-id');
+      const code = btn.getAttribute('data-code') || '';
+      if (!id) return;
+      if (!confirm('Отменить запуск "' + code + '" (#' + id + ')?\\nПозиция вернётся в «Не запущен», ПА освободятся.')) return;
+      google.script.run
+        .withSuccessHandler(function(r) {
+          if (r && r.error) { showToast('❌ ' + r.error); return; }
+          showToast('✅ Запуск отменён');
+          loadLaunchesHistory();
+          loadCatalog();
+          if (currentSection === 'dashboard') loadDashboard();
+        })
+        .withFailureHandler(function(e) { showToast('❌ ' + (e.message || e)); })
+        .deleteLaunch(id);
+    }
+    
+    function openEditLaunch(btn) {
+      const id = btn.getAttribute('data-id');
+      editingLaunchId = id;
+      document.getElementById('editPaNumbers').value = btn.getAttribute('data-pa') || '';
+      document.getElementById('editQty').value = btn.getAttribute('data-qty') || '';
+      document.getElementById('editLaunchHint').textContent = '';
+      const item = histData.items.find(function(l) { return l.id === id; });
+      document.getElementById('editLaunchInfo').textContent =
+        item ? (item.itemCode + ' — ' + item.itemName + ' (' + item.unit + ')') : ('Запуск #' + id);
+      document.getElementById('editLaunchModal').style.display = 'flex';
+    }
+    
+    function closeEditLaunch() {
+      document.getElementById('editLaunchModal').style.display = 'none';
+      editingLaunchId = null;
+    }
+    
+    function confirmEditLaunch() {
+      const id = editingLaunchId;
+      if (!id) return;
+      const paNumbers = document.getElementById('editPaNumbers').value.trim();
+      const qty = parseInt(document.getElementById('editQty').value, 10);
+      const hint = document.getElementById('editLaunchHint');
+      if (isNaN(qty) || qty < 0) { hint.textContent = 'Укажите корректное количество'; return; }
+      if (!paNumbers) { hint.textContent = 'Укажите номера ПА'; return; }
+      google.script.run
+        .withSuccessHandler(function(r) {
+          if (r && r.error) { hint.textContent = r.error; return; }
+          closeEditLaunch();
+          showToast('✅ Запуск обновлён');
+          loadLaunchesHistory();
+          loadCatalog();
+          if (currentSection === 'dashboard') loadDashboard();
+        })
+        .withFailureHandler(function(e) { hint.textContent = e.message || e; })
+        .updateLaunch(id, { paNumbers: paNumbers, qty: qty });
     }
     
     // ========================
@@ -1913,11 +2132,6 @@ function getMasterPageFragment(name) {
     
     restoreSidebar();
     loadCatalog();
-    
-    // Автообновление дашборда каждые 60 сек (только когда вкладка активна)
-    setInterval(function() {
-      if (currentSection === 'dashboard') loadDashboard();
-    }, 60000);
   </script>
   `;
 }

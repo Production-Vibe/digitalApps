@@ -368,8 +368,12 @@ function updateLaunch(launchId, fields) {
 // Вспомогательная: проверяет, входит ли номер ПА в текущий запуск (строку)
 function isInCurrentLaunch(data, rowIndex, paNumber) {
   const raw = String(data[rowIndex - 1][5] || '');
-  const nums = expandPARange(raw);
-  return nums.indexOf(paNumber) > -1;
+  const parts = raw.split(',');
+  for (var i = 0; i < parts.length; i++) {
+    const nums = expandPARange(parts[i]);
+    if (nums.indexOf(paNumber) > -1) return true;
+  }
+  return false;
 }
 
 /**
@@ -378,21 +382,56 @@ function isInCurrentLaunch(data, rowIndex, paNumber) {
  */
 function getLaunchesHistory(filters) {
   filters = filters || {};
-  const launches = getLaunchRecords();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Launches');
+  if (!sheet) return { items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
+  
+  const tz = Session.getScriptTimeZone();
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  const data = (lastRow > 0) ? sheet.getRange(1, 1, lastRow, lastCol).getValues() : [];
+  
+  const records = [];
+  for (let i = 1; i < data.length; i++) {
+    if (!data[i][0]) continue;
+    let raw, date, dateNum;
+    raw = data[i][8];
+    date = (raw instanceof Date) ? raw : new Date(raw);
+    dateNum = date.getTime() || 0;
+    records.push({
+      id: String(data[i][0]),
+      itemCode: String(data[i][1]),
+      itemName: String(data[i][2]),
+      unit: String(data[i][3]),
+      qty: Number(data[i][4]) || 0,
+      paNumbers: String(data[i][5]),
+      status: String(data[i][6] || '—'),
+      createdBy: String(data[i][7]),
+      createdAt: (raw instanceof Date) ? Utilities.formatDate(raw, tz, 'dd.MM.yyyy HH:mm') : String(raw || ''),
+      dateNum: dateNum,
+      launchType: String(data[i][9] || ''),
+      reason: String(data[i][10] || ''),
+      relatedId: String(data[i][11] || '')
+    });
+  }
   
   // Фильтр по статусу
   var status = filters.status;
   if (status) {
-    launches = launches.filter(function(l) { return l.status === status; });
+    records = records.filter(function(l) { return l.status === status; });
   }
   
   // Фильтр по номеру ПА
   var paNumber = filters.paNumber;
   if (paNumber) {
-    launches = launches.filter(function(l) {
+    records = records.filter(function(l) {
       if (!l.paNumbers) return false;
-      const nums = expandPARange(String(l.paNumbers));
-      return nums.indexOf(String(paNumber).padStart(3, '0')) > -1;
+      const parts = String(l.paNumbers).split(',');
+      const target = String(paNumber).padStart(3, '0');
+      for (var i = 0; i < parts.length; i++) {
+        if (expandPARange(parts[i]).indexOf(target) > -1) return true;
+      }
+      return false;
     });
   }
   
@@ -400,7 +439,7 @@ function getLaunchesHistory(filters) {
   var search = filters.search;
   if (search) {
     var q = String(search).toLowerCase().trim();
-    launches = launches.filter(function(l) {
+    records = records.filter(function(l) {
       return String(l.itemCode).toLowerCase().indexOf(q) > -1 ||
              String(l.itemName).toLowerCase().indexOf(q) > -1;
     });
@@ -410,25 +449,27 @@ function getLaunchesHistory(filters) {
   var dateFrom = filters.dateFrom;
   var dateTo = filters.dateTo;
   if (dateFrom || dateTo) {
-    launches = launches.filter(function(l) {
-      var t = new Date(l.createdAt);
-      if (dateFrom && t < new Date(dateFrom)) return false;
-      if (dateTo && t > new Date(dateTo).setHours(23, 59, 59, 999)) return false;
+    var fromMs = dateFrom ? new Date(dateFrom).getTime() : null;
+    var toMs = dateTo ? new Date(dateTo).setHours(23, 59, 59, 999) : null;
+    records = records.filter(function(l) {
+      if (!l.dateNum) return (dateFrom ? false : true);
+      if (fromMs && l.dateNum < fromMs) return false;
+      if (toMs && l.dateNum > toMs) return false;
       return true;
     });
   }
   
   // Сортируем по дате (новые сверху)
-  launches.sort(function(a, b) {
-    return new Date(b.createdAt) - new Date(a.createdAt);
+  records.sort(function(a, b) {
+    return (b.dateNum || 0) - (a.dateNum || 0);
   });
   
   // Пагинация
   var page = Math.max(parseInt(filters.page) || 1, 1);
   var pageSize = Math.max(parseInt(filters.pageSize) || 20, 1);
-  var total = launches.length;
+  var total = records.length;
   var start = (page - 1) * pageSize;
-  var items = launches.slice(start, start + pageSize);
+  var items = records.slice(start, start + pageSize);
   
   return {
     items: items,
