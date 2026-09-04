@@ -13,6 +13,7 @@ function getShiftWorkload() {
   const catalog = getCatalogForMaster();
   const catByCode = {};
   catalog.forEach(function(c) { catByCode[String(c.code)] = c; });
+  const issuedMap = getIssuedWorkOrderQty();
   
   const rows = [];
   launches.forEach(function(l) {
@@ -29,6 +30,7 @@ function getShiftWorkload() {
       createdBy: l.createdBy,
       createdAt: l.createdAt,
       priority: cat.priority || '',
+      issued: issuedMap[String(l.id)] || 0,
       cutting: cat.cutting || '', thermo: cat.thermo || '', plasma: cat.plasma || '',
       turning: cat.turning || '', milling: cat.milling || '', drilling: cat.drilling || '',
       metalwork: cat.metalwork || '', bending: cat.bending || '', coating: cat.coating || ''
@@ -47,7 +49,7 @@ function getShiftMachines() {
   return getMachines();
 }
 
-// Сколько уже выдано по запуску (сумма кол-ва выданных WorkOrders)
+// Сколько уже выдано по запуску (сумма кол-ва выданных WorkOrders, по launchId)
 function getIssuedWorkOrderQty() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('WorkOrders');
@@ -58,12 +60,13 @@ function getIssuedWorkOrderQty() {
   headers.forEach(function(name, idx) { h[name.toLowerCase()] = idx; });
   const map = {};
   for (let i = 1; i < data.length; i++) {
-    const code = String(data[i][h['код детали']] != null ? data[i][h['код детали']] : data[i][1]);
+    const launchId = String(data[i][h['launch id']] != null ? data[i][h['launch id']] : '');
+    if (!launchId) continue;
     const st = String(data[i][h['статус']] !== undefined ? data[i][h['статус']] : data[i][11]);
     if (st === 'cancelled' || st === 'rejected') continue;
     const qty = Number(data[i][h['кол-во']] != null ? data[i][h['кол-во']] : data[i][10]) || 0;
-    if (!map[code]) map[code] = 0;
-    map[code] += qty;
+    if (!map[launchId]) map[launchId] = 0;
+    map[launchId] += qty;
   }
   return map;
 }
@@ -85,7 +88,7 @@ function issueWorkOrder(launchId, operatorName, machine, quantity) {
   
   // Считаем уже выданное
   const issuedMap = getIssuedWorkOrderQty();
-  const issued = issuedMap[String(launch.itemCode)] || 0;
+  const issued = issuedMap[String(launchId)] || 0;
   const remaining = launch.qty - issued;
   if (quantity > remaining) {
     return { error: 'Нельзя выдать ' + quantity + ' — осталось только ' + remaining + ' (уже выдано ' + issued + ' из ' + launch.qty + ')' };
@@ -96,9 +99,10 @@ function issueWorkOrder(launchId, operatorName, machine, quantity) {
   let woSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('WorkOrders');
   if (!woSheet) {
     woSheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet('WorkOrders');
-    woSheet.getRange(1, 1, 1, 12).setValues([[
+    woSheet.getRange(1, 1, 1, 13).setValues([[
       'Номер', 'Код детали', 'Наименование', 'Обозначение', 'Узел',
-      'Программа', 'Заказчик', 'СП', 'Оператор', 'Станок', 'Кол-во', 'Статус'
+      'Программа', 'Заказчик', 'СП', 'Оператор', 'Станок', 'Кол-во', 'Статус',
+      'Launch ID'
     ]]);
     woSheet.setFrozenRows(1);
   }
@@ -119,7 +123,8 @@ function issueWorkOrder(launchId, operatorName, machine, quantity) {
     operatorName,
     machine,
     quantity,
-    'created'
+    'created',
+    launch.id
   ]);
   
   // В очередь печати
@@ -276,7 +281,6 @@ function shiftPageFragment(safeName) {
 
   <script>
     let rows = [];
-    let issuedMap = {};
     let activeOperators = [];
     let machines = [];
     let selectedLaunch = null;
@@ -303,7 +307,6 @@ function shiftPageFragment(safeName) {
       google.script.run
         .withSuccessHandler(function(data) {
           rows = data || [];
-          issuedMap = (issuedMap && Object.keys(issuedMap).length) ? issuedMap : fetchIssued();
           fillUnitFilter();
           renderRows();
         })
@@ -311,13 +314,6 @@ function shiftPageFragment(safeName) {
           wrap.innerHTML = '<div class="empty">❌ Ошибка: ' + (e.message || e) + '</div>';
         })
         .getShiftWorkload();
-    }
-
-    function fetchIssued() {
-      google.script.run
-        .withSuccessHandler(function(m) { issuedMap = m || {}; renderRows(); })
-        .getIssuedWorkOrderQty();
-      return {};
     }
 
     function loadOperators() {
@@ -379,7 +375,7 @@ function shiftPageFragment(safeName) {
       let h = '<table><thead><tr><th>Код</th><th>Наименование</th><th>Узел</th><th>ПА</th>';
       h += '<th>Осталось</th><th>Типы</th><th></th></tr></thead><tbody>';
       list.forEach(function(r) {
-        const issued = issuedMap[String(r.itemCode)] || 0;
+        const issued = r.issued || 0;
         const remain = Math.max(r.qty - issued, 0);
         const ops = opKeys.filter(function(k){ return isYes(r[k]); }).map(opLabel);
         const opsHtml = ops.length ? ops.map(function(o){ return '<span class="op-tag">' + o + '</span>'; }).join('') : '<span class="muted">—</span>';
@@ -398,7 +394,7 @@ function shiftPageFragment(safeName) {
       const id = el.getAttribute('data-id');
       selectedLaunch = rows.filter(function(r){ return r.id === id; })[0];
       if (!selectedLaunch) return;
-      const issued = issuedMap[String(selectedLaunch.itemCode)] || 0;
+      const issued = selectedLaunch.issued || 0;
       const remain = Math.max(selectedLaunch.qty - issued, 0);
       document.getElementById('issueInfo').textContent = selectedLaunch.itemCode + ' — ' + selectedLaunch.itemName + ' (ПА ' + selectedLaunch.paNumbers + ')';
       

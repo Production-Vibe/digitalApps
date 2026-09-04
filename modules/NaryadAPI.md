@@ -207,10 +207,13 @@ function updatePlanningStatusByCode(itemCode, program, newStatus) {
   
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === itemCode && data[i][20] === program) {
-      sheet.getRange(i + 1, 25).setValue(newStatus); // Y = 25
-      break;
-    }
+    if (data[i][0] !== itemCode) continue;
+    // Если программа задана (путь via PlanningAPI) — матчим и по ней.
+    // Если пуста (наряды из ShiftUI, где программа не хранится) — берём первую
+    // строку с этим кодом, иначе статус не обновился бы вовсе.
+    if (program && data[i][20] !== program) continue;
+    sheet.getRange(i + 1, 25).setValue(newStatus); // Y = 25
+    break;
   }
 }
 
@@ -234,6 +237,27 @@ function operatorSubmitTransition(data) {
   
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_TRANSITIONS);
   if (!sheet) return {error: 'Лист Переходы не найден'};
+  
+  // Защита от двойной отправки: не создаём дубль, если такой же переход
+  // уже был записан в последние 60 секунд (тот же наряд, описание, оператор).
+  const existing = getAllTransitionsRaw();
+  const nowMs = new Date().getTime();
+  const normDesc = String(data.description || '').trim();
+  const normOp = String(data.operator || '').trim();
+  const normMachine = String(data.machine || '').trim();
+  for (let k = 0; k < existing.length; k++) {
+    const t = existing[k];
+    if (String(t[0]) === data.naryad_number &&
+        String(t[2] || '').trim() === normDesc &&
+        String(t[3] || '').trim() === normOp &&
+        String(t[6] || '').trim() === normMachine) {
+      let lastTs = 0;
+      try { lastTs = new Date(t[9]).getTime(); } catch (e) { lastTs = 0; }
+      if ((nowMs - lastTs) < 60000) {
+        return {status: 'ok', tp: tpStr, duplicate: true};
+      }
+    }
+  }
   
   sheet.appendRow([
     data.naryad_number,
@@ -444,7 +468,33 @@ function checkTransition(data) {
   return {status: 'checked'};
 }
 
+/**
+ * Проверка роли пользователя по листу Сотрудники (login | password | ФИО | role).
+ * Принимает login или ФИО.
+ */
+function isRole(user, expectedRole) {
+  if (!user) return false;
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_EMPLOYEES);
+  if (!sheet) return false;
+  const data = sheet.getDataRange().getValues();
+  const needle = String(user);
+  for (let i = 1; i < data.length; i++) {
+    const login = data[i][0] ? String(data[i][0]).trim() : '';
+    const fio = data[i][2] ? String(data[i][2]).trim() : '';
+    const role = data[i][3] ? String(data[i][3]).trim() : '';
+    if ((login === needle || fio === needle) && role === expectedRole) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function closeNaryad(data) {
+  data = data || {};
+  if (!data.closed_by) return { error: 'Не указано, кто закрывает наряд (closed_by)' };
+  if (!isRole(data.closed_by, 'otk')) {
+    return { error: 'Отказано: закрывать наряд может только ОТК' };
+  }
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NARYADY);
   if (!sheet) return {error: 'Лист Наряды не найден'};
   

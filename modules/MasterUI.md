@@ -619,10 +619,12 @@ function getMasterPageFragment(name) {
   
   <div id="section-operational" class="section active">
   <div class="filters">
-    <select id="filterUnit" onchange="renderTree()">
+    <select id="filterUnit" onchange="treeUnitChange()">
       <option value="">Все узлы</option>
     </select>
     <button onclick="loadCatalog()">🔄 Обновить</button>
+    <button onclick="expandAllTree()">📂 Развернуть всё</button>
+    <button onclick="collapseAllTree()">📁 Свернуть всё</button>
     <span id="countLabel" style="font-size:12px;color:#64748b;"></span>
   </div>
 
@@ -848,6 +850,10 @@ function getMasterPageFragment(name) {
 
     let activeOpFilters = new Set();
 
+    let currentTree = [];          // текущее построенное дерево (для expand/collapse all)
+    let treePage = 1;              // текущая страница дерева
+    const treePageSize = 50;       // корневых веток на страницу
+
     let currentLaunchItems = [];
     let occupiedPA = {};
     let currentUnit = null;
@@ -867,23 +873,32 @@ function getMasterPageFragment(name) {
       document.querySelectorAll('.ops-check:checked').forEach(function(cb) {
         activeOpFilters.add(cb.value);
       });
+      treePage = 1;
       renderTree();
     }
     
     function clearOpFilter() {
       document.querySelectorAll('.ops-check').forEach(function(cb) { cb.checked = false; });
       activeOpFilters.clear();
+      treePage = 1;
       renderTree();
     }
     
     function onSearch(query) {
       searchQuery = query.toLowerCase().trim();
+      treePage = 1;
       renderTree();
     }
     
     function clearSearch() {
       document.getElementById('searchInput').value = '';
       searchQuery = '';
+      treePage = 1;
+      renderTree();
+    }
+    
+    function treeUnitChange() {
+      treePage = 1;
       renderTree();
     }
     
@@ -931,6 +946,7 @@ function getMasterPageFragment(name) {
         .withSuccessHandler(function(data) {
           allData = enrichCatalog(data || []);
           loadUnits();
+          treePage = 1;
           renderTree();
         })
         .withFailureHandler(function(e) {
@@ -1011,13 +1027,35 @@ function getMasterPageFragment(name) {
         });
       }
       
-      // Поиск
+      // Поиск — сохраняем иерархию: включаем предков найденных узлов
       if (searchQuery) {
-        filtered = filtered.filter(function(item) {
+        var matched = filtered.filter(function(item) {
           const code = String(item.code || '').toLowerCase();
           const name = String(item.name || '').toLowerCase();
           return code.indexOf(searchQuery) !== -1 || name.indexOf(searchQuery) !== -1;
         });
+        var byCode = {};
+        allData.forEach(function(it) { byCode[it.code] = it; });
+        var result = [];
+        var seen = {};
+        matched.forEach(function(item) {
+          // восходим по коду, добавляя всех существующих предков
+          var code = item.code;
+          while (code && !seen[code]) {
+            if (byCode[code]) {
+              seen[code] = true;
+              result.push(byCode[code]);
+              // авто-раскрываем предков найденного узла
+              if (code !== item.code) expandedNodes.add('node-' + code);
+            }
+            const lastDot = code.lastIndexOf('.');
+            const lastSlash = code.lastIndexOf('/');
+            const lastSep = Math.max(lastDot, lastSlash);
+            if (lastSep === -1) break;
+            code = code.substring(0, lastSep);
+          }
+        });
+        filtered = result;
       }
       // Фильтр по типам обработки (ИЛИ)
       if (activeOpFilters.size > 0) {
@@ -1037,12 +1075,27 @@ function getMasterPageFragment(name) {
       }
       
       const tree = buildTree(filtered);
-      
+      currentTree = tree;
+
+      // Пагинация по корневым веткам
+      const treeTotalPages = Math.max(Math.ceil(tree.length / treePageSize), 1);
+      if (treePage > treeTotalPages) treePage = treeTotalPages;
+      const pageStart = (treePage - 1) * treePageSize;
+      const pageRoots = tree.slice(pageStart, pageStart + treePageSize);
+
       let html = '';
-      tree.forEach(function(node) {
+      pageRoots.forEach(function(node) {
         html += renderNode(node, 0);
       });
-      
+
+      if (treeTotalPages > 1) {
+        html += '<div class="tree-pagination" style="display:flex;align-items:center;justify-content:center;gap:12px;padding:14px 0;font-size:13px;color:#64748b;">' +
+          '<button class="btn" onclick="treePagePrev()" ' + (treePage <= 1 ? 'disabled' : '') + '>← Пред.</button>' +
+          '<span>Веток: ' + tree.length + ' • Стр. ' + treePage + '/' + treeTotalPages + '</span>' +
+          '<button class="btn" onclick="treePageNext()" ' + (treePage >= treeTotalPages ? 'disabled' : '') + '>След. →</button>' +
+          '</div>';
+      }
+
       container.innerHTML = html;
       
       // Восстанавливаем состояние раскрытия
@@ -1059,6 +1112,35 @@ function getMasterPageFragment(name) {
       });
       
       updateBatchBar();
+    }
+    
+    function treePagePrev() {
+      if (treePage > 1) { treePage--; renderTree(); }
+    }
+    
+    function treePageNext() {
+      treePage++; renderTree();
+    }
+    
+    function collectBranchCodes(nodes, out) {
+      nodes.forEach(function(node) {
+        if (node.children.length > 0) {
+          out.push('node-' + node.item.code);
+          collectBranchCodes(node.children, out);
+        }
+      });
+    }
+    
+    function expandAllTree() {
+      const ids = [];
+      collectBranchCodes(currentTree, ids);
+      ids.forEach(function(id) { expandedNodes.add(id); });
+      renderTree();
+    }
+    
+    function collapseAllTree() {
+      expandedNodes.clear();
+      renderTree();
     }
     
     function renderNode(node, level) {

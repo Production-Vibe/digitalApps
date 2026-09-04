@@ -32,9 +32,10 @@ function openShift(operatorName, machine) {
 }
 
 /**
- * Закрыть смену. Если у оператора несколько открытых — закрывает последнюю.
+ * Закрыть смену оператора. Если передан shiftId — закрывает конкретную,
+ * иначе (обратная совместимость) — последнюю открытую.
  */
-function closeShift(operatorName) {
+function closeShift(operatorName, shiftId) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_SHIFTS);
   if (!sheet) return { error: 'Нет данных о сменах' };
@@ -42,7 +43,8 @@ function closeShift(operatorName) {
   const data = sheet.getDataRange().getValues();
   
   for (let i = data.length - 1; i >= 1; i--) {
-    if (data[i][1] === operatorName && data[i][5] === 'open') {
+    const isTarget = shiftId ? data[i][0] === shiftId : true;
+    if (isTarget && data[i][1] === operatorName && data[i][5] === 'open') {
       sheet.getRange(i + 1, 5).setValue(new Date());
       sheet.getRange(i + 1, 6).setValue('closed');
       return { status: 'ok', shiftId: data[i][0], machine: data[i][2] };

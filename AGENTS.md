@@ -136,6 +136,13 @@ markdown-обёрток/заголовков, которые нужно было
 `headers.indexOf` — см. там):
 
 - В серверных template-литералах НЕ использовать `\'` (только `'`).
+- ⚠️ `check-modules.js` НЕ отлавливает `\'` в inline-`<script>` UI-модулей
+  (он ловит только JS-синтаксис). `\'` в inline-скрипте ломает парсинг в
+  `runInsertedScripts` → `SyntaxError: Unexpected string` → «вечная загрузка».
+  Поэтому после правки любого UI-модуля (OperatorUI/MasterUI/ShiftUI) вручную
+  проверять `grep \\' <модуль>` — должно быть 0 вхождений. Кавычки в
+  HTML-атрибутах onclick передавать HTML-сущностями (`&#39;`, `&quot;` — как
+  уже используется для `acceptOrder`/`closeShift`), а не `\'`.
 - Для `\n` внутри JS-строк (напр. в `JSON.stringify` данных страницы) в `.md`
   писать `\\n`.
 - Сложные данные в HTML вставлять через `${JSON.stringify(...)}` + `escapeHtml`.

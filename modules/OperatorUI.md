@@ -262,10 +262,11 @@ function getOperatorPageFragment(name, naryadId) {
       for (var i = 0; i < activeShifts.length; i++) {
         var startDate = new Date(activeShifts[i].startTime);
         var timeStr = startDate.toLocaleString('ru-RU');
+        var shId = activeShifts[i].shiftId;
         h += '<div class="shift-active">' +
           '<div class="shift-header">🟢 Станок: ' + activeShifts[i].machine + '</div>' +
           '<div class="shift-time">Открыта: ' + timeStr + '</div>' +
-          '<button class="btn btn-danger" onclick="closeShift()" style="margin-top:8px;width:auto;padding:6px 12px;">Закрыть смену</button>' +
+          '<button class="btn btn-danger" onclick="closeShift(&#39;' + shId + '&#39;)" style="margin-top:8px;width:auto;padding:6px 12px;">Закрыть смену</button>' +
           '</div>';
       }
       
@@ -351,8 +352,12 @@ function getOperatorPageFragment(name, naryadId) {
         .openShift(OPERATOR_NAME, machine);
     }
     
-    function closeShift() {
-      if (!confirm('Закрыть последнюю открытую смену?')) return;
+    function closeShift(shiftId) {
+      var machine = '';
+      for (var i = 0; i < activeShifts.length; i++) {
+        if (activeShifts[i].shiftId === shiftId) { machine = activeShifts[i].machine; break; }
+      }
+      if (!confirm('Закрыть смену на станке ' + (machine || shiftId) + '?')) return;
       
       google.script.run
         .withSuccessHandler(function(r) {
@@ -365,7 +370,7 @@ function getOperatorPageFragment(name, naryadId) {
           console.error('Ошибка closeShift:', e);
           showToast('❌ ' + (e.message || e)); 
         })
-        .closeShift(OPERATOR_NAME);
+        .closeShift(OPERATOR_NAME, shiftId);
     }
     
     // ========================
@@ -435,13 +440,38 @@ function getOperatorPageFragment(name, naryadId) {
       if (!isClosed) {
         html += '<div class="card"><h3>➕ Добавить переход</h3>';
         html += '<label class="field-label">Описание работы</label><input type="text" id="f_description" placeholder="Например, токарная обработка">';
-        html += '<label class="field-label">Станок</label><input type="text" id="f_machine" placeholder="Например, ст. №5">';
+        html += '<label class="field-label">Станок</label><select id="f_machine" style="margin-bottom:12px;"><option value="">— выберите станок —</option></select>';
         html += '<label class="field-label">Плавка</label><input type="text" id="f_melt" placeholder="Номер плавки">';
         html += '<label class="field-label">Время (мин)</label><input type="text" id="f_time" placeholder="Например, 15 или 6:30">';
         html += '<label class="field-label">Количество, шт.</label><input type="number" inputmode="decimal" id="f_qty" placeholder="0" min="0">';
         html += '<button class="btn" id="submitBtn" onclick="submitTransition()">✅ Выполнил</button></div>';
       }
       el.innerHTML = html;
+      if (!isClosed) populateMachineSelect();
+    }
+    
+    function populateMachineSelect() {
+      var sel = document.getElementById('f_machine');
+      if (!sel) return;
+      sel.innerHTML = '<option value="">— выберите станок —</option>';
+      google.script.run
+        .withSuccessHandler(function(machines) {
+          machines = machines || [];
+          for (var i = 0; i < machines.length; i++) {
+            sel.innerHTML += '<option value="' + machines[i] + '">' + machines[i] + '</option>';
+          }
+          // Автоподстановка станка текущей открытой смены
+          for (var j = 0; j < activeShifts.length; j++) {
+            if (activeShifts[j].machine) {
+              sel.value = activeShifts[j].machine;
+              break;
+            }
+          }
+        })
+        .withFailureHandler(function(e) {
+          console.error('Ошибка загрузки станков:', e);
+        })
+        .getMachines();
     }
     
     function parseTimeInput(str) {

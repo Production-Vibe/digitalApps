@@ -75,6 +75,7 @@ function getOccupiedPANumbers() {
   const occupied = {};
   
   launches.forEach(function(l) {
+    if (l.status === 'Готово') return;
     if (!l.paNumbers) return;
     
     // Разбираем строку: "001" или "009-011" или "009, 010, 011"
@@ -251,18 +252,22 @@ function getLaunchesMap() {
 }
 
 function expandPARange(str) {
-  str = str.trim();
+  str = (str || '').trim();
+  if (!str) return [];
   if (str.indexOf('-') > -1) {
     const parts = str.split('-');
     const start = parseInt(parts[0]);
     const end = parseInt(parts[1]);
+    if (isNaN(start) || isNaN(end) || end < start) return [];
     const result = [];
     for (let n = start; n <= end; n++) {
       result.push(String(n).padStart(3, '0'));
     }
     return result;
   }
-  return [String(parseInt(str)).padStart(3, '0')];
+  const single = parseInt(str);
+  if (isNaN(single)) return [];
+  return [String(single).padStart(3, '0')];
 }
 
 function getLaunchesForWeb() {
@@ -301,6 +306,21 @@ function deleteLaunch(launchId) {
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]) === String(launchId)) {
+      // Удаляем связанные WorkOrders (по колонке "Launch ID" или "Код детали")
+      const woSheet = ss.getSheetByName('WorkOrders');
+      if (woSheet) {
+        const woData = woSheet.getDataRange().getValues();
+        const headers = woData[0];
+        const h = {};
+        headers.forEach(function(name, idx) { h[name.toLowerCase()] = idx; });
+        const launchIdx = h['launch id'] !== undefined ? h['launch id'] : -1;
+        for (let j = woData.length - 1; j >= 1; j--) {
+          const rowLaunch = (launchIdx > -1) ? String(woData[j][launchIdx]) : '';
+          if (rowLaunch === String(launchId)) {
+            woSheet.deleteRow(j + 1);
+          }
+        }
+      }
       sheet.deleteRow(i + 1);
       return { status: 'ok' };
     }
@@ -355,6 +375,15 @@ function updateLaunch(launchId, fields) {
   
   const newQty = fields.qty;
   const newPaNumbers = fields.paNumbers;
+  
+  // Изменение ПА/количества допустимо только для запуска со статусом «К запуску»,
+  // иначе рассинхронизация с уже выданными WorkOrders.
+  if (newPaNumbers !== undefined || newQty !== undefined) {
+    const currentStatus = String(data[foundRow - 1][6]);
+    if (currentStatus !== 'К запуску') {
+      return { error: 'Можно менять ПА/количество только у запуска со статусом «К запуску»' };
+    }
+  }
   
   // Проверка занятости новых ПА (если меняем ПА)
   if (newPaNumbers !== undefined) {
@@ -531,11 +560,16 @@ function getDashboardSummary() {
         paMap[num].total++;
         paMap[num].launches.push(l);
         if (l.status === 'Готово') paMap[num].completed++;
-        if (l.status === 'В работе') inWorkItems++;
-        if (l.status === 'Готово') closedItems++;
-        totalLaunchedQty += l.qty || 0;
       });
     });
+  });
+
+  // Сводные KPI — считаем ОДИН раз на запуск (не на ПА), иначе запуски
+  // на нескольких ПА учитываются многократно и дашборд завышает показатели.
+  launches.forEach(function(l) {
+    if (l.status === 'В работе') inWorkItems++;
+    if (l.status === 'Готово') closedItems++;
+    totalLaunchedQty += l.qty || 0;
   });
   
   Object.keys(paMap).forEach(function(num) {
