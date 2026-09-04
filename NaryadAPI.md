@@ -343,7 +343,7 @@ function renderNaryad(naryadId, role, name) {
       <div>
         <span class="user-name">👤 ${escapeHtml(safeName)}</span>
         <a href="?page=${escapeHtml(safeRole)}&name=${encodeURIComponent(safeName)}" class="back-link">← Назад</a>
-        <a href="?page=login" onclick="try{localStorage.removeItem('nd_login');localStorage.removeItem('nd_password');}catch(e){}" class="logout-btn" style="background:rgba(255,255,255,0.1);padding:8px 18px;border-radius:8px;color:white;text-decoration:none;">Выйти</a>
+        <a href="?page=login" onclick="event.preventDefault();try{localStorage.removeItem('nd_login');localStorage.removeItem('nd_password');}catch(e){}setTimeout(function(){window.top.location.href='${appBaseUrl()}'+'?page=login';},80);" class="logout-btn" style="background:rgba(255,255,255,0.1);padding:8px 18px;border-radius:8px;color:white;text-decoration:none;">Выйти</a>
       </div>
     </div>
     

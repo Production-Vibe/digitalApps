@@ -614,7 +614,7 @@ function getMasterPageFragment(name) {
       <div class="title">📋 Планирование запуска</div>
       <div class="user">👤 ${safeName}</div>
     </div>
-    <a href="?page=login" onclick="try{localStorage.removeItem('nd_login');localStorage.removeItem('nd_password');}catch(e){}" class="logout">Выйти</a>
+    <a href="?page=login" onclick="event.preventDefault();try{localStorage.removeItem('nd_login');localStorage.removeItem('nd_password');}catch(e){}setTimeout(function(){window.top.location.href='${appBaseUrl()}'+'?page=login';},80);" class="logout">Выйти</a>
   </div>
   
   <div id="section-operational" class="section active">

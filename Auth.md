@@ -70,6 +70,17 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+// Абсолютный базовый URL веб-приложения (без завершающего слеша).
+// Используется для навигации на верхнем уровне (вход/выход): относительные
+// ссылки типа "?page=login" резолвятся от внутреннего URL песочницы
+// (script.googleusercontent.com) и уводят в «пустоту», поэтому переходим
+// всегда по ScriptApp.getService().getUrl().
+function appBaseUrl() {
+  var url = ScriptApp.getService().getUrl() || '';
+  if (url.slice(-1) === '/') url = url.slice(0, -1);
+  return url;
+}
+
 // === СТРАНИЦА ВХОДА ===
 function renderLogin(naryadId) {
   const serverNaryadId = naryadId || '';
