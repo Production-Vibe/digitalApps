@@ -1,0 +1,9 @@
+# Playwright artifacts that hold an authenticated Google session and the
+# per-app consent approval — never commit these.
+# Patterns are relative to this directory (tests/e2e/).
+profile/
+screenshots/
+__pycache__/
+*.pyc
+*.log
+*.log.err

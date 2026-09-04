@@ -226,18 +226,37 @@ function renderLogin(naryadId) {
             if (remember) saveCredentials(loginVal, passwordVal);
             
             if (result.role === 'operator') {
+              // Оператор, как и другие полные роли, открывается ПОЛНОЙ
+              // страницей (?page=operator&name=...). Раньше сюда вставлялся
+              // фрагмент через innerHTML — при этом URL страницы не менялся
+              // (оставался ?page=login), поэтому F5 приводил к переавторизации
+              // (форма входа), если не стояла галка «запомнить». Переход на
+              // полную страницу делает refresh безболезненным ровно как у
+              // master/shift/otk: имя пользователя лежит в URL-параметре.
+              let execBase = result.execUrl || '';
+              if (execBase) {
+                if (execBase.slice(-1) === '/') execBase = execBase.slice(0, -1);
+              }
+              if (!execBase) {
+                try {
+                  const ref = document.referrer || '';
+                  const base = ref ? new URL(ref, window.top.location.origin) : null;
+                  if (base) execBase = base.origin + base.pathname;
+                } catch (e) { /* fallback ниже */ }
+              }
+              if (!execBase) {
+                try { execBase = window.top.location.origin; } catch (e2) {}
+              }
+              const qParams = { page: 'operator', name: result.name || '' };
               const savedId = window.__qrNaryadId || '';
-              google.script.run
-                .withSuccessHandler(function(fragmentHtml) {
-                  document.body.innerHTML = fragmentHtml;
-                  resetBodyLayout();
-                  runInsertedScripts(document.body);
-                })
-                .withFailureHandler(function(error) {
-                  btn.disabled = false;
-                  errorEl.innerHTML = '❌ Ошибка загрузки: ' + error;
-                })
-                .getOperatorPageFragment(result.name, savedId);
+              if (savedId) qParams.id = savedId;
+              const qstr = new URLSearchParams(qParams).toString();
+              if (execBase) {
+                window.top.location.href = execBase + '?' + qstr;
+              } else {
+                errorEl.innerHTML = '❌ Не удалось открыть страницу';
+                btn.disabled = false;
+              }
               return;
             }
             if (result.role === 'master' || result.role === 'shift' || result.role === 'otk') {
