@@ -735,7 +735,7 @@ function getMasterPageFragment(name) {
   </main>
   
   <script>
-    const MASTER_NAME = '${safeName}';
+    const MASTER_NAME = ${JSON.stringify(safeName)};
     let allData = [];
     let selectedRows = new Set();
     let expandedNodes = new Set(); // Для сохранения состояния раскрытия
@@ -925,7 +925,7 @@ function getMasterPageFragment(name) {
       // Фильтр по типам обработки (ИЛИ)
       if (activeOpFilters.size > 0) {
         filtered = filtered.filter(function(item) {
-          return Array.from(activeOpFilters).every(function(op) {
+          return Array.from(activeOpFilters).some(function(op) {
             const val = item[op];
             return val === '+' || val === '1' || val === 'ДА';
           });
@@ -1000,7 +1000,7 @@ function getMasterPageFragment(name) {
         } else {
           html += '<span style="width:16px;display:inline-block"></span> ';
         }
-        html += '<input type="checkbox" class="card-check" data-code="' + item.code + '" ' + (isSelected ? 'checked' : '') + ' onchange="toggleAssembly(this, \'' + item.code + '\')" onclick="event.stopPropagation()">';
+        html += '<input type="checkbox" class="card-check" data-code="' + item.code + '" ' + (isSelected ? 'checked' : '') + ' onchange="toggleAssembly(this, ' + item.code + ')" onclick="event.stopPropagation()">';
         html += '<span class="tree-icon">🔩</span> ';
         html += '<span class="tree-name">' + (item.name || item.code) + '</span>';
         html += '<span class="tree-type">СБОРКА</span>';
@@ -1023,7 +1023,7 @@ function getMasterPageFragment(name) {
         html += '<div class="tree-detail" style="padding-left:' + (level * 16) + 'px">';
         html += '<div class="tree-detail-row">';
         html += '<span style="width:16px;display:inline-block"></span> ';
-        html += '<input type="checkbox" class="card-check" data-code="' + item.code + '" ' + (isSelected ? 'checked' : '') + ' onchange="toggleDetail(this, \'' + item.code + '\')" onclick="event.stopPropagation()">';
+        html += '<input type="checkbox" class="card-check" data-code="' + item.code + '" ' + (isSelected ? 'checked' : '') + ' onchange="toggleDetail(this, ' + item.code + ')" onclick="event.stopPropagation()">';
         html += '<span class="tree-icon">⚙️</span> ';
         html += '<span class="tree-code">' + (item.code || '—') + '</span> ';
         html += '<span class="tree-name">' + (item.name || '—') + '</span>';
@@ -1031,7 +1031,7 @@ function getMasterPageFragment(name) {
         
         // Типы обработки
         html += '<span class="tree-ops">';
-        var ops = [
+        const ops = [
           { name: 'Рез', val: item.cutting },
           { name: 'Тер', val: item.thermo },
           { name: 'Пла', val: item.plasma },
@@ -1143,10 +1143,11 @@ function getMasterPageFragment(name) {
     }
     
     function getStatusClass(status) {
-      return status === '—' ? '--' : 
-             status === 'К запуску' ? 'К' :
-             status === 'Выдано' ? 'Выдано' :
-             status === 'В работе' ? 'В' : 'Готово';
+      if (!status || status === '—') return '--';
+      if (status === 'К запуску') return 'К';
+      if (status === 'Выдано') return 'Выдано';
+      if (status === 'В работе') return 'В';
+      return 'Готово';
     }
     
     function checkPaNumbers() {
@@ -1448,12 +1449,6 @@ function getMasterPageFragment(name) {
       document.getElementById('paModal').style.display = 'flex';
       onQtyModeChange();
     }
-    
-    document.addEventListener('click', function(e) {
-      if (e.target.classList.contains('btn-launch-single')) {
-        openLaunchModal(e.target);
-      }
-    });
     
     // ========================
     // SIDEBAR
