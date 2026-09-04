@@ -1,0 +1,20 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "AGENTS.md",
+    "docs/reports/STATUS.md",
+    "docs/specs/architecture.md",
+    "instructions/safety.md",
+    "instructions/verification.md"
+  ],
+  "permission": {
+    "skill": {
+      "*": "allow"
+    },
+    "bash": {
+      "*": "allow",
+      "git push*": "ask",
+      "rm -rf *": "ask"
+    }
+  }
+}
