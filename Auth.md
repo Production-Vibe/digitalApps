@@ -47,6 +47,9 @@ function doGet(e) {
     case 'master-app':
       html = renderMasterAppPage(name);
       break;
+    case 'shift-app':
+      html = renderShiftAppPage(name);
+      break;
     case 'naryad':
       html = renderNaryad(naryadId, role, name);
       break;
@@ -234,14 +237,15 @@ function renderLogin(naryadId) {
                 .getOperatorPageFragment(result.name, savedId);
               return;
             }
-            if (result.role === 'master') {
-              // Мастер открывается ПОЛНОЙ страницей ?page=master-app (doGet ->
-              // renderMasterAppPage). Вставка фрагмента через innerHTML +
-              // runInsertedScripts НЕ работает: песочница Apps Script (CSP)
-              // не выполняет динамически вставленный inline-<script>, поэтому
-              // дерево остаётся на вечной "Загрузка...". В полной странице
-              // <script> входит в исходно выданный документ и выполняется
-              // браузером нативно.
+            if (result.role === 'master' || result.role === 'shift') {
+              // Мастер и нач. смены открываются ПОЛНОЙ страницей
+              // (?page=master-app / ?page=shift-app) — doGet ->
+              // renderMasterAppPage / renderShiftAppPage. Вставка фрагмента через
+              // innerHTML + runInsertedScripts НЕ работает: песочница Apps Script
+              // (CSP) не выполняет динамически вставленный inline-<script>,
+              // поэтому дерево остаётся на вечной "Загрузка...". В полной
+              // странице <script> входит в исходно выданный документ и
+              // выполняется браузером нативно.
               //
               // Навигацию делаем на ВЕРХНЕЕ окно по URL запущенного веб-
               // приложения, а не через window.location (внутри iframe ведёт
@@ -262,11 +266,12 @@ function renderLogin(naryadId) {
               if (!execBase) {
                 try { execBase = window.top.location.origin; } catch (e2) {}
               }
-              const q = new URLSearchParams({ page: 'master-app', name: result.name || '' }).toString();
+              const targetRole = (result.role === 'shift') ? 'shift-app' : 'master-app';
+              const q = new URLSearchParams({ page: targetRole, name: result.name || '' }).toString();
               if (execBase) {
                 window.top.location.href = execBase + '?' + q;
               } else {
-                errorEl.innerHTML = '❌ Не удалось открыть страницу мастера';
+                errorEl.innerHTML = '❌ Не удалось открыть страницу';
                 btn.disabled = false;
               }
               return;
@@ -376,7 +381,8 @@ function getAfterLoginFragment(name, role) {
   const roleLabels = {
     'operator': 'Оператор',
     'otk': 'ОТК',
-    'master': 'Мастер'
+    'master': 'Мастер',
+    'shift': 'Нач. смены'
   };
   const roleLabel = roleLabels[role] || role;
   

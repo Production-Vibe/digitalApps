@@ -310,6 +310,27 @@ function deleteLaunch(launchId) {
 }
 
 /**
+ * Обновить статус запуска по ID.
+ * @param {string} launchId — ID запуска
+ * @param {string} newStatus — «К запуску»/«Выдано»
+ */
+function setLaunchStatus(launchId, newStatus) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_LAUNCHES);
+  if (!sheet) return { error: 'Лист Launches не найден' };
+  
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(launchId)) {
+      sheet.getRange(i + 1, 7).setValue(newStatus);
+      return { status: 'ok' };
+    }
+  }
+  
+  return { error: 'Запуск не найден: ' + launchId };
+}
+
+/**
  * Обновить поля запуска по ID.
  * @param {string} launchId — ID запуска
  * @param {Object} fields — { qty?: number, paNumbers?: string }
