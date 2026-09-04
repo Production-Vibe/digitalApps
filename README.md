@@ -25,7 +25,7 @@ WebApp (веб-интерфейс и серверная логика).
 | `master` | Начальник цеха: дерево номенклатуры, запуски на ПА, Dashboard, печать | `?page=master-app` | `MasterUI` |
 | `shift` | Начальник смены: выдача нарядов операторам из запусков | `?page=shift-app` | `ShiftUI` |
 | `operator` | Оператор: смены, наряды, тех. переходы | `?page=operator` | `OperatorUI` |
-| `otk` | ОТК: приёмка/брак/закрытие нарядов (в разработке) | — | — |
+| `otk` | ОТК: приёмка/брак/закрытие нарядов, возврат на доработку | `?page=otk-app` | `OtkUI` |
 
 ## Google Таблицы
 
@@ -34,10 +34,10 @@ WebApp (веб-интерфейс и серверная логика).
 `Сотрудники`, `Equipment`, `Наряды`, `Переходы`, `Закрытые`.
 Реальные имена/колонки — в `modules/Config.md` и `docs/specs/data-model.md`.
 
-## Модули Apps Script (12)
+## Модули Apps Script (13)
 
 `Code`, `Config`, `Auth`, `MasterUI`, `ShiftUI`, `PlanningAPI`, `CatalogAPI`,
-`Launches`, `OperatorUI`, `Shifts`, `NaryadAPI`, `PrintQueue`.
+`Launches`, `OperatorUI`, `OtkUI`, `Shifts`, `NaryadAPI`, `PrintQueue`.
 Краткое описание — в `docs/specs/architecture.md`.
 
 ## Источник правды и деплой

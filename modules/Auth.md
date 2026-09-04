@@ -50,6 +50,9 @@ function doGet(e) {
     case 'shift-app':
       html = renderShiftAppPage(name);
       break;
+    case 'otk-app':
+      html = renderOtkAppPage(name);
+      break;
     case 'naryad':
       html = renderNaryad(naryadId, role, name);
       break;
@@ -237,10 +240,10 @@ function renderLogin(naryadId) {
                 .getOperatorPageFragment(result.name, savedId);
               return;
             }
-            if (result.role === 'master' || result.role === 'shift') {
-              // Мастер и нач. смены открываются ПОЛНОЙ страницей
-              // (?page=master-app / ?page=shift-app) — doGet ->
-              // renderMasterAppPage / renderShiftAppPage. Вставка фрагмента через
+            if (result.role === 'master' || result.role === 'shift' || result.role === 'otk') {
+              // Мастер, нач. смены и ОТК открываются ПОЛНОЙ страницей
+              // (?page=master-app / ?page=shift-app / ?page=otk-app) — doGet ->
+              // renderMasterAppPage / renderShiftAppPage / renderOtkAppPage. Вставка фрагмента через
               // innerHTML + runInsertedScripts НЕ работает: песочница Apps Script
               // (CSP) не выполняет динамически вставленный inline-<script>,
               // поэтому дерево остаётся на вечной "Загрузка...". В полной
@@ -266,7 +269,7 @@ function renderLogin(naryadId) {
               if (!execBase) {
                 try { execBase = window.top.location.origin; } catch (e2) {}
               }
-              const targetRole = (result.role === 'shift') ? 'shift-app' : 'master-app';
+              const targetRole = (result.role === 'shift') ? 'shift-app' : (result.role === 'otk') ? 'otk-app' : 'master-app';
               const q = new URLSearchParams({ page: targetRole, name: result.name || '' }).toString();
               if (execBase) {
                 window.top.location.href = execBase + '?' + q;

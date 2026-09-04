@@ -20,20 +20,21 @@
 | `master` | Начальник цеха: дерево номенклатуры, запуски на ПА, Dashboard, очередь печати | `?page=master-app` | `modules/MasterUI.md`, полная страница |
 | `shift` | Начальник смены: выдача нарядов операторам из запусков | `?page=shift-app` | `modules/ShiftUI.md`, полная страница |
 | `operator` | Оператор: смены, назначенные наряды, тех. переходы | `?page=operator` | `modules/OperatorUI.md`, фрагмент |
-| `otk` | ОТК: приёмка/брак/закрытие нарядов | в разработке | не реализован |
+| `otk` | ОТК: приёмка/брак/закрытие/доработка нарядов | `?page=otk-app` | `modules/OtkUI.md`, полная страница |
 
 ## Роутинг (`modules/Auth.doGet`)
 
-Параметр `page` в URL (`modules/Auth.md:29-63`):
+Параметр `page` в URL (`modules/Auth.md:36-62`):
 
 | `?page=` | Обработчик |
 |---|---|
 | `login` | `renderLogin(naryadId)` — страница входа (default) |
 | `operator` | `renderOperatorPage(name, naryadId)` |
-| `otk` | `renderAfterLogin(name, role)` (заглушка до реализации OТК) |
+| `otk` | `renderAfterLogin(name, role)` |
 | `master` | `renderAfterLogin(name, role)` |
 | `master-app` | `renderMasterAppPage(name)` |
 | `shift-app` | `renderShiftAppPage(name)` |
+| `otk-app` | `renderOtkAppPage(name)` |
 | `naryad` | `renderNaryad(naryadId, role, name)` |
 | прочее | `renderLogin(naryadId)` |
 
@@ -44,21 +45,22 @@
 - После успешного логина:
   - `operator` → страница оператора (`?page=operator`).
   - `shift` → `?page=shift-app`.
-  - остальные (включая `master`, `otk`) → `?page=master-app` (`modules/Auth.md:240-270`).
+  - `otk` → `?page=otk-app`.
+  - остальные (включая `master`) → `?page=master-app` (`modules/Auth.md:243-272`).
 - `renderAfterLogin` / `getAfterLoginFragment` — промежуточная экранная страница
-  с role-badge и переходом (используется для `master`, `otk`, прямого захода).
+  с role-badge и переходом (используется для `master`, `otk` при прямом заходе).
 - `appBaseUrl()` — абсолютный URL WebApp для верхнеуровневой навигации
   (логин/выход); относительные `?page=` из песочницы не работают.
 
-## Заметка о роли `otk`
+## Роль `otk`
 
-Роль `otk` назначить в `Сотрудники` можно, но полноценного интерфейса пока нет:
-при логине она попадёт на `master-app` (заглушка в роутинге `Auth.md:43-46`).
-Реализация ОТК — следующий блок работ (см. `docs/чек-лист внедрения...`, ФАЗА 4).
+Полный интерфейс в `modules/OtkUI.md` (`?page=otk-app`): очередь нарядов по
+категориям (Ждут ОТК / Доработка / В работе), карточка наряда с переходом
+(принято/брак), закрытие наряда (disposition) и возврат на доработку
+(статус `rework`). Все операции защищены `isRole(name, 'otk')`.
 
 ## Расхождения в источниках (актуально на момент написания spec)
 
-- README/чек-лист упоминают `OtkUI.gs` как будущий модуль — ещё не создан.
 - `docs/Мастер-промпт.md` описывает распределение по ролям — сверять с кодом
   модулей `modules/Auth.md` и `modules/ShiftUI.md` перед реализацией.
 - Роль `shift` выходит на полную страницу `shift-app`; при этом «выдать в никуда»

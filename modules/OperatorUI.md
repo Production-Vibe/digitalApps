@@ -77,6 +77,7 @@ function getOperatorPageFragment(name, naryadId) {
     .status-created { background: var(--bg-surface-hover); color: var(--text-secondary); }
     .status-in_progress { background: #FEF3C7; color: #92400E; }
     .status-waiting_otk { background: #DBEAFE; color: #1D4ED8; }
+    .status-rework { background: #FEF3C7; color: #B45309; }
     .status-closed { background: #D1FAE5; color: #065F46; }
     
     .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); }
@@ -185,6 +186,7 @@ function getOperatorPageFragment(name, naryadId) {
       'created': 'Создан',
       'in_progress': 'В работе',
       'waiting_otk': 'Ждёт ОТК',
+      'rework': 'Доработка',
       'closed': 'Закрыт'
     };
     

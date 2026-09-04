@@ -3,9 +3,11 @@ function getNaryady() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NARYADY);
   if (!sheet) return [];
   const data = sheet.getDataRange().getValues();
+  const headers = sheetHeaders(sheet);
+  const cId = colIndexByName(headers, 'Номер наряда');
   const result = [];
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0]) result.push(data[i]);
+    if (cId >= 0 ? data[i][cId] : data[i][0]) result.push(data[i]);
   }
   return result;
 }
@@ -14,19 +16,56 @@ function getNaryad(naryadId) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NARYADY);
   if (!sheet) return null;
   const data = sheet.getDataRange().getValues();
+  const headers = sheetHeaders(sheet);
+  const cId = colIndexByName(headers, 'Номер наряда');
+  if (cId < 0) return null;
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === naryadId) return data[i];
+    if (data[i][cId] === naryadId) return data[i];
   }
   return null;
+}
+
+// Статус наряда (чтение по имени колонки 'Статус') или null, если нет.
+function getNaryadStatus(naryadId) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NARYADY);
+  if (!sheet) return null;
+  const headers = sheetHeaders(sheet);
+  const cId = colIndexByName(headers, 'Номер наряда');
+  const cStatus = colIndexByName(headers, 'Статус');
+  if (cId < 0 || cStatus < 0) return null;
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][cId] === naryadId) return data[i][cStatus];
+  }
+  return null;
+}
+
+// Устанавливает статус наряда (запись по имени колонки 'Статус').
+function setNaryadStatus(naryadId, newStatus) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NARYADY);
+  if (!sheet) return;
+  const headers = sheetHeaders(sheet);
+  const cId = colIndexByName(headers, 'Номер наряда');
+  const cStatus = colIndexByName(headers, 'Статус');
+  if (cId < 0 || cStatus < 0) return;
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][cId] === naryadId) {
+      sheet.getRange(i + 1, cStatus + 1).setValue(newStatus);
+      break;
+    }
+  }
 }
 
 function getTransitions(naryadId) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_TRANSITIONS);
   if (!sheet) return [];
   const data = sheet.getDataRange().getValues();
+  const headers = sheetHeaders(sheet);
+  const cNaryad = colIndexByName(headers, 'Наряд');
   const result = [];
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === naryadId) result.push(data[i]);
+    if (cNaryad >= 0 ? (data[i][cNaryad] === naryadId) : (data[i][0] === naryadId)) result.push(data[i]);
   }
   return result;
 }
@@ -41,42 +80,114 @@ function formatDate(date) {
   }
 }
 
+// Возвращает индекс колонки по её имени в строке заголовков (или -1).
+// Чтение полей по именам, а не по адресам: позволяет перемещать/удалять
+// лишние колонки в листе без поломки кода.
+function colIndexByName(headers, name) {
+  return headers ? headers.indexOf(name) : -1;
+}
+
+// Заголовки листа (первая строка).
+function sheetHeaders(sheet) {
+  if (!sheet) return [];
+  try {
+    return sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0] || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+// Строит массив строки по именам колонок: valuesMap {имя: значение},
+// остальные колонки — пустые (''). Порядок колонок в листе не важен.
+function rowByName(sheet, valuesMap) {
+  const headers = sheetHeaders(sheet);
+  const row = [];
+  for (let j = 0; j < headers.length; j++) row.push('');
+  for (const name in valuesMap) {
+    if (!Object.prototype.hasOwnProperty.call(valuesMap, name)) continue;
+    const idx = colIndexByName(headers, name);
+    if (idx >= 0) row[idx] = valuesMap[name];
+  }
+  return row;
+}
+
 // === ПРЕОБРАЗОВАНИЕ СТРОК ТАБЛИЦЫ В ОБЪЕКТЫ (для оператора) ===
 function naryadRowToObject(row) {
+  const headers = sheetHeaders(SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NARYADY));
+  const c = {
+    id: colIndexByName(headers, 'Номер наряда'),
+    detail_name: colIndexByName(headers, 'Деталь'),
+    detail_code: colIndexByName(headers, 'Код детали'),
+    quantity: colIndexByName(headers, 'Кол-во'),
+    status: colIndexByName(headers, 'Статус'),
+    timestamp: colIndexByName(headers, 'Дата'),
+    rework_reason: colIndexByName(headers, 'Причина доработки')
+  };
   return {
-    id: row[0],
-    detail_name: row[1],
-    detail_code: row[2],
-    quantity: row[3],
-    status: row[4],
-    timestamp: formatDate(row[5])
+    id: c.id >= 0 ? row[c.id] : row[0],
+    detail_name: c.detail_name >= 0 ? row[c.detail_name] : row[1],
+    detail_code: c.detail_code >= 0 ? row[c.detail_code] : row[2],
+    quantity: c.quantity >= 0 ? row[c.quantity] : row[3],
+    status: c.status >= 0 ? row[c.status] : row[4],
+    timestamp: formatDate(c.timestamp >= 0 ? row[c.timestamp] : row[5]),
+    rework_reason: c.rework_reason >= 0 ? row[c.rework_reason] : ''
   };
 }
 
 function transitionRowToObject(row) {
-  return {
-    naryad_id: row[0],
-    tp: row[1],
-    description: row[2],
-    operator: row[3],
-    actual_time: row[4],
-    melt: row[5],
-    machine: row[6],
-    quantity: row[7],
-    status: row[8],
-    timestamp: formatDate(row[9]),
-    accepted_qty: row[10],
-    defect_qty: row[11]
+  const headers = sheetHeaders(SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_TRANSITIONS));
+  const c = {
+    naryad_id: colIndexByName(headers, 'Наряд'),
+    tp: colIndexByName(headers, '№ п/п'),
+    description: colIndexByName(headers, 'Описание'),
+    operator: colIndexByName(headers, 'Оператор'),
+    actual_time: colIndexByName(headers, 'Время'),
+    melt: colIndexByName(headers, 'Плавка'),
+    machine: colIndexByName(headers, 'Станок'),
+    quantity: colIndexByName(headers, 'Кол-во'),
+    status: colIndexByName(headers, 'Статус'),
+    timestamp: colIndexByName(headers, 'Дата'),
+    accepted_qty: colIndexByName(headers, 'Принято'),
+    defect_qty: colIndexByName(headers, 'Брак')
   };
+  return {
+    naryad_id: c.naryad_id >= 0 ? row[c.naryad_id] : row[0],
+    tp: c.tp >= 0 ? row[c.tp] : row[1],
+    description: c.description >= 0 ? row[c.description] : row[2],
+    operator: c.operator >= 0 ? row[c.operator] : row[3],
+    actual_time: c.actual_time >= 0 ? row[c.actual_time] : row[4],
+    melt: c.melt >= 0 ? row[c.melt] : row[5],
+    machine: c.machine >= 0 ? row[c.machine] : row[6],
+    quantity: c.quantity >= 0 ? row[c.quantity] : row[7],
+    status: c.status >= 0 ? row[c.status] : row[8],
+    timestamp: formatDate(c.timestamp >= 0 ? row[c.timestamp] : row[9]),
+    accepted_qty: c.accepted_qty >= 0 ? row[c.accepted_qty] : row[10],
+    defect_qty: c.defect_qty >= 0 ? row[c.defect_qty] : row[11]
+  };
+}
+
+// Читает «сырое» значение поля строки «Переходы» по имени колонки (fallback
+// на прежний позиционный индекс, если заголовок отсутствует).
+function readTransitionRawField(row, name) {
+  const headers = sheetHeaders(SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_TRANSITIONS));
+  const fallback = {
+    'Наряд': 0, '№ п/п': 1, 'Описание': 2, 'Оператор': 3, 'Время': 4,
+    'Плавка': 5, 'Станок': 6, 'Кол-во': 7, 'Статус': 8, 'Дата': 9,
+    'Принято': 10, 'Брак': 11
+  };
+  const idx = colIndexByName(headers, name);
+  const useIdx = idx >= 0 ? idx : (fallback[name] !== undefined ? fallback[name] : -1);
+  return useIdx >= 0 ? row[useIdx] : undefined;
 }
 
 function getAllTransitionsRaw() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_TRANSITIONS);
   if (!sheet) return [];
   const data = sheet.getDataRange().getValues();
+  const cNaryad = colIndexByName(sheetHeaders(sheet), 'Наряд');
   const result = [];
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0]) result.push(data[i]);
+    if (cNaryad >= 0 ? data[i][cNaryad] : data[i][0]) result.push(data[i]);
   }
   return result;
 }
@@ -84,16 +195,28 @@ function getAllTransitionsRaw() {
 function getClosingInfo(naryadId) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CLOSED);
   if (!sheet) return null;
+  const headers = sheetHeaders(sheet);
+  const c = {
+    naryad: colIndexByName(headers, 'Наряд'),
+    total_accepted: colIndexByName(headers, 'Принято всего'),
+    total_defect: colIndexByName(headers, 'Брак всего'),
+    defect_reason: colIndexByName(headers, 'Причина брака'),
+    closing_note: colIndexByName(headers, 'Комментарий'),
+    closed_by: colIndexByName(headers, 'Кем закрыт'),
+    timestamp: colIndexByName(headers, 'Дата')
+  };
   const data = sheet.getDataRange().getValues();
+  const matchIdx = c.naryad >= 0 ? c.naryad : 0;
   for (let i = data.length - 1; i >= 1; i--) {
-    if (data[i][0] === naryadId) {
+    if (data[i][matchIdx] === naryadId) {
+      const r = data[i];
       return {
-        total_accepted: data[i][1],
-        total_defect: data[i][2],
-        defect_reason: data[i][3],
-        closing_note: data[i][4],
-        closed_by: data[i][5],
-        timestamp: formatDate(data[i][6])
+        total_accepted: c.total_accepted >= 0 ? r[c.total_accepted] : r[1],
+        total_defect: c.total_defect >= 0 ? r[c.total_defect] : r[2],
+        defect_reason: c.defect_reason >= 0 ? r[c.defect_reason] : r[3],
+        closing_note: c.closing_note >= 0 ? r[c.closing_note] : r[4],
+        closed_by: c.closed_by >= 0 ? r[c.closed_by] : r[5],
+        timestamp: formatDate(c.timestamp >= 0 ? r[c.timestamp] : r[6])
       };
     }
   }
@@ -246,51 +369,44 @@ function operatorSubmitTransition(data) {
   const normOp = String(data.operator || '').trim();
   const normMachine = String(data.machine || '').trim();
   for (let k = 0; k < existing.length; k++) {
-    const t = existing[k];
-    if (String(t[0]) === data.naryad_number &&
-        String(t[2] || '').trim() === normDesc &&
-        String(t[3] || '').trim() === normOp &&
-        String(t[6] || '').trim() === normMachine) {
-      let lastTs = 0;
-      try { lastTs = new Date(t[9]).getTime(); } catch (e) { lastTs = 0; }
-      if ((nowMs - lastTs) < 60000) {
+    const obj = transitionRowToObject(existing[k]);
+    if (String(obj.naryad_id) === data.naryad_number &&
+        String(obj.description || '').trim() === normDesc &&
+        String(obj.operator || '').trim() === normOp &&
+        String(obj.machine || '').trim() === normMachine) {
+      const rawTs = readTransitionRawField(existing[k], 'Дата');
+      const ts = rawTs ? new Date(rawTs).getTime() : 0;
+      if (ts && !isNaN(ts) && (nowMs - ts) < 60000) {
         return {status: 'ok', tp: tpStr, duplicate: true};
       }
     }
   }
   
-  sheet.appendRow([
-    data.naryad_number,
-    tpStr,
-    data.description || '',
-    data.operator,
-    data.actual_time || 0,
-    data.melt || '',
-    data.machine || '',
-    data.quantity || 0,
-    'completed',
-    new Date(),
-    '',
-    ''
-  ]);
+  sheet.appendRow(rowByName(sheet, {
+    'Наряд': data.naryad_number,
+    '№ п/п': tpStr,
+    'Описание': data.description || '',
+    'Оператор': data.operator,
+    'Время': data.actual_time || 0,
+    'Плавка': data.melt || '',
+    'Станок': data.machine || '',
+    'Кол-во': data.quantity || 0,
+    'Статус': 'completed',
+    'Дата': new Date(),
+    'Принято': '',
+    'Брак': ''
+  }));
   
   markNaryadStarted(data.naryad_number);
+  updateNaryadStatus(data.naryad_number);
   return {status: 'ok', tp: tpStr};
 }
 
 // Переводит наряд из 'created' в 'in_progress' при первом переходе.
 // Финальный статус 'closed' выставляет только closeNaryad() (ОТК).
 function markNaryadStarted(naryadId) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NARYADY);
-  if (!sheet) return;
-  const rows = sheet.getDataRange().getValues();
-  for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] === naryadId) {
-      if (rows[i][4] === 'created') {
-        sheet.getRange(i + 1, 5).setValue('in_progress');
-      }
-      break;
-    }
+  if (getNaryadStatus(naryadId) === 'created') {
+    setNaryadStatus(naryadId, 'in_progress');
   }
 }
 
@@ -395,14 +511,14 @@ function createNaryad(data) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NARYADY);
   if (!sheet) return {error: 'Лист Наряды не найден'};
   
-  sheet.appendRow([
-    data.naryad_number,
-    data.detail_name || '',
-    data.detail_code || '',
-    data.quantity || 0,
-    'created',
-    new Date()
-  ]);
+  sheet.appendRow(rowByName(sheet, {
+    'Номер наряда': data.naryad_number,
+    'Деталь': data.detail_name || '',
+    'Код детали': data.detail_code || '',
+    'Кол-во': data.quantity || 0,
+    'Статус': 'created',
+    'Дата': new Date()
+  }));
   return {status: 'created'};
 }
 
@@ -419,18 +535,20 @@ function createTransition(data) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_TRANSITIONS);
   if (!sheet) return {error: 'Лист Переходы не найден'};
   
-  sheet.appendRow([
-    data.naryad_number,
-    tpStr,
-    data.description || '',
-    data.operator || '',
-    data.actual_time || 0,
-    data.melt || '',
-    data.machine || '',
-    data.quantity || 0,
-    'in_progress',
-    new Date()
-  ]);
+  sheet.appendRow(rowByName(sheet, {
+    'Наряд': data.naryad_number,
+    '№ п/п': tpStr,
+    'Описание': data.description || '',
+    'Оператор': data.operator || '',
+    'Время': data.actual_time || 0,
+    'Плавка': data.melt || '',
+    'Станок': data.machine || '',
+    'Кол-во': data.quantity || 0,
+    'Статус': 'in_progress',
+    'Дата': new Date(),
+    'Принято': '',
+    'Брак': ''
+  }));
   
   updateNaryadStatus(data.naryad_number);
   return {status: 'created', tp: tpStr};
@@ -439,11 +557,15 @@ function createTransition(data) {
 function completeTransition(data) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_TRANSITIONS);
   if (!sheet) return {error: 'Лист Переходы не найден'};
+  const headers = sheetHeaders(sheet);
+  const cNaryad = colIndexByName(headers, 'Наряд');
+  const cTp = colIndexByName(headers, '№ п/п');
+  const cStatus = colIndexByName(headers, 'Статус');
   
   const rows = sheet.getDataRange().getValues();
   for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] === data.naryad_number && rows[i][1] === data.tp) {
-      sheet.getRange(i + 1, 9).setValue('completed');
+    if (rows[i][cNaryad] === data.naryad_number && rows[i][cTp] === data.tp) {
+      sheet.getRange(i + 1, cStatus + 1).setValue('completed');
       break;
     }
   }
@@ -454,13 +576,19 @@ function completeTransition(data) {
 function checkTransition(data) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_TRANSITIONS);
   if (!sheet) return {error: 'Лист Переходы не найден'};
+  const headers = sheetHeaders(sheet);
+  const cNaryad = colIndexByName(headers, 'Наряд');
+  const cTp = colIndexByName(headers, '№ п/п');
+  const cStatus = colIndexByName(headers, 'Статус');
+  const cAccepted = colIndexByName(headers, 'Принято');
+  const cDefect = colIndexByName(headers, 'Брак');
   
   const rows = sheet.getDataRange().getValues();
   for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] === data.naryad_number && rows[i][1] === data.tp) {
-      sheet.getRange(i + 1, 9).setValue('checked');
-      sheet.getRange(i + 1, 10).setValue(data.accepted_qty || 0);
-      sheet.getRange(i + 1, 11).setValue(data.defect_qty || 0);
+    if (rows[i][cNaryad] === data.naryad_number && rows[i][cTp] === data.tp) {
+      sheet.getRange(i + 1, cStatus + 1).setValue('checked');
+      if (cAccepted >= 0) sheet.getRange(i + 1, cAccepted + 1).setValue(data.accepted_qty || 0);
+      if (cDefect >= 0) sheet.getRange(i + 1, cDefect + 1).setValue(data.defect_qty || 0);
       break;
     }
   }
@@ -495,28 +623,20 @@ function closeNaryad(data) {
   if (!isRole(data.closed_by, 'otk')) {
     return { error: 'Отказано: закрывать наряд может только ОТК' };
   }
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NARYADY);
-  if (!sheet) return {error: 'Лист Наряды не найден'};
   
-  const rows = sheet.getDataRange().getValues();
-  for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] === data.naryad_number) {
-      sheet.getRange(i + 1, 5).setValue('closed');
-      break;
-    }
-  }
+  setNaryadStatus(data.naryad_number, 'closed');
   
   const closedSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CLOSED);
   if (closedSheet) {
-    closedSheet.appendRow([
-      data.naryad_number,
-      data.total_accepted || 0,
-      data.total_defect || 0,
-      data.defect_reason || '',
-      data.closing_note || '',
-      data.closed_by || '',
-      new Date()
-    ]);
+    closedSheet.appendRow(rowByName(closedSheet, {
+      'Наряд': data.naryad_number,
+      'Принято всего': data.total_accepted || 0,
+      'Брак всего': data.total_defect || 0,
+      'Причина брака': data.defect_reason || '',
+      'Комментарий': data.closing_note || '',
+      'Кем закрыт': data.closed_by || '',
+      'Дата': new Date()
+    }));
   }
   
   return {status: 'closed'};
@@ -524,11 +644,13 @@ function closeNaryad(data) {
 
 function updateNaryadStatus(naryadId) {
   const transitions = getTransitions(naryadId);
+  const headers = sheetHeaders(SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_TRANSITIONS));
+  const stIdx = colIndexByName(headers, 'Статус');
   let hasInProgress = false;
   let allCompleted = true;
   
   transitions.forEach(t => {
-    const status = t[8];
+    const status = stIdx >= 0 ? t[stIdx] : t[8];
     if (status === 'in_progress') hasInProgress = true;
     if (status !== 'completed' && status !== 'checked') allCompleted = false;
   });
@@ -537,14 +659,8 @@ function updateNaryadStatus(naryadId) {
   if (hasInProgress) newStatus = 'in_progress';
   else if (allCompleted && transitions.length > 0) newStatus = 'waiting_otk';
   
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NARYADY);
-  if (!sheet) return;
-  
-  const rows = sheet.getDataRange().getValues();
-  for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] === naryadId) {
-      sheet.getRange(i + 1, 5).setValue(newStatus);
-      break;
-    }
+  const current = getNaryadStatus(naryadId);
+  if (current !== newStatus) {
+    setNaryadStatus(naryadId, newStatus);
   }
 }

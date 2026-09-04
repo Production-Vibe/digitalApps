@@ -43,16 +43,17 @@
 - **master** (нач. цеха): дерево номенклатуры, запуски на ПА, Dashboard, печать — `?page=master-app`.
 - **shift** (нач. смены): выдача нарядов операторам из запусков (станок, кол-во) — `?page=shift-app`.
 - **operator**: открывает смену на станке, принимает наряды, вводит тех. переходы — `?page=operator`.
-- **otk**: приёмка/брак/закрытие нарядов — **в разработке** (следующий этап).
+- **otk**: приёмка/брак/закрытие нарядов, возврат на доработку — `?page=otk-app` (полная страница).
 
 ### Данные и модули
 - **12 листов**: `Catalog`, `Planning`, `Launches`, `Queue`, `WorkOrders`, `Shifts`,
   `PrintQueue`, `Сотрудники`, `Equipment`, `Наряды`, `Переходы`, `Закрытые`.
-- **12 модулей Apps Script**: `Code`, `Config`, `Auth`, `MasterUI`, `ShiftUI`,
-  `PlanningAPI`, `CatalogAPI`, `Launches`, `OperatorUI`, `Shifts`, `NaryadAPI`, `PrintQueue`.
+- **13 модулей Apps Script**: `Code`, `Config`, `Auth`, `MasterUI`, `ShiftUI`,
+  `PlanningAPI`, `CatalogAPI`, `Launches`, `OperatorUI`, `OtkUI`, `Shifts`, `NaryadAPI`, `PrintQueue`.
 
 ### Жизненный цикл наряда / статусы
-- Наряд: `created → in_progress → waiting_otk → closed`.
+- Наряд: `created → in_progress → waiting_otk → closed`, а также `rework` («Доработка»):
+  ОТК возвращает наряд оператору → `rework` → оператор правит → снова `waiting_otk` → `closed`.
 - Запуск: `К запуску → Выдано → Готово`.
 
 ### Ключевые особенности
@@ -65,9 +66,11 @@
 
 ### Текущий статус (roadmap)
 - **Сделано**: стек OpenCode (спеки/контракты), роли master/shift/operator работают,
-  баг shift-выдачи исправлен, OperatorUI переведён на новый дизайн (Warm Professional).
-- **В процессе**: проверка редизайна оператора.
-- **Следующий этап**: ОТК-интерфейс (приёмка/брак/закрытие нарядов) — финальное звено потока.
+  баг shift-выдачи исправлен, OperatorUI переведён на новый дизайн (Warm Professional),
+  ОТК-интерфейс (приёмка/брак/закрытие/доработка нарядов).
+- **В процессе**: проверка редизайна оператора, тестирование ОТК-интерфейса.
+- **Следующий этап**: рефакторинг чтения остальных листов (WorkOrders/Planning и др.)
+  на чтение по именам колонок.
 - Подробности этапов — `docs/reports/`, конец каждого отчёта → следующий шаг.
 
 ## Источник правды
@@ -78,8 +81,8 @@
 markdown-обёрток/заголовков, которые нужно было бы отрезать).
 
 Код-модули (деплоятся, в `modules/`): `Code`, `Config`, `Auth`, `MasterUI`,
-`ShiftUI`, `PlanningAPI`, `CatalogAPI`, `Launches`, `OperatorUI`, `Shifts`,
-`NaryadAPI`, `PrintQueue`.
+`ShiftUI`, `PlanningAPI`, `CatalogAPI`, `Launches`, `OperatorUI`, `OtkUI`,
+`Shifts`, `NaryadAPI`, `PrintQueue`.
 
 Документы (НЕ деплоятся): `README.md`, `AGENTS.md` (в корне);
 `Мастер-промпт.md`, `МАСТЕР-ДИАГНОСТИКА.md`,
@@ -94,11 +97,11 @@ markdown-обёрток/заголовков, которые нужно было
 | `master` | Начальник цеха: дерево номенклатуры, запуски на ПА, Dashboard, очередь печати | `?page=master-app` (полная страница) |
 | `shift` | Начальник смены: выдача нарядов операторам из запусков | `?page=shift-app` (полная страница) |
 | `operator` | Оператор: смены, назначенные наряды, тех. переходы | `?page=operator` (фрагмент) |
-| `otk` | ОТК: приёмка/брак/закрытие нарядов (в разработке) | — |
+| `otk` | ОТК: приёмка/брак/закрытие нарядов, возврат на доработку | `?page=otk-app` (полная страница) |
 
 Роутинг: `doGet` в `modules/Auth.md` по параметру `page`. После логина роль
-`shift` направляется на `shift-app`, остальные (кроме `operator`) — на
-`master-app`. Детально — `docs/specs/roles.md`.
+`shift` направляется на `shift-app`, `otk` — на `otk-app`, остальные (кроме
+`operator`) — на `master-app`. Детально — `docs/specs/roles.md`.
 
 ## Деплой (только ручной!)
 
