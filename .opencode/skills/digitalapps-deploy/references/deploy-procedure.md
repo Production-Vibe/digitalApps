@@ -36,6 +36,12 @@ Source of truth for the manual deploy. See also `docs/specs/adr/deploy-manual.md
    (или «Любой в вашей организации») → Развернуть → copy the new `/exec` URL.
 5. **Warn user to test**: после логина роли `master` и `shift` открываются по
    `?page=master-app` / `?page=shift-app` (нативный URL WebApp).
+6. **Fill the deploy manifest** (ADR-004): in `docs/reports/deploy-manifest.md`,
+   append the deploy row *immediately after* step 4 (the «Новая версия» fact),
+   not in advance: date/time, `/exec` URL tail, git state at deploy time
+   (commit/tag + tree cleanliness — deploy often happens *before* commit), list
+   of changed modules, and the **mandatory** Apps Script version number.
+   Without the version number the row is not considered recorded.
 
 ## Verification rules
 
