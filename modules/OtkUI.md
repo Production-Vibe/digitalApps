@@ -12,7 +12,7 @@ function getOtkQueue() {
   const rework = [];
   const inWork = [];
   all.forEach(function(n) {
-    if (n.status === 'closed') return;
+    if (n.status === NARYAD_STATUS.CLOSED) return;
     const agg = otkAggregate(n.id);
     const item = {
       id: n.id,
@@ -26,8 +26,8 @@ function getOtkQueue() {
       totalAccepted: agg.totalAccepted,
       totalDefect: agg.totalDefect
     };
-    if (n.status === 'waiting_otk') waiting.push(item);
-    else if (n.status === 'rework') rework.push(item);
+    if (n.status === NARYAD_STATUS.WAITING_OTK) waiting.push(item);
+    else if (n.status === NARYAD_STATUS.REWORK) rework.push(item);
     else inWork.push(item);
   });
   return { waiting: waiting, rework: rework, inWork: inWork };
@@ -75,9 +75,9 @@ function otkReturnToRework(data) {
     return { error: 'Отказано: возвращать на доработку может только ОТК' };
   }
   if (!data.naryad_number) return { error: 'Не указан номер наряда' };
-  setNaryadStatus(data.naryad_number, 'rework');
+  setNaryadStatus(data.naryad_number, NARYAD_STATUS.REWORK);
   setNaryadReworkReason(data.naryad_number, data.defect_reason || data.closing_note || '');
-  return { status: 'rework' };
+  return { status: NARYAD_STATUS.REWORK };
 }
 
 function setNaryadReworkReason(naryadId, reason) {
@@ -149,6 +149,8 @@ function otkPageFragment(name) {
 
 <script>
 (function(){
+  var NARYAD_STATUS = ${JSON.stringify(NARYAD_STATUS)};
+  var NARYAD_STATUS_LABELS = ${JSON.stringify(NARYAD_STATUS_LABELS)};
   var currentTab = 'waiting';
   var allQueue = { waiting: [], rework: [], inWork: [] };
 
@@ -181,13 +183,6 @@ function otkPageFragment(name) {
   };
 
   function statusChip(s) {
-    var map = {
-      'waiting_otk': 'Ждёт ОТК',
-      'rework': 'Доработка',
-      'in_progress': 'В работе',
-      'created': 'Создан',
-      'closed': 'Закрыт'
-    };
     var cls = {
       'waiting_otk': 'st-wait',
       'rework': 'st-rework',
@@ -195,7 +190,7 @@ function otkPageFragment(name) {
       'created': 'st-created',
       'closed': 'st-closed'
     };
-    return '<span class="status-chip ' + (cls[s] || '') + '">' + (map[s] || s) + '</span>';
+    return '<span class="status-chip ' + (cls[s] || '') + '">' + (NARYAD_STATUS_LABELS[s] || s) + '</span>';
   }
 
   window.renderQueue = function() {
@@ -214,7 +209,7 @@ function otkPageFragment(name) {
         '<td><b>' + escapeHtml(n.id) + '</b></td>' +
         '<td>' + escapeHtml(n.detail_name) + '<div class="muted">' + escapeHtml(n.detail_code) + '</div></td>' +
         '<td>' + n.quantity + '</td>' +
-        '<td>' + statusChip(n.status) + (n.status === 'rework' ? note : '') + '</td>' +
+        '<td>' + statusChip(n.status) + (n.status === NARYAD_STATUS.REWORK ? note : '') + '</td>' +
         '<td>' + n.checkedCount + '/' + n.transitionCount + '</td>' +
         '<td>' + (n.totalAccepted || 0) + ' / ' + (n.totalDefect || 0) + '</td>' +
         '<td><button class="btn" onclick="openNaryad(&quot;' + escapeAttr(n.id) + '&quot;)">Открыть</button></td>' +
@@ -271,7 +266,7 @@ function otkPageFragment(name) {
     });
 
     var decision = '';
-    if (n.status !== 'closed') {
+    if (n.status !== NARYAD_STATUS.CLOSED) {
       decision =
         '<div class="decision-box">' +
           '<h3>Решение ОТК</h3>' +

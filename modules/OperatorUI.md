@@ -181,14 +181,8 @@ function getOperatorPageFragment(name, naryadId) {
   <script>
     const OPERATOR_NAME = ${JSON.stringify(safeName)};
     let currentNaryadId = ${JSON.stringify(initialId)};
-    
-    const STATUS_LABELS = {
-      'created': 'Создан',
-      'in_progress': 'В работе',
-      'waiting_otk': 'Ждёт ОТК',
-      'rework': 'Доработка',
-      'closed': 'Закрыт'
-    };
+    const NARYAD_STATUS = ${JSON.stringify(NARYAD_STATUS)};
+    const STATUS_LABELS = ${JSON.stringify(NARYAD_STATUS_LABELS)};
     
     function showToast(msg) {
       const t = document.getElementById('toast');
@@ -412,7 +406,7 @@ function getOperatorPageFragment(name, naryadId) {
     function renderCurrentNaryad(data) {
       var el = document.getElementById('current-content');
       var n = data.naryad;
-      var isClosed = n.status === 'closed';
+      var isClosed = n.status === NARYAD_STATUS.CLOSED;
       var html = '';
       if (isClosed) html += '<div class="banner banner-closed">✅ Наряд закрыт ОТК — изменения недоступны</div>';
       html += '<div class="card"><h3>📋 Наряд ' + escapeHtmlJs(n.id) + ' ' + statusBadge(n.status) + '</h3>';

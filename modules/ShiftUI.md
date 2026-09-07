@@ -123,7 +123,7 @@ function issueWorkOrder(launchId, operatorName, machine, quantity) {
     operatorName,
     machine,
     quantity,
-    'created',
+    NARYAD_STATUS.CREATED,
     launch.id
   ]);
   

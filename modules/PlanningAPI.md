@@ -187,7 +187,7 @@ function createWorkOrderFromQueue(rowData) {
     rowData[11],  // Оператор
     rowData[12],  // Станок выдачи
     rowData[6],   // Кол-во
-    'created'
+    NARYAD_STATUS.CREATED
   ]);
   
   updatePlanningStatusByCode(rowData[0], rowData[10], 'Выдано');

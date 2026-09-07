@@ -41,7 +41,10 @@ function getNaryadStatus(naryadId) {
 }
 
 // Устанавливает статус наряда (запись по имени колонки 'Статус').
+// Допускаются только значения общего словаря статусов (Config.NARYAD_STATUS).
 function setNaryadStatus(naryadId, newStatus) {
+  const allowed = Object.keys(NARYAD_STATUS).map(function(k) { return NARYAD_STATUS[k]; });
+  if (allowed.indexOf(newStatus) < 0) return;
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NARYADY);
   if (!sheet) return;
   const headers = sheetHeaders(sheet);
@@ -237,7 +240,7 @@ function getNaryadForOperator(naryadId) {
     naryad: naryadObj,
     transitions: transitions
   };
-  if (naryadObj.status === 'closed') {
+  if (naryadObj.status === NARYAD_STATUS.CLOSED) {
     result.closingInfo = getClosingInfo(naryadId);
   }
   return result;
@@ -255,7 +258,7 @@ function getOperatorInWork(operatorName) {
   
   return getNaryady()
     .map(naryadRowToObject)
-    .filter(n => n.status !== 'closed' && myNaryadIds.has(n.id));
+    .filter(n => n.status !== NARYAD_STATUS.CLOSED && myNaryadIds.has(n.id));
 }
 
 // Наряды, которые этот оператор заполнял и которые уже закрыты ОТК
@@ -268,7 +271,7 @@ function getOperatorClosed(operatorName) {
   
   return getNaryady()
     .map(naryadRowToObject)
-    .filter(n => n.status === 'closed' && myNaryadIds.has(n.id));
+    .filter(n => n.status === NARYAD_STATUS.CLOSED && myNaryadIds.has(n.id));
 }
 
 // Задачи, назначенные оператору (статус 'created' в WorkOrders)
@@ -281,7 +284,7 @@ function getAssignedWorkOrders(operatorName) {
   const result = [];
   
   for (let i = 1; i < data.length; i++) {
-    if (data[i][8] === operatorName && data[i][11] === 'created') {
+    if (data[i][8] === operatorName && data[i][11] === NARYAD_STATUS.CREATED) {
       result.push({
         orderNumber: data[i][0],
         itemCode: data[i][1],
@@ -310,8 +313,8 @@ function acceptWorkOrder(orderNumber, operatorName) {
   const data = sheet.getDataRange().getValues();
   
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === orderNumber && data[i][11] === 'created') {
-      sheet.getRange(i + 1, 12).setValue('in_progress');
+    if (data[i][0] === orderNumber && data[i][11] === NARYAD_STATUS.CREATED) {
+      sheet.getRange(i + 1, 12).setValue(NARYAD_STATUS.IN_PROGRESS);
       
       // Обновляем статус в Planning
       updatePlanningStatusByCode(data[i][1], data[i][5], 'В работе');
@@ -346,7 +349,7 @@ function updatePlanningStatusByCode(itemCode, program, newStatus) {
 function operatorSubmitTransition(data) {
   const naryad = getNaryad(data.naryad_number);
   if (!naryad) return {error: 'Наряд №' + data.naryad_number + ' не найден'};
-  if (naryad[4] === 'closed') return {error: 'Наряд уже закрыт ОТК, изменения невозможны'};
+  if (naryad[4] === NARYAD_STATUS.CLOSED) return {error: 'Наряд уже закрыт ОТК, изменения невозможны'};
   if (!data.operator) return {error: 'Не указано имя оператора'};
   
   const transitions = getTransitions(data.naryad_number);
@@ -405,8 +408,8 @@ function operatorSubmitTransition(data) {
 // Переводит наряд из 'created' в 'in_progress' при первом переходе.
 // Финальный статус 'closed' выставляет только closeNaryad() (ОТК).
 function markNaryadStarted(naryadId) {
-  if (getNaryadStatus(naryadId) === 'created') {
-    setNaryadStatus(naryadId, 'in_progress');
+  if (getNaryadStatus(naryadId) === NARYAD_STATUS.CREATED) {
+    setNaryadStatus(naryadId, NARYAD_STATUS.IN_PROGRESS);
   }
 }
 
@@ -516,10 +519,10 @@ function createNaryad(data) {
     'Деталь': data.detail_name || '',
     'Код детали': data.detail_code || '',
     'Кол-во': data.quantity || 0,
-    'Статус': 'created',
+    'Статус': NARYAD_STATUS.CREATED,
     'Дата': new Date()
   }));
-  return {status: 'created'};
+  return {status: NARYAD_STATUS.CREATED};
 }
 
 function createTransition(data) {
@@ -624,7 +627,7 @@ function closeNaryad(data) {
     return { error: 'Отказано: закрывать наряд может только ОТК' };
   }
   
-  setNaryadStatus(data.naryad_number, 'closed');
+  setNaryadStatus(data.naryad_number, NARYAD_STATUS.CLOSED);
   
   const closedSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CLOSED);
   if (closedSheet) {
@@ -639,7 +642,7 @@ function closeNaryad(data) {
     }));
   }
   
-  return {status: 'closed'};
+  return {status: NARYAD_STATUS.CLOSED};
 }
 
 function updateNaryadStatus(naryadId) {
@@ -655,9 +658,9 @@ function updateNaryadStatus(naryadId) {
     if (status !== 'completed' && status !== 'checked') allCompleted = false;
   });
   
-  let newStatus = 'created';
-  if (hasInProgress) newStatus = 'in_progress';
-  else if (allCompleted && transitions.length > 0) newStatus = 'waiting_otk';
+  let newStatus = NARYAD_STATUS.CREATED;
+  if (hasInProgress) newStatus = NARYAD_STATUS.IN_PROGRESS;
+  else if (allCompleted && transitions.length > 0) newStatus = NARYAD_STATUS.WAITING_OTK;
   
   const current = getNaryadStatus(naryadId);
   if (current !== newStatus) {
