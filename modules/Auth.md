@@ -2,7 +2,7 @@
 function checkAuth(login, password) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_EMPLOYEES);
   if (!sheet) {
-    return {success: false, error: 'Лист Сотрудники не найден'};
+    return {success: false, error: 'Лист Employees не найден'};
   }
   
   const data = sheet.getDataRange().getValues();

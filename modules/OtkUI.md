@@ -1,6 +1,6 @@
 // === ОТК — ПРИЁМКА / БРАК / ЗАКРЫТИЕ НАРЯДОВ ===
-// Полная страница ?page=otk-app. Работает с листом «Наряды» (что заполняет
-// оператор). Наряды живут в статусах:
+// Полная страница ?page=otk-app. Работает с каноном наряда (лист WorkOrders).
+// Наряды живут в статусах:
 //   created → in_progress → waiting_otk → closed
 //   waiting_otk ↴ rework (Доработка/Возврат) → оператор правит → waiting_otk …
 // Все операции ОТК требуют isRole(name, 'otk').
@@ -84,7 +84,7 @@ function setNaryadReworkReason(naryadId, reason) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NARYADY);
   if (!sheet) return;
   const headers = sheetHeaders(sheet);
-  const cId = colIndexByName(headers, 'Номер наряда');
+  const cId = colIndexByName(headers, 'Номер');
   const cReason = colIndexByName(headers, 'Причина доработки');
   if (cId < 0 || cReason < 0) return;
   const data = sheet.getDataRange().getValues();

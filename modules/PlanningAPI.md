@@ -168,9 +168,10 @@ function createWorkOrderFromQueue(rowData) {
   let woSheet = ss.getSheetByName('WorkOrders');
   if (!woSheet) {
     woSheet = ss.insertSheet('WorkOrders');
-    woSheet.getRange(1, 1, 1, 12).setValues([[
+    woSheet.getRange(1, 1, 1, 13).setValues([[
       'Номер', 'Код детали', 'Наименование', 'Обозначение', 'Узел',
-      'Программа', 'Заказчик', 'СП', 'Оператор', 'Станок', 'Кол-во', 'Статус'
+      'Программа', 'Заказчик', 'СП', 'Оператор', 'Станок', 'Кол-во', 'Статус',
+      'Причина доработки'
     ]]);
     woSheet.setFrozenRows(1);
   }

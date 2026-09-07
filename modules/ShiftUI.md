@@ -99,10 +99,10 @@ function issueWorkOrder(launchId, operatorName, machine, quantity) {
   let woSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('WorkOrders');
   if (!woSheet) {
     woSheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet('WorkOrders');
-    woSheet.getRange(1, 1, 1, 13).setValues([[
+    woSheet.getRange(1, 1, 1, 14).setValues([[
       'Номер', 'Код детали', 'Наименование', 'Обозначение', 'Узел',
       'Программа', 'Заказчик', 'СП', 'Оператор', 'Станок', 'Кол-во', 'Статус',
-      'Launch ID'
+      'Launch ID', 'Причина доработки'
     ]]);
     woSheet.setFrozenRows(1);
   }

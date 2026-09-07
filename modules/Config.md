@@ -2,10 +2,12 @@
 // Config.gs — Константы листов
 // ============================================================================
 
-const SHEET_EMPLOYEES = 'Сотрудники';
-const SHEET_NARYADY = 'Наряды';
-const SHEET_TRANSITIONS = 'Переходы';
-const SHEET_CLOSED = 'Закрытые';
+const SHEET_EMPLOYEES = 'Employees';
+// Канон наряда (ADR-003): лист WorkOrders — единый источник фактов наряда.
+// Кириллические листы «Наряды»/«Переходы»/«Закрытые» из флоу выведены.
+const SHEET_NARYADY = 'WorkOrders';
+const SHEET_TRANSITIONS = 'Transitions';
+const SHEET_CLOSED = 'ClosedOrders';
 const SHEET_SHIFTS = 'Shifts';
 const SHEET_EQUIPMENT = 'Equipment';
 

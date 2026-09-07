@@ -33,12 +33,13 @@ def _cred(role):
 
 
 # Sample known test accounts (from prior testing notes). Requires env overrides
-# on machines where these differ.
+# on machines where these differ. Names are the EXACT ФИО as stored in лист
+# Employees (as returned by checkAuth) — server-side isRole() compares by ФИО.
 CREDS = {
-    "operator": _cred("operator") or {"login": "operator", "password": "123", "name": "Иванов И.И."},
-    "otk": _cred("otk") or {"login": "otk", "password": "123", "name": "Сидоров С.С."},
-    "master": _cred("master") or {"login": "master", "password": "123", "name": "Качурин И.К."},
-    "shift": _cred("shift") or {"login": "shift", "password": "123", "name": "Умнов И.П."},
+    "operator": _cred("operator") or {"login": "operator", "password": "123", "name": "Иванов И. И."},
+    "otk": _cred("otk") or {"login": "otk", "password": "123", "name": "Сидоров С. С."},
+    "master": _cred("master") or {"login": "master", "password": "123", "name": "Качурин И. К."},
+    "shift": _cred("shift") or {"login": "shift", "password": "123", "name": "Умнов И. П."},
 }
 
 # Expected post-login landing page per role.

@@ -17,7 +17,7 @@ Excel (VBA)  →  Google Таблицы (хранилище)  →  Google Apps S
 ```
 
 - Номенклатура загружается из Excel в лист `Catalog` (`CatalogAPI.uploadCatalog`).
-- Google Таблицы — единственное хранилище (12 листов).
+- Google Таблицы — единственное хранилище (11 листов флоу).
 - Apps Script — серверная логика + веб-интерфейсы ролей (роутинг в `Auth.doGet`).
 
 ## Листы Google Таблицы
@@ -31,14 +31,16 @@ Excel (VBA)  →  Google Таблицы (хранилище)  →  Google Apps S
 | `Planning` | Черновик запусков (25 кол.) | Нач. цеха; обрабатывается `onEdit` |
 | `Launches` | Запуски на конкретные ПА (12 кол.) | `confirmBatchLaunch` / `createLaunch` |
 | `Queue` | Очередь назначений операторам | Нач. смены (`onEdit` → Queue) |
-| `WorkOrders` | Цифровые наряды операторов | `createWorkOrderFromQueue` / `issueWorkOrder` |
+| `WorkOrders` | Цифровые наряды операторов (канон наряда, ADR-003) | `createWorkOrderFromQueue` / `issueWorkOrder` |
 | `Shifts` | Смены операторов и их станки | `openShift` / `closeShift` |
 | `PrintQueue` | Очередь печати документов | `createPrintJob` |
-| `Сотрудники` | login, password, ФИО, role | Ручное администрирование |
+| `Employees` | login, password, ФИО, role (переименован из `Сотрудники`) | Ручное администрирование |
 | `Equipment` | Справочник станков | Ручное администрирование |
-| `Наряды` | Учёт нарядов (VBA-интерфейс) | VBA |
-| `Переходы` | Технологические переходы (VBA) | VBA |
-| `Закрытые` | Итоги закрытых нарядов (VBA) | VBA (`closeNaryad`) |
+| `Transitions` | Технологические переходы наряда (связь по `Номер наряда`) | Оператор / VBA |
+| `ClosedOrders` | Итоги закрытых нарядов | ОТК (`closeNaryad`) |
+
+Кириллические легаси-листы `Сотрудники`/`Наряды`/`Переходы`/`Закрытые` в флоу
+не участвуют (код их не пишет и не читает).
 
 ## Модули Apps Script
 
@@ -58,13 +60,13 @@ Excel (VBA)  →  Google Таблицы (хранилище)  →  Google Apps S
 | `OperatorUI` | Оператор: смены, наряды, тех. переходы (фрагмент) |
 | `OtkUI` | ОТК: очередь нарядов, проверка переходов, закрытие/доработка (полная страница `otk-app`) |
 | `Shifts` | Смены операторов, станки, блокировки занятости станка |
-| `NaryadAPI` | Наряды, переходы, карточки оператора, закрытие |
+| `NaryadAPI` | Канон WorkOrders (карточки), переходы, закрытие |
 | `PrintQueue` | Очередь задач на печать комплекта приложений к наряду |
 
 ## Точки входа и события
 
 - `doGet(e)` — роутинг HTML-страниц по `?page=` (`modules/Auth.md:29`).
-- `checkAuth(login, password)` — авторизация по листу `Сотрудники` (`modules/Auth.md:2`).
+- `checkAuth(login, password)` — авторизация по листу `Employees` (`modules/Auth.md:2`).
 - `doPost(e)` — приём данных от VBA (`modules/Code.md`).
 - `onEdit(e)` — событийная модель таблицы: `Planning → Queue → WorkOrders`
   (`modules/Code.md`). Триггеры настраиваются вручную в Apps Script (onEdit),
@@ -82,7 +84,7 @@ Excel (VBA)  →  Google Таблицы (хранилище)  →  Google Apps S
 4. **Выполнение:** оператор активирует смену (станок), принимает наряд в работу
    (`in_progress`), отмечает тех. переходы. Все переходы выполнены → `waiting_otk`.
 5. **Контроль ОТК:** нач. цеха/ОТК принимает или бракует, закрывает наряд →
-   `closed` + итоги в `Закрытые`. Брак → повторный запуск.
+   `closed` + итоги в `ClosedOrders`. Брак → повторный запуск.
 6. **Печать приложений (VBA):** при выдаче WorkOrder → `createPrintJob` — задача
    на печать в `PrintQueue` (один job = **весь наряд**). VBA-слушатель
    (`Module_PrintServer.bas`) опрашивает очередь, для `pending`-задач резолвит
@@ -111,9 +113,10 @@ Excel (VBA)  →  Google Таблицы (хранилище)  →  Google Apps S
 - Фрагменты: `OperatorUI` — встраивается через `innerHTML` + `runInsertedScripts`.
 - Навигация верхнего уровня — только через серверный `appBaseUrl()`.
 - Статусы Launches: `К запуску`, `Выдано`, `В работе`, `Готово`.
-- Статусы WorkOrders: `created`, `in_progress`, `waiting_otk`, `closed`.
+- Статусы WorkOrders: `created`, `in_progress`, `waiting_otk`, `rework`, `closed`.
 - **Источник фактов наряда:** `WorkOrders` — канон (ADR-003, вариант A);
-  `Наряды`/`Переходы`/`Закрытые` — учётная проекция для VBA/отображения/печати.
+  переходы — `Transitions`, итоги закрытия — `ClosedOrders`. Кириллическая
+  учётная проекция из флоу выведена.
 - ПА: 001–120, ведущие нули. Дата: `dd.MM.yyyy HH:mm`.
 - Операции Catalog: `'+'`, `'1'`, `'ДА'` означают «да».
 - Дерево номенклатуры вычисляется на клиенте (`computeType`/`computeUnit`).

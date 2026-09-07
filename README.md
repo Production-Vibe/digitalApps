@@ -29,10 +29,11 @@ WebApp (веб-интерфейс и серверная логика).
 
 ## Google Таблицы
 
-Единственное хранилище, 12 листов:
+Единственное хранилище (флоу), 11 листов:
 `Catalog`, `Planning`, `Launches`, `Queue`, `WorkOrders`, `Shifts`, `PrintQueue`,
-`Сотрудники`, `Equipment`, `Наряды`, `Переходы`, `Закрытые`.
-Реальные имена/колонки — в `modules/Config.md` и `docs/specs/data-model.md`.
+`Employees`, `Equipment`, `Transitions`, `ClosedOrders`.
+Кириллические легаси-листы `Наряды`/`Переходы`/`Закрытые`/`Сотрудники` в флоу
+не участвуют. Реальные имена/колонки — в `modules/Config.md` и `docs/specs/data-model.md`.
 
 ## Модули Apps Script (13)
 
@@ -68,7 +69,7 @@ digitalApps/
 │   ├── Launches.md          # Запуски на ПА, занятость, сводки
 │   ├── OperatorUI.md        # Оператор: смены, наряды, тех. переходы
 │   ├── Shifts.md            # Смены операторов, станки
-│   ├── NaryadAPI.md         # Наряды, переходы, закрытие
+│   ├── NaryadAPI.md         # Канон WorkOrders, переходы, закрытие (ОТК/оператор)
 │   └── PrintQueue.md        # Очередь печати
 ├── docs/
 │   ├── Мастер-промпт.md     # Документация-память (не деплоится)
@@ -90,7 +91,7 @@ digitalApps/
 
 ## Ключевые технические особенности
 
-- Роли разграничены на уровне листа `Сотрудники` (login/password/role) и
+- Роли разграничены на уровне листа `Employees` (login/password/role) и
   роутинга в `doGet` (`modules/Auth.md`).
 - `MasterUI` и `ShiftUI` грузятся как **полная страница** (`?page=master-app` /
   `?page=shift-app`) — inline-`<script>` через `innerHTML` в песочнице не
