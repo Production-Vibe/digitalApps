@@ -79,9 +79,9 @@ def trans_status(obj, i):
     return q(trs[i], "status")
 
 
-def card_text(page):
+def card_text(page, timeout=15000):
     """Текст карточки наряда из любого фрейма, дожидаясь реального рендера."""
-    deadline = time.time() + 6000 / 1000.0
+    deadline = time.time() + timeout / 1000.0
     while time.time() < deadline:
         for f in helpers.frames_with(page):
             try:
@@ -541,6 +541,8 @@ def main():
 
     env_skip_e2 = os.environ.get("ND_SKIP_E2") == "1"
     env_only_e2 = os.environ.get("ND_ONLY_E2") == "1"
+    env_scen = os.environ.get("ND_SCENARIOS") or ""
+    only_scen = [s.strip() for s in env_scen.split(",") if s.strip()]
     op_name = config.CREDS["operator"]["name"]
 
     if env_only_e2:
@@ -589,16 +591,20 @@ def main():
             page.wait_for_timeout(12000)
             fr = open_otk(page)
             # --- A: вкладки и фильтрация ---
-            ok_a, _ = wait_tab_rows(page, present=[O["aw"]], timeout=15000)
+            # Бюджет 30s (как у open_otk): наполнение #queueTable после свежей
+            # навигации при большой очереди/под нагрузкой GAS может превышать 15s.
+            ok_a, _ = wait_tab_rows(page, present=[O["aw"]], timeout=30000)
             runner.check("A: «Ждут ОТК» содержит waiting-наряд", ok_a, "")
             fr = helpers.wait_for_in_any_frame(page, "#tabInWork", timeout=15000)
             fr.click("#tabInWork")
             ok_a2, _ = wait_tab_rows(
-                page, present=[O["ai"], O["ac"]], absent=[O["aw"]], timeout=15000)
+                page, present=[O["ai"], O["ac"]], absent=[O["aw"]], timeout=30000)
             runner.check("A: «В работе» содержит in_progress И created, без waiting", ok_a2, "")
 
             for name, fn in SCENARIOS:
                 if env_skip_e2 and name.startswith("E"):
+                    continue
+                if only_scen and name not in only_scen:
                     continue
                 try:
                     fn(page)
@@ -606,7 +612,7 @@ def main():
                     traceback.print_exc()
                     runner.check("сценарий: " + name, False, str(e)[:160])
 
-            if env_skip_e2:
+            if env_skip_e2 or only_scen:
                 runner.finish()
                 return
             nav(page, "operator")

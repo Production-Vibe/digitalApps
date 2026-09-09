@@ -252,13 +252,31 @@ def otk_verify_in_waiting(page, order_number):
 
 
 def otk_open_card(page, order_number):
-    """Открыть карточку наряда по строке очереди текущей вкладки."""
+    """Открыть карточку наряда по строке очереди текущей вкладки.
+
+    Ждёт РЕНДЕР карточки (текст содержит «Наряд », без «Загрузка наряда…»),
+    а не mere-появление `#naryadCard`: openNaryad() сначала ставит плейсхолдер и
+    лишь потом асинхронно рендерит карточку; первый холодный getOtkNaryad под
+    нагрузкой GAS может превышать 6s — прежний wait_by_element давал флейк B1."""
     fr = wait_queue_table(page, timeout=30000)
     row = fr.locator("#queueTable tr", has_text=order_number).first
     row.wait_for(state="visible", timeout=20000)
     row.locator("button", has_text="Открыть").click(timeout=60000)
-    helpers.wait_for_in_any_frame(page, "#naryadCard", timeout=15000)
-    return fr
+    deadline = time.time() + 20000 / 1000.0
+    last = None
+    while time.time() < deadline:
+        for f in helpers.frames_with(page):
+            try:
+                el = f.locator("#naryadCard")
+                if el.count() == 0:
+                    continue
+                t = el.inner_text(timeout=400)
+                if t and "Загрузка" not in t and "Наряд " in t:
+                    return f
+            except Exception as e:
+                last = e
+        page.wait_for_timeout(200)
+    raise last or TimeoutError("#naryadCard not rendered")
 
 
 def otk_check_transition(page, order_number, qty=0, defect=0, idx=0):
