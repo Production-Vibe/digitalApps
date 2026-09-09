@@ -140,3 +140,35 @@ def capture_console(page):
 
     page.on("console", _on)
     return logs
+
+
+def app_frame(page):
+    """Фрейм веб-приложения (тот, где есть google.script.run)."""
+    for f in frames_with(page):
+        try:
+            if f.evaluate("typeof google.script.run") == "object":
+                return f
+        except Exception:
+            continue
+    return None
+
+
+def eval_server(page, fn, *args):
+    """Async google.script.run.fn(...) from the app frame; returns parsed result
+    or {'_eval_error': ...}."""
+    import json
+
+    fr = app_frame(page)
+    if fr is None:
+        return {"_eval_error": "app frame not found"}
+    args_js = ",".join(json.dumps(a, ensure_ascii=False) for a in args)
+    expr = (
+        "new Promise(function(res, rej){"
+        "google.script.run.withSuccessHandler(function(v){ res(v); })"
+        ".withFailureHandler(function(e){ rej(String(e)); })"
+        ".%s(%s);})"
+    ) % (fn, args_js)
+    try:
+        return fr.evaluate(expr)
+    except Exception as e:
+        return {"_eval_error": str(e)[:200]}

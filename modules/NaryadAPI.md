@@ -91,13 +91,26 @@ function colIndexByName(headers, name) {
 }
 
 // Заголовки листа (первая строка).
+// Мемоизация на время одного исполнения: row-conversion-функции
+// (naryadRowToObject/transitionRowToObject) вызывают sheetHeaders на КАЖДУЮ
+// строку списков — без кеша это сотни живых чтений заголовков (~40–50с на
+// очередь/списки). Заголовки не меняются в рамках одного RPC, поэтому кеш
+// безопасен (глобалы в Apps Script сбрасываются на каждом исполнении).
+var _sheetHeadersCache = {};
 function sheetHeaders(sheet) {
   if (!sheet) return [];
-  try {
-    return sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0] || [];
-  } catch (e) {
-    return [];
+  var key = sheet.getSheetId();
+  if (Object.prototype.hasOwnProperty.call(_sheetHeadersCache, key)) {
+    return _sheetHeadersCache[key];
   }
+  var h;
+  try {
+    h = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0] || [];
+  } catch (e) {
+    h = [];
+  }
+  _sheetHeadersCache[key] = h;
+  return h;
 }
 
 // Строит массив строки по именам колонок: valuesMap {имя: значение},
@@ -572,12 +585,18 @@ function completeTransition(data) {
   const cTp = colIndexByName(headers, '№ перехода');
   const cStatus = colIndexByName(headers, 'Статус');
   
+  const tpNum = Number(data.tp);
   const rows = sheet.getDataRange().getValues();
+  let found = false;
   for (let i = 1; i < rows.length; i++) {
-    if (rows[i][cNaryad] === data.naryad_number && rows[i][cTp] === data.tp) {
+    if (rows[i][cNaryad] === data.naryad_number && Number(rows[i][cTp]) === tpNum) {
       sheet.getRange(i + 1, cStatus + 1).setValue('completed');
+      found = true;
       break;
     }
+  }
+  if (!found) {
+    return { error: 'Переход ' + data.tp + ' наряда ' + data.naryad_number + ' не найден', status: 'error' };
   }
   updateNaryadStatus(data.naryad_number);
   return {status: 'completed'};
@@ -592,15 +611,32 @@ function checkTransition(data) {
   const cStatus = colIndexByName(headers, 'Статус');
   const cAccepted = colIndexByName(headers, 'Принято');
   const cDefect = colIndexByName(headers, 'Брак');
-  
+
+  const acc = Number(data.accepted_qty) || 0;
+  const def = Number(data.defect_qty) || 0;
+  const naryad = getNaryad(data.naryad_number);
+  const qtyLimit = naryad ? (Number(naryadRowToObject(naryad).quantity) || 0) : 0;
+  if (acc + def > qtyLimit) {
+    return {
+      error: 'Принято+брак (' + acc + '+' + def + ') не может быть больше количества наряда (' + qtyLimit + ')',
+      status: 'error'
+    };
+  }
+
+  const tpNum = Number(data.tp);
   const rows = sheet.getDataRange().getValues();
+  let found = false;
   for (let i = 1; i < rows.length; i++) {
-    if (rows[i][cNaryad] === data.naryad_number && rows[i][cTp] === data.tp) {
+    if (rows[i][cNaryad] === data.naryad_number && Number(rows[i][cTp]) === tpNum) {
       sheet.getRange(i + 1, cStatus + 1).setValue('checked');
-      if (cAccepted >= 0) sheet.getRange(i + 1, cAccepted + 1).setValue(data.accepted_qty || 0);
-      if (cDefect >= 0) sheet.getRange(i + 1, cDefect + 1).setValue(data.defect_qty || 0);
+      if (cAccepted >= 0) sheet.getRange(i + 1, cAccepted + 1).setValue(acc);
+      if (cDefect >= 0) sheet.getRange(i + 1, cDefect + 1).setValue(def);
+      found = true;
       break;
     }
+  }
+  if (!found) {
+    return { error: 'Переход ' + data.tp + ' наряда ' + data.naryad_number + ' не найден', status: 'error' };
   }
   updateNaryadStatus(data.naryad_number);
   return {status: 'checked'};
@@ -632,6 +668,18 @@ function closeNaryad(data) {
   if (!data.closed_by) return { error: 'Не указано, кто закрывает наряд (closed_by)' };
   if (!isRole(data.closed_by, 'otk')) {
     return { error: 'Отказано: закрывать наряд может только ОТК' };
+  }
+
+  const naryadStatus = getNaryadStatus(data.naryad_number);
+  if (naryadStatus !== NARYAD_STATUS.REWORK) {
+    const trs = getTransitions(data.naryad_number);
+    let hasChecked = false;
+    for (let i = 0; i < trs.length; i++) {
+      if (transitionRowToObject(trs[i]).status === 'checked') { hasChecked = true; break; }
+    }
+    if (!hasChecked) {
+      return { error: 'Нельзя закрыть наряд без проверенных переходов' };
+    }
   }
   
   setNaryadStatus(data.naryad_number, NARYAD_STATUS.CLOSED);

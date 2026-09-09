@@ -3,7 +3,7 @@ import os
 # Deployed Apps Script web app URL (target of E2E).
 APP_URL = os.environ.get(
     "ND_APP_URL",
-    "https://script.google.com/macros/s/AKfycbzoPmk9b8lmACXpKdlAqDCY7xSLscxN5y4UoQdbW7KRjjGigKd-GG_oeAzl-28wha7KqA/exec",
+    "https://script.google.com/macros/s/AKfycbwEW0eGDTYTuBStMJ7nc8cXOF3OzQ1YC9cT4t-Avmaqy4I1HuuzfQ0lnrwa0wtu8Wxj5g/exec",
 )
 
 # Browser channel for Playwright. Use a real installed browser (chrome/msedge)

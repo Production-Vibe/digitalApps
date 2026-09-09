@@ -7,30 +7,76 @@
 
 // === SERVER: списОК нарядов для ОТК ===
 function getOtkQueue() {
-  const all = getNaryady().map(naryadRowToObject);
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NARYADY);
+  const headers = sheet ? sheetHeaders(sheet) : [];
+  const cId = colIndexByName(headers, 'Номер');
+  const cName = colIndexByName(headers, 'Наименование');
+  const cCode = colIndexByName(headers, 'Код детали');
+  const cQty = colIndexByName(headers, 'Кол-во');
+  const cStatus = colIndexByName(headers, 'Статус');
+  const cReason = colIndexByName(headers, 'Причина доработки');
+  const raw = sheet ? sheet.getDataRange().getValues() : [];
+  const aggMap = transitionAggregates();
   const waiting = [];
   const rework = [];
   const inWork = [];
-  all.forEach(function(n) {
-    if (n.status === NARYAD_STATUS.CLOSED) return;
-    const agg = otkAggregate(n.id);
+  for (let i = 1; i < raw.length; i++) {
+    const id = cId >= 0 ? raw[i][cId] : raw[i][0];
+    if (!id) continue;
+    const status = cStatus >= 0 ? raw[i][cStatus] : raw[i][11];
+    if (status === NARYAD_STATUS.CLOSED) continue;
+    const agg = aggMap[String(id)] || emptyTransitionAggregate();
     const item = {
-      id: n.id,
-      detail_name: n.detail_name,
-      detail_code: n.detail_code,
-      quantity: n.quantity,
-      status: n.status,
-      rework_reason: n.rework_reason || '',
+      id: id,
+      detail_name: cName >= 0 ? raw[i][cName] : raw[i][2],
+      detail_code: cCode >= 0 ? raw[i][cCode] : raw[i][1],
+      quantity: cQty >= 0 ? raw[i][cQty] : raw[i][10],
+      status: status,
+      rework_reason: cReason >= 0 ? (raw[i][cReason] || '') : '',
       transitionCount: agg.transitionCount,
       checkedCount: agg.checkedCount,
       totalAccepted: agg.totalAccepted,
       totalDefect: agg.totalDefect
     };
-    if (n.status === NARYAD_STATUS.WAITING_OTK) waiting.push(item);
-    else if (n.status === NARYAD_STATUS.REWORK) rework.push(item);
+    if (status === NARYAD_STATUS.WAITING_OTK) waiting.push(item);
+    else if (status === NARYAD_STATUS.REWORK) rework.push(item);
     else inWork.push(item);
-  });
+  }
   return { waiting: waiting, rework: rework, inWork: inWork };
+}
+
+function emptyTransitionAggregate() {
+  return { transitionCount: 0, checkedCount: 0, totalAccepted: 0, totalDefect: 0 };
+}
+
+// Один проход по листу Transitions: агрегаты по всем нарядам за O(N+M),
+// вместо вызова getTransitions (полное чтение листа) на каждый наряд.
+// Индексы колонок считаются один раз — без per-row sheetHeaders (перф).
+function transitionAggregates() {
+  const aggMap = {};
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_TRANSITIONS);
+  if (!sheet) return aggMap;
+  const headers = sheetHeaders(sheet);
+  const cNaryad = colIndexByName(headers, 'Номер наряда');
+  const cStatus = colIndexByName(headers, 'Статус');
+  const cAcc = colIndexByName(headers, 'Принято');
+  const cDef = colIndexByName(headers, 'Брак');
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    const naryadId = cNaryad >= 0 ? data[i][cNaryad] : data[i][0];
+    if (!naryadId) continue;
+    const key = String(naryadId);
+    let a = aggMap[key];
+    if (!a) {
+      a = emptyTransitionAggregate();
+      aggMap[key] = a;
+    }
+    a.transitionCount++;
+    if ((cStatus >= 0 ? data[i][cStatus] : data[i][8]) === 'checked') a.checkedCount++;
+    a.totalAccepted += Number(cAcc >= 0 ? data[i][cAcc] : data[i][10]) || 0;
+    a.totalDefect += Number(cDef >= 0 ? data[i][cDef] : data[i][11]) || 0;
+  }
+  return aggMap;
 }
 
 function otkAggregate(naryadId) {
