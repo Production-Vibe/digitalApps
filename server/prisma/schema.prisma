@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────
+
+enum WorkOrderStatus {
+  created
+  in_progress
+  waiting_otk
+  rework
+  closed
+}
+
+enum LaunchStatus {
+  К_запуску
+  Выдано
+  В_работе
+  Готово
+}
+
+enum ShiftStatus {
+  open
+  closed
+  auto_closed
+}
+
+enum TransitionStatus {
+  in_progress
+  completed
+  checked
+}
+
+enum PrintJobStatus {
+  pending
+  printed
+}
+
+enum EmployeeRole {
+  master
+  shift
+  operator
+  otk
+}
+
+// ─── Models ───────────────────────────────────────────────────────────
+
+model Catalog {
+  код              String   @id
+  наименование     String
+  обозначение      String
+  обозначение2     String   @map("обозначение_2")
+  колНаРодителя    Float    @map("кол_во_на_родителя")
+  типЗаготовки     String   @map("тип_заготовки")
+  материал         String
+  маркаМатериала   String   @map("марка_материала")
+  размерЗаготовки  String   @map("размер_заготовки")
+  толщинаСтенки    Float    @map("толщина_стенки")
+  длинаРезки       Float    @map("длина_резки")
+  ппб              String
+  массаЗаготовки   Float    @map("масса_заготовки")
+  массаДетали      Float    @map("масса_детали")
+  резка            Boolean
+  термообработка   Boolean
+  плазма           Boolean
+  токарная         Boolean
+  фрезерная        Boolean
+  сверлильная      Boolean
+  слесарная        Boolean
+  гибка            Boolean
+  покрытие         Boolean
+  приоритет        String
+
+  launches     Launches[]
+  workOrders   WorkOrders[]
+  printJobs    PrintQueue[]
+  queueItems   Queue[]
+}
+
+model Launches {
+  id                String       @id
+  кодДетали         String       @map("код_детали")
+  наименование      String
+  узел              String
+  колВо             Float        @map("кол_во")
+  номерПА           String       @map("номер_па")
+  статус            LaunchStatus @default(К_запуску)
+  ктоСоздал         String       @map("кто_создал")
+  дата              DateTime     @default(now())
+  типЗапуска        String       @default("Основной") @map("тип_запуска")
+  причина           String?
+  связанныйЗапуск   String?      @map("связанный_запуск")
+
+  catalog        Catalog       @relation(fields: [кодДетали], references: [код])
+  workOrders     WorkOrders[]
+  relatedLaunch  Launches?     @relation("LaunchRework", fields: [связанныйЗапуск], references: [id])
+  reworkLaunches Launches[]    @relation("LaunchRework")
+}
+
+model WorkOrders {
+  номер                String           @id
+  кодДетали            String           @map("код_детали")
+  наименование         String
+  обозначение          String
+  узел                 String
+  программа            String?
+  заказчик             String?
+  сп                   String?
+  оператор             String
+  станок               String
+  колВо                Float            @map("кол_во")
+  статус               WorkOrderStatus  @default(created)
+  launchId             String?          @map("launch_id")
+  причинаДоработки     String?          @map("причина_доработки")
+
+  catalog      Catalog        @relation(fields: [кодДетали], references: [код])
+  launch       Launches?      @relation(fields: [launchId], references: [id])
+  transitions  Transitions[]
+  closedOrders ClosedOrders[]
+  printJob     PrintQueue?
+}
+
+model Transitions {
+  id              String             @id @default(cuid())
+  naryadNomer     String             @map("номер_наряда")
+  nomer           String             @map("номер_перехода")
+  описание        String
+  оператор        String
+  время           Float
+  плавка          String?
+  станок          String
+  колВо           Float              @map("кол_во")
+  статус          TransitionStatus   @default(in_progress)
+  дата            DateTime           @default(now())
+  принято         Float?
+  брак            Float?
+
+  workOrder WorkOrders @relation(fields: [naryadNomer], references: [номер])
+
+  @@unique([naryadNomer, nomer])
+}
+
+model ClosedOrders {
+  id              String   @id @default(cuid())
+  naryadNomer     String   @map("номер_наряда")
+  принятоеВсего   Float    @map("принято_всего")
+  бракВсего       Float    @map("брак_всего")
+  причинаБрака    String?  @map("причина_брака")
+  комментарий     String?
+  кемЗакрыт       String   @map("кем_закрыт")
+  дата            DateTime @default(now())
+
+  workOrder WorkOrders @relation(fields: [naryadNomer], references: [номер])
+}
+
+model Shifts {
+  id        String     @id
+  оператор  String
+  станок    String
+  открыта   DateTime   @default(now())
+  закрыта   DateTime?
+  статус    ShiftStatus @default(open)
+}
+
+model PrintQueue {
+  id              DateTime      @id @default(now())
+  naryadNomer     String        @unique @map("номер_наряда")
+  кодДетали       String        @map("код_детали")
+  наименование    String
+  обозначение     String
+  узел            String
+  программа       String?
+  заказчик        String?
+  сп              String?
+  оператор        String
+  станок          String
+  колВо           Float         @map("кол_во")
+  статус          PrintJobStatus @default(pending)
+
+  workOrder WorkOrders @relation(fields: [naryadNomer], references: [номер])
+  catalog   Catalog    @relation(fields: [кодДетали], references: [код])
+}
+
+model Employees {
+  login      String       @id
+  password   String
+  фио        String
+  role       EmployeeRole
+}
+
+model Equipment {
+  id        Int    @id @default(autoincrement())
+  название  String @unique
+}
+
+model Queue {
+  id            Int      @id @default(autoincrement())
+  код           String
+  наименование  String
+  обозначение   String
+  узел          String
+  тип           String
+  станки        String
+  колВо         Float    @map("кол_во")
+  приоритет     String
+  заказчик      String?
+  сп            String?
+  программа     String?
+  оператор      String?
+  станокВыдачи  String?  @map("станок_выдачи")
+  выдать        Boolean  @default(false)
+  статус        String?
+
+  catalog Catalog @relation(fields: [код], references: [код])
+}
