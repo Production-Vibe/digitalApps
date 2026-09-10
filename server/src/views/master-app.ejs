@@ -18,8 +18,183 @@
     </div>
   </header>
   <main class="container">
-    <div class="page-header"><h1>Планирование запусков</h1></div>
-    <p class="muted">Загрузка...</p>
+    <div class="page-header">
+      <h1>Планирование запусков</h1>
+      <button onclick="loadAll()" class="btn btn--primary">Обновить</button>
+    </div>
+
+    <div id="statsSection"></div>
+
+    <div class="panel">
+      <h3>Создать запуск</h3>
+      <div class="launch-form">
+        <div class="form-group">
+          <label for="launchSearch">Деталь (поиск)</label>
+          <input type="text" id="launchSearch" class="input" placeholder="Введите код или наименование" oninput="searchCatalog()">
+        </div>
+        <div id="catalogResults" style="max-height:200px;overflow-y:auto;margin-bottom:0.75rem"></div>
+        <div id="selectedItem" class="muted"></div>
+        <div class="form-group">
+          <label for="launchQty">Кол-во</label>
+          <input type="number" id="launchQty" class="input" min="1" value="1">
+        </div>
+        <div class="form-group">
+          <label for="launchPA">№ ПА</label>
+          <input type="text" id="launchPA" class="input" placeholder="001 или 009-011">
+        </div>
+        <div class="form-group">
+          <label for="launchType">Тип запуска</label>
+          <select id="launchType" class="input">
+            <option value="Основной">Основной</option>
+            <option value="Дополнительный">Дополнительный</option>
+            <option value="Доработка">Доработка</option>
+          </select>
+        </div>
+        <button onclick="createLaunch()" class="btn btn--primary">Создать запуск</button>
+      </div>
+    </div>
+
+    <div id="launchesSection"></div>
   </main>
+
+  <script src="/api.js"></script>
+  <script>
+    var selectedCatalogItem = null;
+    var searchTimer = null;
+
+    async function loadAll() {
+      try {
+        var [launches, catalog] = await Promise.all([
+          api('/api/launches'),
+          api('/api/catalog')
+        ]);
+        renderStats(launches);
+        renderLaunches(launches);
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    function renderStats(launches) {
+      var el = document.getElementById('statsSection');
+      if (!launches) launches = [];
+      var counts = { 'К_запуску': 0, 'Выдано': 0, 'В_работе': 0, 'Готово': 0 };
+      launches.forEach(function(l) {
+        if (counts[l.статус] !== undefined) counts[l.статус]++;
+      });
+      var labels = { 'К_запуску': 'К запуску', 'Выдано': 'Выдано', 'В_работе': 'В работе', 'Готово': 'Готово' };
+      el.innerHTML = '<div class="stat-grid">';
+      Object.keys(counts).forEach(function(k) {
+        el.innerHTML += '<div class="stat-card"><div class="stat-card__value">' + counts[k] + '</div>' +
+          '<div class="stat-card__label">' + labels[k] + '</div></div>';
+      });
+      el.innerHTML += '</div>';
+    }
+
+    function renderLaunches(launches) {
+      var el = document.getElementById('launchesSection');
+      if (!launches || launches.length === 0) {
+        el.innerHTML = '<div class="panel"><h3>Запуски</h3><p class="muted">Нет запусков</p></div>';
+        return;
+      }
+      var statusLabels = { 'К_запуску': 'К запуску', 'Выдано': 'Выдано', 'В_работе': 'В работе', 'Готово': 'Готово' };
+      var html = '<div class="panel"><h3>Запуски</h3><div class="tablewrap"><table class="table"><thead><tr>' +
+        '<th>ID</th><th>Деталь</th><th>Наименование</th><th>ПА</th><th>Кол-во</th><th>Статус</th><th>Дата</th><th></th></tr></thead><tbody>';
+      launches.forEach(function(l) {
+        var canDelete = l.статус === 'К_запуску';
+        html += '<tr>' +
+          '<td>' + escHtml(l.id) + '</td>' +
+          '<td>' + escHtml(l.кодДетали) + '</td>' +
+          '<td>' + escHtml(l.наименование) + '</td>' +
+          '<td>' + escHtml(l.номерПА) + '</td>' +
+          '<td>' + l.колВо + '</td>' +
+          '<td><span class="badge badge--' + (l.статус === 'К_запуску' ? 'info' : (l.статус === 'Выдано' ? 'warn' : (l.статус === 'Готово' ? 'ok' : 'muted'))) + '">' + escHtml(statusLabels[l.статус] || l.статус) + '</span></td>' +
+          '<td>' + fmtDate(l.дата) + '</td>' +
+          '<td>' + (canDelete ? '<button onclick="deleteLaunch(\'' + escHtml(l.id) + '\')" class="btn btn--sm">Удалить</button>' : '') + '</td>' +
+          '</tr>';
+      });
+      html += '</tbody></table></div></div>';
+      el.innerHTML = html;
+    }
+
+    async function searchCatalog() {
+      clearTimeout(searchTimer);
+      var input = document.getElementById('launchSearch');
+      var results = document.getElementById('catalogResults');
+      if (!(input.value.trim().length >= 2)) {
+        results.innerHTML = '';
+        return;
+      }
+      searchTimer = setTimeout(async function() {
+        try {
+          var items = await api('/api/catalog?search=' + encodeURIComponent(input.value.trim()));
+          if (!items || items.length === 0) {
+            results.innerHTML = '<p class="muted">Ничего не найдено</p>';
+            return;
+          }
+          results.innerHTML = items.map(function(item) {
+            return '<div class="catalog-item" onclick="selectCatalogItem(\'' + escHtml(item.код) + '\', \'' + escHtml(item.наименование) + '\')">' +
+              escHtml(item.код) + ' — ' + escHtml(item.наименование) + '</div>';
+          }).join('');
+        } catch (e) {
+          showToast(e.message, true);
+        }
+      }, 350);
+    }
+
+    function selectCatalogItem(код, наименование) {
+      selectedCatalogItem = { код: код, наименование: наименование };
+      document.getElementById('launchSearch').value = код + ' — ' + наименование;
+      document.getElementById('catalogResults').innerHTML = '';
+      document.getElementById('selectedItem').innerHTML = '<strong>Выбрано:</strong> ' + escHtml(код) + ' — ' + escHtml(наименование);
+    }
+
+    async function createLaunch() {
+      if (!selectedCatalogItem) { showToast('Сначала выберите деталь', true); return; }
+      var колВо = parseFloat(document.getElementById('launchQty').value);
+      var номерПА = document.getElementById('launchPA').value.trim();
+      var типЗапуска = document.getElementById('launchType').value;
+      var user = getCurrentUser();
+      if (!колВо || колВо <= 0) { showToast('Укажите количество', true); return; }
+      if (!номерПА) { showToast('Укажите № ПА', true); return; }
+
+      try {
+        await api('/api/launches', {
+          method: 'POST',
+          body: {
+            кодДетали: selectedCatalogItem.код,
+            наименование: selectedCatalogItem.наименование,
+            узел: '',
+            колВо: колВо,
+            номерПА: номерПА,
+            ктоСоздал: user ? user.фио : '',
+            типЗапуска: типЗапуска
+          }
+        });
+        showToast('Запуск создан');
+        selectedCatalogItem = null;
+        document.getElementById('launchSearch').value = '';
+        document.getElementById('selectedItem').innerHTML = '';
+        document.getElementById('launchQty').value = '1';
+        document.getElementById('launchPA').value = '';
+        loadAll();
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    async function deleteLaunch(id) {
+      if (!confirm('Удалить запуск ' + id + '? Связанные наряды будут удалены.')) return;
+      try {
+        await api('/api/launches/' + encodeURIComponent(id), { method: 'DELETE' });
+        showToast('Запуск удалён');
+        loadAll();
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    loadAll();
+  </script>
 </body>
 </html>

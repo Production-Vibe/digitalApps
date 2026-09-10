@@ -18,8 +18,215 @@
     </div>
   </header>
   <main class="container">
-    <div class="page-header"><h1>Оператор</h1></div>
-    <p class="muted">Загрузка...</p>
+    <div class="page-header">
+      <h1>Оператор: <%= user.фио %></h1>
+      <button onclick="loadAll()" class="btn btn--primary">Обновить</button>
+    </div>
+
+    <div id="shiftsSection"></div>
+    <div id="ordersSection"></div>
   </main>
+
+  <div id="transitionModal" class="modal" style="display:none">
+    <div class="modal-content">
+      <h3>Отметить переход</h3>
+      <div id="transitionOrderInfo"></div>
+      <div class="form-group">
+        <label for="trDescription">Описание операции</label>
+        <input type="text" id="trDescription" class="input">
+      </div>
+      <div class="form-group">
+        <label for="trTime">Время (ч)</label>
+        <input type="number" id="trTime" class="input" step="0.1" min="0">
+      </div>
+      <div class="form-group">
+        <label for="trQty">Кол-во</label>
+        <input type="number" id="trQty" class="input" min="1">
+      </div>
+      <div class="form-group">
+        <label for="trMelt">Плавка</label>
+        <input type="text" id="trMelt" class="input">
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeTransitionModal()" class="btn btn--sm">Отмена</button>
+        <button onclick="submitTransition()" class="btn btn--primary">Отправить</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/api.js"></script>
+  <script>
+    var currentOrder = null;
+    var currentShift = null;
+
+    async function loadAll() {
+      var user = getCurrentUser();
+      if (!user) { location.href = '/login'; return; }
+      var фио = user.фио;
+
+      try {
+        var [shifts, orders, machines] = await Promise.all([
+          api('/api/shifts/my?оператор=' + encodeURIComponent(фио)),
+          api('/api/work-orders/my/list?оператор=' + encodeURIComponent(фио)),
+          api('/api/equipment')
+        ]);
+        renderShifts(shifts, machines);
+        renderOrders(orders);
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    function renderShifts(shifts, machines) {
+      var el = document.getElementById('shiftsSection');
+      if (!shifts || shifts.length === 0) {
+        el.innerHTML = '<div class="panel"><h3>Смены</h3><p class="muted">Откройте смену на станке</p>' +
+          '<div class="form-group" style="margin-top:0.5rem"><select id="openMachine" class="input"></select></div>' +
+          '<button onclick="openShift()" class="btn btn--primary">Открыть смену</button></div>';
+        var sel = document.getElementById('openMachine');
+        if (sel) sel.innerHTML = machines.map(function(m) {
+          return '<option value="' + escHtml(m.название) + '">' + escHtml(m.название) + '</option>';
+        }).join('');
+        return;
+      }
+
+      var html = '<div class="panel"><h3>Смены</h3><div class="tablewrap"><table class="table"><thead><tr>' +
+        '<th>ID</th><th>Станок</th><th>Открыта</th><th>Статус</th><th></th></tr></thead><tbody>';
+
+      shifts.forEach(function(s) {
+        var isOpen = s.статус === 'open';
+        html += '<tr>' +
+          '<td>' + escHtml(s.id) + '</td>' +
+          '<td>' + escHtml(s.станок) + '</td>' +
+          '<td>' + fmtDate(s.открыта) + '</td>' +
+          '<td><span class="badge ' + (isOpen ? 'badge--ok' : 'badge--muted') + '">' + escHtml(s.статус === 'open' ? 'Открыта' : (s.статус === 'closed' ? 'Закрыта' : 'Авто-закрыта')) + '</span></td>' +
+          '<td>' + (isOpen ? '<button onclick="closeShift(\'' + escHtml(s.id) + '\')" class="btn btn--sm">Закрыть</button>' : '') + '</td>' +
+          '</tr>';
+      });
+
+      html += '</tbody></table></div></div>';
+      el.innerHTML = html;
+    }
+
+    function renderOrders(orders) {
+      var el = document.getElementById('ordersSection');
+      if (!orders || orders.length === 0) {
+        el.innerHTML = '<div class="panel"><h3>Наряды</h3><p class="muted">Нет активных нарядов</p></div>';
+        return;
+      }
+
+      var html = '<div class="panel"><h3>Наряды в работе</h3><div class="tablewrap"><table class="table"><thead><tr>' +
+        '<th>Наряд</th><th>Деталь</th><th>Наименование</th><th>Кол-во</th><th>Статус</th><th></th></tr></thead><tbody>';
+
+      var statusLabels = { created: 'Создан', in_progress: 'В работе', waiting_otk: 'Ждёт ОТК', rework: 'Доработка', closed: 'Закрыт' };
+
+      orders.forEach(function(o) {
+        var label = statusLabels[o.статус] || o.статус;
+        var badge = o.статус === 'in_progress' ? 'badge--info' : (o.статус === 'created' ? 'badge--warn' : (o.статус === 'waiting_otk' ? 'badge--ok' : (o.статус === 'rework' ? 'badge--error' : 'badge--muted')));
+        html += '<tr>' +
+          '<td>' + escHtml(o.номер) + '</td>' +
+          '<td>' + escHtml(o.кодДетали) + '</td>' +
+          '<td>' + escHtml(o.наименование) + '</td>' +
+          '<td>' + o.колВо + '</td>' +
+          '<td><span class="badge ' + badge + '">' + escHtml(label) + '</span></td>' +
+          '<td>' + (o.статус === 'created' ? '<button onclick="takeOrder(\'' + escHtml(o.номер) + '\')" class="btn btn--sm btn--primary">В работу</button>' : '') +
+          (o.статус === 'in_progress' || o.статус === 'rework' ? '<button onclick="openTransitionModal(\'' + escHtml(o.номер) + '\')" class="btn btn--sm">+ Переход</button>' : '') + '</td>' +
+          '</tr>';
+      });
+
+      html += '</tbody></table></div></div>';
+      el.innerHTML = html;
+    }
+
+    async function openShift() {
+      var user = getCurrentUser();
+      var станок = document.getElementById('openMachine').value;
+      if (!станок) { showToast('Выберите станок', true); return; }
+      try {
+        await api('/api/shifts/open', { method: 'POST', body: { оператор: user.фио, станок: станок } });
+        showToast('Смена открыта');
+        loadAll();
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    async function closeShift(shiftId) {
+      try {
+        await api('/api/shifts/close/' + encodeURIComponent(shiftId), { method: 'POST' });
+        showToast('Смена закрыта');
+        loadAll();
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    async function takeOrder(номер) {
+      try {
+        await api('/api/work-orders/' + encodeURIComponent(номер) + '/status', {
+          method: 'PUT',
+          body: { статус: 'in_progress' }
+        });
+        showToast('Наряд принят в работу');
+        loadAll();
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    async function openTransitionModal(номер) {
+      currentOrder = номер;
+      try {
+        var order = await api('/api/work-orders/' + encodeURIComponent(номер));
+        document.getElementById('transitionOrderInfo').innerHTML =
+          '<p><strong>Наряд:</strong> ' + escHtml(order.номер) + '</p>' +
+          '<p><strong>Деталь:</strong> ' + escHtml(order.кодДетали) + ' — ' + escHtml(order.наименование) + '</p>' +
+          '<p><strong>Станок:</strong> ' + escHtml(order.станок) + ' | <strong>Кол-во:</strong> ' + order.колВо + '</p>';
+        document.getElementById('transitionModal').style.display = 'flex';
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    function closeTransitionModal() {
+      document.getElementById('transitionModal').style.display = 'none';
+      currentOrder = null;
+    }
+
+    async function submitTransition() {
+      if (!currentOrder) return;
+      var user = getCurrentUser();
+      var описание = document.getElementById('trDescription').value;
+      var время = parseFloat(document.getElementById('trTime').value) || 0;
+      var колВо = parseFloat(document.getElementById('trQty').value) || 0;
+      var плавка = document.getElementById('trMelt').value;
+
+      if (!описание) { showToast('Укажите описание', true); return; }
+      if (!колВо || колВо <= 0) { showToast('Укажите количество', true); return; }
+
+      try {
+        var order = await api('/api/work-orders/' + encodeURIComponent(currentOrder));
+        await api('/api/transitions', {
+          method: 'POST',
+          body: {
+            naryadNomer: currentOrder,
+            описание: описание,
+            оператор: user.фио,
+            время: время,
+            плавка: плавка,
+            станок: order.станок,
+            колВо: колВо
+          }
+        });
+        showToast('Переход записан');
+        closeTransitionModal();
+        loadAll();
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    loadAll();
+  </script>
 </body>
 </html>

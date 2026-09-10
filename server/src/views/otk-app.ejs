@@ -18,8 +18,203 @@
     </div>
   </header>
   <main class="container">
-    <div class="page-header"><h1>Контроль ОТК</h1></div>
-    <p class="muted">Загрузка...</p>
+    <div class="page-header">
+      <h1>Контроль ОТК</h1>
+      <button onclick="loadQueue()" class="btn btn--primary">Обновить</button>
+    </div>
+    <div id="queueSection">
+      <p class="muted">Загрузка...</p>
+    </div>
   </main>
+
+  <div id="naryadModal" class="modal" style="display:none">
+    <div class="modal-content modal-content--wide">
+      <div id="naryadContent"><p class="muted">Загрузка наряда...</p></div>
+      <div class="modal-actions">
+        <button onclick="closeNaryadModal()" class="btn btn--sm">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/api.js"></script>
+  <script>
+    var currentOrder = null;
+
+    async function loadQueue() {
+      try {
+        var queue = await api('/api/otk/queue');
+        renderQueue(queue);
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    function renderQueue(queue) {
+      var el = document.getElementById('queueSection');
+      if (!queue || queue.length === 0) {
+        el.innerHTML = '<p class="muted">Очередь пуста. Все наряды приняты.</p>';
+        return;
+      }
+
+      var html = '<table class="table"><thead><tr>' +
+        '<th>Наряд</th><th>Деталь</th><th>Наименование</th><th>Оператор</th><th>Станок</th><th>Кол-во</th>' +
+        '<th>Переходы</th><th>Проверено</th><th>Статус</th><th></th></tr></thead><tbody>';
+
+      queue.forEach(function(o) {
+        var isRework = o.статус === 'rework';
+        var statusLabel = isRework ? 'Доработка' : (o.статус === 'waiting_otk' ? 'Ждёт ОТК' : o.статус);
+        var badge = isRework ? 'badge--error' : 'badge--warn';
+        var agg = o.aggregates || {};
+        html += '<tr>' +
+          '<td>' + escHtml(o.номер) + '</td>' +
+          '<td>' + escHtml(o.кодДетали) + '</td>' +
+          '<td>' + escHtml(o.наименование) + '</td>' +
+          '<td>' + escHtml(o.оператор) + '</td>' +
+          '<td>' + escHtml(o.станок) + '</td>' +
+          '<td>' + o.колВо + '</td>' +
+          '<td>' + agg.transitionCount + '</td>' +
+          '<td>' + agg.checkedCount + '/' + agg.transitionCount + '</td>' +
+          '<td><span class="badge ' + badge + '">' + escHtml(statusLabel) + '</span></td>' +
+          '<td><button onclick="openNaryad(\'' + escHtml(o.номер) + '\')" class="btn btn--sm btn--primary">Открыть</button></td>' +
+          '</tr>';
+      });
+
+      html += '</tbody></table>';
+      el.innerHTML = html;
+    }
+
+    async function openNaryad(номер) {
+      document.getElementById('naryadModal').style.display = 'flex';
+      var content = document.getElementById('naryadContent');
+      content.innerHTML = '<p class="muted">Загрузка наряда...</p>';
+      try {
+        var data = await api('/api/otk/naryad/' + encodeURIComponent(номер));
+        renderNaryad(data);
+      } catch (e) {
+        content.innerHTML = '<div class="alert alert--error">' + escHtml(e.message) + '</div>';
+      }
+    }
+
+    function renderNaryad(data) {
+      var content = document.getElementById('naryadContent');
+      var o = data.order;
+
+      var html = '<h3>Наряд: ' + escHtml(o.номер) + '</h3>';
+      html += '<p><strong>Деталь:</strong> ' + escHtml(o.кодДетали) + ' — ' + escHtml(o.наименование) + '</p>';
+      html += '<p><strong>Оператор:</strong> ' + escHtml(o.оператор) + ' | <strong>Станок:</strong> ' + escHtml(o.станок) + ' | <strong>Кол-во:</strong> ' + o.колВо + '</p>';
+      if (o.причинаДоработки) {
+        html += '<div class="alert alert--error"><strong>Причина доработки:</strong> ' + escHtml(o.причинаДоработки) + '</div>';
+      }
+
+      if (data.transitions && data.transitions.length > 0) {
+        html += '<h4 style="margin-top:1rem">Переходы</h4>';
+        html += '<table class="table"><thead><tr>' +
+          '<th>№</th><th>Описание</th><th>Оператор</th><th>Время</th><th>Станок</th><th>Кол-во</th><th>Статус</th><th>Принято</th><th>Брак</th><th></th>' +
+          '</tr></thead><tbody>';
+
+        var statusLabels = { in_progress: 'В работе', completed: 'Завершён', checked: 'Проверен' };
+
+        data.transitions.forEach(function(t) {
+          var label = statusLabels[t.статус] || t.статус;
+          html += '<tr>' +
+            '<td>' + escHtml(t.nomer) + '</td>' +
+            '<td>' + escHtml(t.описание) + '</td>' +
+            '<td>' + escHtml(t.оператор) + '</td>' +
+            '<td>' + t.время + '</td>' +
+            '<td>' + escHtml(t.станок) + '</td>' +
+            '<td>' + t.колВо + '</td>' +
+            '<td><span class="badge ' + (t.статус === 'checked' ? 'badge--ok' : (t.статус === 'completed' ? 'badge--warn' : 'badge--info')) + '">' + escHtml(label) + '</span></td>' +
+            '<td>' + (t.принято || '') + '</td>' +
+            '<td>' + (t.брак || '') + '</td>' +
+            '<td>' + (t.статус === 'completed' ? '<button onclick="checkTransition(\'' + escHtml(t.id) + '\', ' + o.колВо + ')" class="btn btn--sm btn--primary">Проверить</button>' : '') + '</td>' +
+            '</tr>';
+        });
+
+        html += '</tbody></table>';
+      } else {
+        html += '<p class="muted" style="margin-top:1rem">Нет переходов</p>';
+      }
+
+      var canClose = o.статус === 'rework' || (data.transitions && data.transitions.some(function(t) { return t.статус === 'checked'; }));
+      html += '<div class="modal-actions">';
+      if (canClose) {
+        html += '<input type="text" id="closeReason" class="input" placeholder="Причина брака" style="width:200px">';
+        html += '<input type="text" id="closeComment" class="input" placeholder="Комментарий" style="width:200px">';
+        html += '<button onclick="closeNaryad(\'' + escHtml(o.номер) + '\')" class="btn btn--primary">Закрыть наряд</button>';
+      }
+      if (o.статус === 'waiting_otk') {
+        html += '<input type="text" id="reworkReason" class="input" placeholder="Причина доработки" style="width:200px">';
+        html += '<button onclick="sendToRework(\'' + escHtml(o.номер) + '\')" class="btn">На доработку</button>';
+      }
+      html += '</div>';
+
+      content.innerHTML = html;
+    }
+
+    function closeNaryadModal() {
+      document.getElementById('naryadModal').style.display = 'none';
+      currentOrder = null;
+      loadQueue();
+    }
+
+    async function checkTransition(transitionId, maxQty) {
+      var accepted = prompt('Принято (max ' + maxQty + '):');
+      if (accepted === null) return;
+      var acceptedNum = parseFloat(accepted) || 0;
+      var defect = prompt('Брак:');
+      if (defect === null) return;
+      var defectNum = parseFloat(defect) || 0;
+
+      if (acceptedNum + defectNum > maxQty) {
+        showToast('Принято+Брак превышает количество', true);
+        return;
+      }
+
+      try {
+        var res = await api('/api/transitions/check', {
+          method: 'POST',
+          body: { id: transitionId, accepted: acceptedNum, defect: defectNum }
+        });
+        showToast('Переход проверен');
+        openNaryad(res.naryadNomer);
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    async function sendToRework(номер) {
+      var причина = document.getElementById('reworkReason').value;
+      var user = getCurrentUser();
+      if (!причина) { showToast('Укажите причину доработки', true); return; }
+      try {
+        await api('/api/otk/rework', {
+          method: 'POST',
+          body: { naryadNomer: номер, причинаДоработки: причина, кемЗакрыт: user.фио }
+        });
+        showToast('Наряд отправлен на доработку');
+        closeNaryadModal();
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    async function closeNaryad(номер) {
+      var причина = document.getElementById('closeReason').value;
+      var комментарий = document.getElementById('closeComment').value;
+      var user = getCurrentUser();
+      try {
+        await api('/api/otk/close', {
+          method: 'POST',
+          body: { naryadNomer: номер, причинаБрака: причина, комментарий: комментарий, кемЗакрыт: user.фио }
+        });
+        showToast('Наряд закрыт');
+        closeNaryadModal();
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    loadQueue();
+  </script>
 </body>
 </html>
