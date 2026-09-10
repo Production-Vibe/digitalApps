@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ОТК — ЦифровойНаряд</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="top-bar">
+    <div class="top-bar__brand">ЦифровойНаряд</div>
+    <nav class="top-bar__nav">
+      <a href="/otk" class="active">ОТК</a>
+    </nav>
+    <div class="top-bar__user">
+      <span><%= user.фио %> (otk)</span>
+      <button onclick="localStorage.clear();location.href='/login'" class="btn btn--sm">Выйти</button>
+    </div>
+  </header>
+  <main class="container">
+    <div class="page-header"><h1>Контроль ОТК</h1></div>
+    <p class="muted">Загрузка...</p>
+  </main>
+</body>
+</html>

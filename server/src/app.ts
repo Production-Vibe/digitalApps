@@ -2,6 +2,8 @@ import express from 'express';
 import path from 'path';
 import { config } from './config';
 import { prisma } from './lib/prisma';
+import authRoutes from './routes/auth.routes';
+import pageRoutes from './routes/page.routes';
 
 const app = express();
 
@@ -17,10 +19,6 @@ app.get('/', (_req, res) => {
   res.redirect('/login');
 });
 
-app.get('/login', (_req, res) => {
-  res.render('login', { error: null });
-});
-
 app.get('/health', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -29,6 +27,9 @@ app.get('/health', async (_req, res) => {
     res.status(503).json({ status: 'error', db: 'disconnected' });
   }
 });
+
+app.use('/api', authRoutes);
+app.use('/', pageRoutes);
 
 app.listen(config.port, () => {
   console.log(`[server] listening on http://localhost:${config.port}`);
