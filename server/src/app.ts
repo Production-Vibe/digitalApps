@@ -12,6 +12,7 @@ import shiftsRoutes from './routes/shifts.routes';
 import transitionsRoutes from './routes/transitions.routes';
 import otkRoutes from './routes/otk.routes';
 import employeesRoutes from './routes/employees.routes';
+import vbaRoutes from './routes/vba.routes';
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.use('/api/shifts', shiftsRoutes);
 app.use('/api/transitions', transitionsRoutes);
 app.use('/api/otk', otkRoutes);
 app.use('/api/employees', employeesRoutes);
+app.use('/api/vba', vbaRoutes);
 app.use('/', pageRoutes);
 
 app.listen(config.port, () => {
