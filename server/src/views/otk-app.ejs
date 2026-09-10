@@ -13,7 +13,7 @@
       <a href="/otk" class="active">ОТК</a>
     </nav>
     <div class="top-bar__user">
-      <span><%= user.фио %> (otk)</span>
+      <span><%= user.fullName %> (otk)</span>
       <button onclick="localStorage.clear();location.href='/login'" class="btn btn--sm">Выйти</button>
     </div>
   </header>
@@ -61,21 +61,21 @@
         '<th>Переходы</th><th>Проверено</th><th>Статус</th><th></th></tr></thead><tbody>';
 
       queue.forEach(function(o) {
-        var isRework = o.статус === 'rework';
-        var statusLabel = isRework ? 'Доработка' : (o.статус === 'waiting_otk' ? 'Ждёт ОТК' : o.статус);
+        var isRework = o.status === 'rework';
+        var statusLabel = isRework ? 'Доработка' : (o.status === 'waiting_otk' ? 'Ждёт ОТК' : o.status);
         var badge = isRework ? 'badge--error' : 'badge--warn';
         var agg = o.aggregates || {};
         html += '<tr>' +
-          '<td>' + escHtml(o.номер) + '</td>' +
-          '<td>' + escHtml(o.кодДетали) + '</td>' +
-          '<td>' + escHtml(o.наименование) + '</td>' +
-          '<td>' + escHtml(o.оператор) + '</td>' +
-          '<td>' + escHtml(o.станок) + '</td>' +
-          '<td>' + o.колВо + '</td>' +
+          '<td>' + escHtml(o.number) + '</td>' +
+          '<td>' + escHtml(o.partCode) + '</td>' +
+          '<td>' + escHtml(o.name) + '</td>' +
+          '<td>' + escHtml(o.operator) + '</td>' +
+          '<td>' + escHtml(o.machine) + '</td>' +
+          '<td>' + o.qty + '</td>' +
           '<td>' + agg.transitionCount + '</td>' +
           '<td>' + agg.checkedCount + '/' + agg.transitionCount + '</td>' +
           '<td><span class="badge ' + badge + '">' + escHtml(statusLabel) + '</span></td>' +
-          '<td><button onclick="openNaryad(\'' + escHtml(o.номер) + '\')" class="btn btn--sm btn--primary">Открыть</button></td>' +
+          '<td><button onclick="openNaryad(\'' + escHtml(o.number) + '\')" class="btn btn--sm btn--primary">Открыть</button></td>' +
           '</tr>';
       });
 
@@ -83,12 +83,12 @@
       el.innerHTML = html;
     }
 
-    async function openNaryad(номер) {
+    async function openNaryad(number) {
       document.getElementById('naryadModal').style.display = 'flex';
       var content = document.getElementById('naryadContent');
       content.innerHTML = '<p class="muted">Загрузка наряда...</p>';
       try {
-        var data = await api('/api/otk/naryad/' + encodeURIComponent(номер));
+        var data = await api('/api/otk/naryad/' + encodeURIComponent(number));
         renderNaryad(data);
       } catch (e) {
         content.innerHTML = '<div class="alert alert--error">' + escHtml(e.message) + '</div>';
@@ -99,11 +99,11 @@
       var content = document.getElementById('naryadContent');
       var o = data.order;
 
-      var html = '<h3>Наряд: ' + escHtml(o.номер) + '</h3>';
-      html += '<p><strong>Деталь:</strong> ' + escHtml(o.кодДетали) + ' — ' + escHtml(o.наименование) + '</p>';
-      html += '<p><strong>Оператор:</strong> ' + escHtml(o.оператор) + ' | <strong>Станок:</strong> ' + escHtml(o.станок) + ' | <strong>Кол-во:</strong> ' + o.колВо + '</p>';
-      if (o.причинаДоработки) {
-        html += '<div class="alert alert--error"><strong>Причина доработки:</strong> ' + escHtml(o.причинаДоработки) + '</div>';
+      var html = '<h3>Наряд: ' + escHtml(o.number) + '</h3>';
+      html += '<p><strong>Деталь:</strong> ' + escHtml(o.partCode) + ' — ' + escHtml(o.name) + '</p>';
+      html += '<p><strong>Оператор:</strong> ' + escHtml(o.operator) + ' | <strong>Станок:</strong> ' + escHtml(o.machine) + ' | <strong>Кол-во:</strong> ' + o.qty + '</p>';
+      if (o.reworkReason) {
+        html += '<div class="alert alert--error"><strong>Причина доработки:</strong> ' + escHtml(o.reworkReason) + '</div>';
       }
 
       if (data.transitions && data.transitions.length > 0) {
@@ -115,18 +115,18 @@
         var statusLabels = { in_progress: 'В работе', completed: 'Завершён', checked: 'Проверен' };
 
         data.transitions.forEach(function(t) {
-          var label = statusLabels[t.статус] || t.статус;
+          var label = statusLabels[t.status] || t.status;
           html += '<tr>' +
-            '<td>' + escHtml(t.nomer) + '</td>' +
-            '<td>' + escHtml(t.описание) + '</td>' +
-            '<td>' + escHtml(t.оператор) + '</td>' +
-            '<td>' + t.время + '</td>' +
-            '<td>' + escHtml(t.станок) + '</td>' +
-            '<td>' + t.колВо + '</td>' +
-            '<td><span class="badge ' + (t.статус === 'checked' ? 'badge--ok' : (t.статус === 'completed' ? 'badge--warn' : 'badge--info')) + '">' + escHtml(label) + '</span></td>' +
-            '<td>' + (t.принято || '') + '</td>' +
-            '<td>' + (t.брак || '') + '</td>' +
-            '<td>' + (t.статус === 'completed' ? '<button onclick="checkTransition(\'' + escHtml(t.id) + '\', ' + o.колВо + ')" class="btn btn--sm btn--primary">Проверить</button>' : '') + '</td>' +
+            '<td>' + escHtml(t.number) + '</td>' +
+            '<td>' + escHtml(t.description) + '</td>' +
+            '<td>' + escHtml(t.operator) + '</td>' +
+            '<td>' + t.time + '</td>' +
+            '<td>' + escHtml(t.machine) + '</td>' +
+            '<td>' + t.qty + '</td>' +
+            '<td><span class="badge ' + (t.status === 'checked' ? 'badge--ok' : (t.status === 'completed' ? 'badge--warn' : 'badge--info')) + '">' + escHtml(label) + '</span></td>' +
+            '<td>' + (t.accepted || '') + '</td>' +
+            '<td>' + (t.defect || '') + '</td>' +
+            '<td>' + (t.status === 'completed' ? '<button onclick="checkTransition(\'' + escHtml(t.id) + '\', ' + o.qty + ')" class="btn btn--sm btn--primary">Проверить</button>' : '') + '</td>' +
             '</tr>';
         });
 
@@ -135,16 +135,16 @@
         html += '<p class="muted" style="margin-top:1rem">Нет переходов</p>';
       }
 
-      var canClose = o.статус === 'rework' || (data.transitions && data.transitions.some(function(t) { return t.статус === 'checked'; }));
+      var canClose = o.status === 'rework' || (data.transitions && data.transitions.some(function(t) { return t.status === 'checked'; }));
       html += '<div class="modal-actions">';
       if (canClose) {
         html += '<input type="text" id="closeReason" class="input" placeholder="Причина брака" style="width:200px">';
         html += '<input type="text" id="closeComment" class="input" placeholder="Комментарий" style="width:200px">';
-        html += '<button onclick="closeNaryad(\'' + escHtml(o.номер) + '\')" class="btn btn--primary">Закрыть наряд</button>';
+        html += '<button onclick="closeNaryad(\'' + escHtml(o.number) + '\')" class="btn btn--primary">Закрыть наряд</button>';
       }
-      if (o.статус === 'waiting_otk') {
+      if (o.status === 'waiting_otk') {
         html += '<input type="text" id="reworkReason" class="input" placeholder="Причина доработки" style="width:200px">';
-        html += '<button onclick="sendToRework(\'' + escHtml(o.номер) + '\')" class="btn">На доработку</button>';
+        html += '<button onclick="sendToRework(\'' + escHtml(o.number) + '\')" class="btn">На доработку</button>';
       }
       html += '</div>';
 
@@ -176,20 +176,20 @@
           body: { id: transitionId, accepted: acceptedNum, defect: defectNum }
         });
         showToast('Переход проверен');
-        openNaryad(res.naryadNomer);
+        openNaryad(res.orderNumber);
       } catch (e) {
         showToast(e.message, true);
       }
     }
 
-    async function sendToRework(номер) {
-      var причина = document.getElementById('reworkReason').value;
+    async function sendToRework(number) {
+      var reason = document.getElementById('reworkReason').value;
       var user = getCurrentUser();
-      if (!причина) { showToast('Укажите причину доработки', true); return; }
+      if (!reason) { showToast('Укажите причину доработки', true); return; }
       try {
         await api('/api/otk/rework', {
           method: 'POST',
-          body: { naryadNomer: номер, причинаДоработки: причина, кемЗакрыт: user.фио }
+          body: { orderNumber: number, reworkReason: reason, closedBy: user.fullName }
         });
         showToast('Наряд отправлен на доработку');
         closeNaryadModal();
@@ -198,14 +198,14 @@
       }
     }
 
-    async function closeNaryad(номер) {
-      var причина = document.getElementById('closeReason').value;
-      var комментарий = document.getElementById('closeComment').value;
+    async function closeNaryad(number) {
+      var reason = document.getElementById('closeReason').value;
+      var comment = document.getElementById('closeComment').value;
       var user = getCurrentUser();
       try {
         await api('/api/otk/close', {
           method: 'POST',
-          body: { naryadNomer: номер, причинаБрака: причина, комментарий: комментарий, кемЗакрыт: user.фио }
+          body: { orderNumber: number, defectReason: reason, comment: comment, closedBy: user.fullName }
         });
         showToast('Наряд закрыт');
         closeNaryadModal();

@@ -26,7 +26,7 @@ router.post('/login', async (req, res) => {
     return;
   }
 
-  const user = { login: employee.login, фио: employee.фио, role: employee.role };
+  const user = { login: employee.login, fullName: employee.fullName, role: employee.role };
   const accessToken = jwt.sign(user, config.jwtSecret, { expiresIn: '12h' });
   const refreshToken = jwt.sign({ login: employee.login }, config.jwtSecret, { expiresIn: '7d' });
 
@@ -48,7 +48,7 @@ router.post('/refresh', async (req, res) => {
       return;
     }
 
-    const user = { login: employee.login, фио: employee.фио, role: employee.role };
+    const user = { login: employee.login, fullName: employee.fullName, role: employee.role };
     const accessToken = jwt.sign(user, config.jwtSecret, { expiresIn: '12h' });
     const newRefreshToken = jwt.sign({ login: employee.login }, config.jwtSecret, { expiresIn: '7d' });
 

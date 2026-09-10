@@ -26,15 +26,15 @@ export function generateShiftId(): string {
 }
 
 export async function generateTransitionNumber(
-  prisma: { transitions: { findMany: (args: { where: { naryadNomer: string }; orderBy: { nomer: 'desc' }; take: number }) => Promise<{ nomer: string }[]> } },
-  naryadNomer: string,
+  prisma: { transitions: { findMany: (args: { where: { orderNumber: string }; orderBy: { number: 'desc' }; take: number }) => Promise<{ number: string }[]> } },
+  orderNumber: string,
 ): Promise<string> {
   const last = await prisma.transitions.findMany({
-    where: { naryadNomer },
-    orderBy: { nomer: 'desc' },
+    where: { orderNumber },
+    orderBy: { number: 'desc' },
     take: 1,
   });
   if (last.length === 0) return '005';
-  const num = parseInt(last[0].nomer, 10);
+  const num = parseInt(last[0].number, 10);
   return pad(num + 5, 3);
 }

@@ -9,8 +9,15 @@ export const NARYAD_STATUS_LABELS: Record<NaryadStatus, string> = {
   closed: 'Закрыт',
 };
 
-export const LAUNCH_STATUS = ['К запуску', 'Выдано', 'В работе', 'Готово'] as const;
+export const LAUNCH_STATUS = ['to_launch', 'issued', 'in_work', 'done'] as const;
 export type LaunchStatus = (typeof LAUNCH_STATUS)[number];
+
+export const LAUNCH_STATUS_LABELS: Record<LaunchStatus, string> = {
+  to_launch: 'К запуску',
+  issued: 'Выдано',
+  in_work: 'В работе',
+  done: 'Готово',
+};
 
 export const SHIFT_STATUS = ['open', 'closed', 'auto_closed'] as const;
 export type ShiftStatus = (typeof SHIFT_STATUS)[number];

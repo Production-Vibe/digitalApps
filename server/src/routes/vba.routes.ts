@@ -29,33 +29,33 @@ async function handleUploadCatalog(payload: Record<string, unknown>) {
   let count = 0;
   for (const r of rows) {
     await prisma.catalog.upsert({
-      where: { код: String(r['Код'] || '') },
+      where: { code: String(r['Код'] || '') },
       update: {},
       create: {
-        код: String(r['Код'] || ''),
-        наименование: String(r['Наименование'] || ''),
-        обозначение: String(r['Обозначение'] || ''),
-        обозначение2: String(r['Обозначение 2'] || ''),
-        колНаРодителя: Number(r['Кол-во на родителя'] || 0),
-        типЗаготовки: String(r['Тип заготовки'] || ''),
-        материал: String(r['Материал'] || ''),
-        маркаМатериала: String(r['Марка материала'] || ''),
-        размерЗаготовки: String(r['Размер заготовки'] || ''),
-        толщинаСтенки: Number(r['Толщина стенки'] || 0),
-        длинаРезки: Number(r['Длина резки'] || 0),
-        ппб: String(r['ППБ'] || ''),
-        массаЗаготовки: Number(r['Масса заготовки'] || 0),
-        массаДетали: Number(r['Масса детали'] || 0),
-        резка: toBool(r['Резка']),
-        термообработка: toBool(r['Термообработка']),
-        плазма: toBool(r['Плазма']),
-        токарная: toBool(r['Токарная']),
-        фрезерная: toBool(r['Фрезерная']),
-        сверлильная: toBool(r['Сверлильная']),
-        слесарная: toBool(r['Слесарная']),
-        гибка: toBool(r['Гибка']),
-        покрытие: toBool(r['Покрытие']),
-        приоритет: String(r['Приоритет'] || ''),
+        code: String(r['Код'] || ''),
+        name: String(r['Наименование'] || ''),
+        designation: String(r['Обозначение'] || ''),
+        designation2: String(r['Обозначение 2'] || ''),
+        parentQty: Number(r['Кол-во на родителя'] || 0),
+        blankType: String(r['Тип заготовки'] || ''),
+        material: String(r['Материал'] || ''),
+        materialGrade: String(r['Марка материала'] || ''),
+        blankSize: String(r['Размер заготовки'] || ''),
+        wallThickness: Number(r['Толщина стенки'] || 0),
+        cutLength: Number(r['Длина резки'] || 0),
+        ppb: String(r['ППБ'] || ''),
+        blankWeight: Number(r['Масса заготовки'] || 0),
+        partWeight: Number(r['Масса детали'] || 0),
+        cutting: toBool(r['Резка']),
+        heatTreatment: toBool(r['Термообработка']),
+        plasma: toBool(r['Плазма']),
+        turning: toBool(r['Токарная']),
+        milling: toBool(r['Фрезерная']),
+        drilling: toBool(r['Сверлильная']),
+        fitting: toBool(r['Слесарная']),
+        bending: toBool(r['Гибка']),
+        coating: toBool(r['Покрытие']),
+        priority: String(r['Приоритет'] || ''),
       },
     });
     count++;
@@ -64,22 +64,22 @@ async function handleUploadCatalog(payload: Record<string, unknown>) {
 }
 
 async function handleCreateTransition(payload: Record<string, unknown>) {
-  const { naryadNomer, описание, оператор, время, плавка, станок, колВо } = payload;
-  if (!naryadNomer || !описание || !станок) {
-    throw new Error('Обязательны: naryadNomer, описание, станок');
+  const { orderNumber, description, operator, time, melt, machine, qty } = payload;
+  if (!orderNumber || !description || !machine) {
+    throw new Error('Обязательны: orderNumber, description, machine');
   }
-  const nomer = await generateTransitionNumber(prisma as never, String(naryadNomer));
+  const number = await generateTransitionNumber(prisma as never, String(orderNumber));
   const transition = await prisma.transitions.create({
     data: {
-      naryadNomer: String(naryadNomer),
-      nomer,
-      описание: String(описание),
-      оператор: String(оператор || ''),
-      время: Number(время || 0),
-      плавка: плавка ? String(плавка) : null,
-      станок: String(станок),
-      колВо: Number(колВо || 0),
-      статус: 'in_progress',
+      orderNumber: String(orderNumber),
+      number,
+      description: String(description),
+      operator: String(operator || ''),
+      time: Number(time || 0),
+      melt: melt ? String(melt) : null,
+      machine: String(machine),
+      qty: Number(qty || 0),
+      status: 'in_progress',
     },
   });
   return { ok: true, transition };
@@ -90,9 +90,9 @@ async function handleCompleteTransition(payload: Record<string, unknown>) {
   if (!id) throw new Error('id обязателен');
   const transition = await prisma.transitions.update({
     where: { id: String(id) },
-    data: { статус: 'completed' },
+    data: { status: 'completed' },
   });
-  await updateNaryadStatus(transition.naryadNomer);
+  await updateNaryadStatus(transition.orderNumber);
   return { ok: true, transition };
 }
 

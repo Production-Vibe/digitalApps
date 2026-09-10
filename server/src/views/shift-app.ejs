@@ -13,7 +13,7 @@
       <a href="/shift" class="active">Выдача нарядов</a>
     </nav>
     <div class="top-bar__user">
-      <span><%= user.фио %> (shift)</span>
+      <span><%= user.fullName %> (shift)</span>
       <button onclick="localStorage.clear();location.href='/login'" class="btn btn--sm">Выйти</button>
     </div>
   </header>
@@ -27,10 +27,10 @@
       <input type="text" id="filterSearch" placeholder="Поиск по детали/наименованию" class="input">
       <select id="filterStatus" class="input" onchange="loadLaunches()">
         <option value="">Все статусы</option>
-        <option value="К_запуску">К запуску</option>
-        <option value="Выдано">Выдано</option>
-        <option value="В_работе">В работе</option>
-        <option value="Готово">Готово</option>
+        <option value="to_launch">К запуску</option>
+        <option value="issued">Выдано</option>
+        <option value="in_work">В работе</option>
+        <option value="done">Готово</option>
       </select>
     </div>
 
@@ -89,8 +89,8 @@
       var filtered = launches;
       if (search) {
         filtered = launches.filter(function(l) {
-          return (l.наименование || '').toLowerCase().indexOf(search) >= 0 ||
-                 (l.кодДетали || '').toLowerCase().indexOf(search) >= 0;
+          return (l.name || '').toLowerCase().indexOf(search) >= 0 ||
+                 (l.partCode || '').toLowerCase().indexOf(search) >= 0;
         });
       }
 
@@ -99,17 +99,17 @@
         '</tr></thead><tbody>';
 
       filtered.forEach(function(l) {
-        var statusLabels = { 'К_запуску': 'К запуску', 'Выдано': 'Выдано', 'В_работе': 'В работе', 'Готово': 'Готово' };
-        var statusLabel = statusLabels[l.статус] || l.статус;
-        var canIssue = l.статус === 'К_запуску';
+        var statusLabels = { to_launch: 'К запуску', issued: 'Выдано', in_work: 'В работе', done: 'Готово' };
+        var statusLabel = statusLabels[l.status] || l.status;
+        var canIssue = l.status === 'to_launch';
         html += '<tr>' +
           '<td>' + escHtml(l.id) + '</td>' +
-          '<td>' + escHtml(l.кодДетали) + '</td>' +
-          '<td>' + escHtml(l.наименование) + '</td>' +
-          '<td>' + escHtml(l.номерПА) + '</td>' +
-          '<td>' + l.колВо + '</td>' +
-          '<td><span class="badge badge--' + escHtml(l.статус === 'К_запуску' ? 'info' : (l.статус === 'Выдано' ? 'warn' : (l.статус === 'Готово' ? 'ok' : 'muted'))) + '">' + escHtml(statusLabel) + '</span></td>' +
-          '<td>' + fmtDate(l.дата) + '</td>' +
+          '<td>' + escHtml(l.partCode) + '</td>' +
+          '<td>' + escHtml(l.name) + '</td>' +
+          '<td>' + escHtml(l.paNumber) + '</td>' +
+          '<td>' + l.qty + '</td>' +
+          '<td><span class="badge badge--' + escHtml(l.status === 'to_launch' ? 'info' : (l.status === 'issued' ? 'warn' : (l.status === 'done' ? 'ok' : 'muted'))) + '">' + escHtml(statusLabel) + '</span></td>' +
+          '<td>' + fmtDate(l.createdAt) + '</td>' +
           '<td>' + (canIssue ? '<button onclick="openIssueModal(\'' + escHtml(l.id) + '\')" class="btn btn--sm btn--primary">Выдать</button>' : '') + '</td>' +
           '</tr>';
       });
@@ -133,20 +133,20 @@
         opSelect.innerHTML = operators.length === 0
           ? '<option value="">Нет активных операторов</option>'
           : operators.map(function(o) {
-              return '<option value="' + escHtml(o.оператор) + '" data-station="' + escHtml(o.станок) + '">' + escHtml(o.оператор) + ' (' + escHtml(o.станок) + ')</option>';
+              return '<option value="' + escHtml(o.operator) + '" data-station="' + escHtml(o.machine) + '">' + escHtml(o.operator) + ' (' + escHtml(o.machine) + ')</option>';
             }).join('');
 
         machineSelect.innerHTML = machines.map(function(m) {
-          return '<option value="' + escHtml(m.название) + '">' + escHtml(m.название) + '</option>';
+          return '<option value="' + escHtml(m.name) + '">' + escHtml(m.name) + '</option>';
         }).join('');
 
         document.getElementById('issueDetails').innerHTML =
           '<p><strong>Запуск:</strong> ' + escHtml(launch.id) + '</p>' +
-          '<p><strong>Деталь:</strong> ' + escHtml(launch.кодДетали) + ' — ' + escHtml(launch.наименование) + '</p>' +
-          '<p><strong>ПА:</strong> ' + escHtml(launch.номерПА) + '</p>' +
-          '<p><strong>Всего:</strong> ' + launch.колВо + '</p>';
+          '<p><strong>Деталь:</strong> ' + escHtml(launch.partCode) + ' — ' + escHtml(launch.name) + '</p>' +
+          '<p><strong>ПА:</strong> ' + escHtml(launch.paNumber) + '</p>' +
+          '<p><strong>Всего:</strong> ' + launch.qty + '</p>';
 
-        document.getElementById('issueQty').value = launch.колВо;
+        document.getElementById('issueQty').value = launch.qty;
         document.getElementById('issueModal').style.display = 'flex';
       } catch (e) {
         showToast(e.message, true);
@@ -160,25 +160,25 @@
 
     async function submitIssue() {
       if (!currentLaunch) return;
-      var оператор = document.getElementById('issueOperator').value;
-      var станок = document.getElementById('issueMachine').value;
-      var колВо = parseFloat(document.getElementById('issueQty').value);
+      var operator = document.getElementById('issueOperator').value;
+      var machine = document.getElementById('issueMachine').value;
+      var qty = parseFloat(document.getElementById('issueQty').value);
 
-      if (!оператор) { showToast('Выберите оператора', true); return; }
-      if (!колВо || колВо <= 0) { showToast('Укажите количество', true); return; }
+      if (!operator) { showToast('Выберите оператора', true); return; }
+      if (!qty || qty <= 0) { showToast('Укажите количество', true); return; }
 
       try {
         await api('/api/work-orders/issue', {
           method: 'POST',
           body: {
             launchId: currentLaunch.id,
-            кодДетали: currentLaunch.кодДетали,
-            наименование: currentLaunch.наименование,
-            обозначение: currentLaunch.обозначение || '',
-            узел: currentLaunch.узел || '',
-            оператор: оператор,
-            станок: станок,
-            колВо: колВо
+            partCode: currentLaunch.partCode,
+            name: currentLaunch.name,
+            designation: currentLaunch.designation || '',
+            assembly: currentLaunch.assembly || '',
+            operator: operator,
+            machine: machine,
+            qty: qty
           }
         });
         showToast('Наряд выдан');

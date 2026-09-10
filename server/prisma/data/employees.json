@@ -1,0 +1,26 @@
+[
+  {
+    "login": "operator",
+    "password": "123",
+    "fullName": "Иванов И. И.",
+    "role": "operator"
+  },
+  {
+    "login": "otk",
+    "password": "123",
+    "fullName": "Сидоров С. С.",
+    "role": "otk"
+  },
+  {
+    "login": "master",
+    "password": "123",
+    "fullName": "Качурин И. К.",
+    "role": "master"
+  },
+  {
+    "login": "shift",
+    "password": "123",
+    "fullName": "Умнов И. П.",
+    "role": "shift"
+  }
+]

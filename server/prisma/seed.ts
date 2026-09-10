@@ -8,41 +8,41 @@ const prisma = new PrismaClient();
 const SEED_DIR = path.join(__dirname, 'data');
 
 interface CatalogRow {
-  Код: string;
-  Наименование: string;
-  Обозначение: string;
-  'Обозначение 2': string;
-  'Кол-во на родителя': number;
-  'Тип заготовки': string;
-  Материал: string;
-  'Марка материала': string;
-  'Размер заготовки': string;
-  'Толщина стенки': number;
-  'Длина резки': number;
-  ППБ: string;
-  'Масса заготовки': number;
-  'Масса детали': number;
-  Резка: string;
-  Термообработка: string;
-  Плазма: string;
-  Токарная: string;
-  Фрезерная: string;
-  Сверлильная: string;
-  Слесарная: string;
-  Гибка: string;
-  Покрытие: string;
-  Приоритет: string;
+  code: string;
+  name: string;
+  designation: string;
+  designation2?: string;
+  parentQty: number;
+  blankType: string;
+  material: string;
+  materialGrade: string;
+  blankSize: string;
+  wallThickness: number;
+  cutLength: number;
+  ppb: string;
+  blankWeight: number;
+  partWeight: number;
+  cutting: boolean;
+  heatTreatment: boolean;
+  plasma: boolean;
+  turning: boolean;
+  milling: boolean;
+  drilling: boolean;
+  fitting: boolean;
+  bending: boolean;
+  coating: boolean;
+  priority: string;
 }
 
 interface EmployeeRow {
   login: string;
   password: string;
-  ФИО: string;
-  role: string;
+  fullName: string;
+  role: 'master' | 'shift' | 'operator' | 'otk';
 }
 
 interface EquipmentRow {
-  название: string;
+  name: string;
 }
 
 function toBool(v: unknown): boolean {
@@ -51,37 +51,46 @@ function toBool(v: unknown): boolean {
   return s === '+' || s === '1' || s === 'ДА';
 }
 
+function toNum(v: unknown): number {
+  const n = Number(v);
+  return isNaN(n) ? 0 : n;
+}
+
+function toStr(v: unknown): string {
+  return v === null || v === undefined ? '' : String(v);
+}
+
 async function seedCatalog(rows: CatalogRow[]) {
   console.log(`Seeding catalog: ${rows.length} rows`);
   for (const r of rows) {
     await prisma.catalog.upsert({
-      where: { код: r['Код'] },
+      where: { code: r.code },
       update: {},
       create: {
-        код: r['Код'],
-        наименование: r['Наименование'],
-        обозначение: r['Обозначение'],
-        обозначение2: r['Обозначение 2'],
-        колНаРодителя: r['Кол-во на родителя'],
-        типЗаготовки: r['Тип заготовки'],
-        материал: r['Материал'],
-        маркаМатериала: r['Марка материала'],
-        размерЗаготовки: r['Размер заготовки'],
-        толщинаСтенки: r['Толщина стенки'],
-        длинаРезки: r['Длина резки'],
-        ппб: r['ППБ'],
-        массаЗаготовки: r['Масса заготовки'],
-        массаДетали: r['Масса детали'],
-        резка: toBool(r['Резка']),
-        термообработка: toBool(r['Термообработка']),
-        плазма: toBool(r['Плазма']),
-        токарная: toBool(r['Токарная']),
-        фрезерная: toBool(r['Фрезерная']),
-        сверлильная: toBool(r['Сверлильная']),
-        слесарная: toBool(r['Слесарная']),
-        гибка: toBool(r['Гибка']),
-        покрытие: toBool(r['Покрытие']),
-        приоритет: r['Приоритет'],
+        code: r.code,
+        name: toStr(r.name),
+        designation: toStr(r.designation),
+        designation2: toStr(r.designation2),
+        parentQty: toNum(r.parentQty),
+        blankType: toStr(r.blankType),
+        material: toStr(r.material),
+        materialGrade: toStr(r.materialGrade),
+        blankSize: toStr(r.blankSize),
+        wallThickness: toNum(r.wallThickness),
+        cutLength: toNum(r.cutLength),
+        ppb: toStr(r.ppb),
+        blankWeight: toNum(r.blankWeight),
+        partWeight: toNum(r.partWeight),
+        cutting: toBool(r.cutting),
+        heatTreatment: toBool(r.heatTreatment),
+        plasma: toBool(r.plasma),
+        turning: toBool(r.turning),
+        milling: toBool(r.milling),
+        drilling: toBool(r.drilling),
+        fitting: toBool(r.fitting),
+        bending: toBool(r.bending),
+        coating: toBool(r.coating),
+        priority: toStr(r.priority),
       },
     });
   }
@@ -90,15 +99,15 @@ async function seedCatalog(rows: CatalogRow[]) {
 async function seedEmployees(rows: EmployeeRow[]) {
   console.log(`Seeding employees: ${rows.length} rows`);
   for (const r of rows) {
-    const hash = await bcrypt.hash(r['password'], 10);
+    const hash = await bcrypt.hash(r.password, 10);
     await prisma.employees.upsert({
-      where: { login: r['login'] },
+      where: { login: r.login },
       update: { password: hash },
       create: {
-        login: r['login'],
+        login: r.login,
         password: hash,
-        фио: r['ФИО'],
-        role: r['role'] as 'master' | 'shift' | 'operator' | 'otk',
+        fullName: r.fullName,
+        role: r.role,
       },
     });
   }
@@ -108,9 +117,9 @@ async function seedEquipment(rows: EquipmentRow[]) {
   console.log(`Seeding equipment: ${rows.length} rows`);
   for (const r of rows) {
     await prisma.equipment.upsert({
-      where: { название: r['название'] },
+      where: { name: r.name },
       update: {},
-      create: { название: r['название'] },
+      create: { name: r.name },
     });
   }
 }

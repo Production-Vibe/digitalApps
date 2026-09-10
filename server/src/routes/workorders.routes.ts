@@ -8,63 +8,63 @@ const router = Router();
 
 router.get('/', requireAuth('master', 'shift', 'operator', 'otk'), async (req, res) => {
   const launchId = queryStr(req, 'launchId');
-  const статус = queryStr(req, 'статус');
-  const оператор = queryStr(req, 'оператор');
+  const status = queryStr(req, 'status');
+  const operator = queryStr(req, 'operator');
   const where: Record<string, unknown> = {};
   if (launchId) where.launchId = launchId;
-  if (статус) where.статус = статус;
-  if (оператор) where.оператор = оператор;
-  const orders = await prisma.workOrders.findMany({ where, orderBy: { номер: 'desc' }, take: 200 });
+  if (status) where.status = status;
+  if (operator) where.operator = operator;
+  const orders = await prisma.workOrders.findMany({ where, orderBy: { number: 'desc' }, take: 200 });
   res.json(orders);
 });
 
-router.get('/:номер', requireAuth('master', 'shift', 'operator', 'otk'), async (req, res) => {
-  const order = await prisma.workOrders.findUnique({ where: { номер: param(req, 'номер') } });
+router.get('/:number', requireAuth('master', 'shift', 'operator', 'otk'), async (req, res) => {
+  const order = await prisma.workOrders.findUnique({ where: { number: param(req, 'number') } });
   if (!order) { res.status(404).json({ error: 'Не найдено' }); return; }
   res.json(order);
 });
 
 router.post('/issue', requireAuth('shift'), async (req, res) => {
-  const { launchId, кодДетали, наименование, обозначение, узел, оператор, станок, колВо } = req.body;
-  if (!кодДетали || !оператор || !станок || !колВо) {
-    res.status(400).json({ error: 'Обязательны: кодДетали, оператор, станок, колВо' });
+  const { launchId, partCode, name, designation, assembly, operator, machine, qty } = req.body;
+  if (!partCode || !operator || !machine || !qty) {
+    res.status(400).json({ error: 'Обязательны: partCode, operator, machine, qty' });
     return;
   }
 
-  const номер = generateNaryadId();
+  const number = generateNaryadId();
 
   const order = await prisma.workOrders.create({
     data: {
-      номер,
-      кодДетали,
-      наименование: наименование || '',
-      обозначение: обозначение || '',
-      узел: узел || '',
-      оператор,
-      станок,
-      колВо: Number(колВо),
-      статус: 'created',
+      number,
+      partCode,
+      name: name || '',
+      designation: designation || '',
+      assembly: assembly || '',
+      operator,
+      machine,
+      qty: Number(qty),
+      status: 'created',
       launchId: launchId || null,
     },
   });
 
   await prisma.printQueue.create({
     data: {
-      naryadNomer: номер,
-      кодДетали,
-      наименование: наименование || '',
-      обозначение: обозначение || '',
-      узел: узел || '',
-      оператор,
-      станок,
-      колВо: Number(колВо),
+      orderNumber: number,
+      partCode,
+      name: name || '',
+      designation: designation || '',
+      assembly: assembly || '',
+      operator,
+      machine,
+      qty: Number(qty),
     },
   });
 
   if (launchId) {
     const launch = await prisma.launches.findUnique({ where: { id: launchId } });
-    if (launch && launch.статус === 'К_запуску') {
-      await prisma.launches.update({ where: { id: launchId }, data: { статус: 'Выдано' } });
+    if (launch && launch.status === 'to_launch') {
+      await prisma.launches.update({ where: { id: launchId }, data: { status: 'issued' } });
     }
   }
 
@@ -72,32 +72,32 @@ router.post('/issue', requireAuth('shift'), async (req, res) => {
 });
 
 router.get('/my/list', requireAuth('operator'), async (req, res) => {
-  const оператор = queryStr(req, 'оператор');
-  if (!оператор) { res.status(400).json({ error: 'оператор обязателен' }); return; }
+  const operator = queryStr(req, 'operator');
+  if (!operator) { res.status(400).json({ error: 'operator обязателен' }); return; }
   const orders = await prisma.workOrders.findMany({
-    where: { оператор, статус: { in: ['created', 'in_progress'] } },
-    orderBy: { номер: 'desc' },
+    where: { operator, status: { in: ['created', 'in_progress'] } },
+    orderBy: { number: 'desc' },
   });
   res.json(orders);
 });
 
 router.get('/my/closed', requireAuth('operator'), async (req, res) => {
-  const оператор = queryStr(req, 'оператор');
-  if (!оператор) { res.status(400).json({ error: 'оператор обязателен' }); return; }
+  const operator = queryStr(req, 'operator');
+  if (!operator) { res.status(400).json({ error: 'operator обязателен' }); return; }
   const orders = await prisma.workOrders.findMany({
-    where: { оператор, статус: 'closed' },
-    orderBy: { номер: 'desc' },
+    where: { operator, status: 'closed' },
+    orderBy: { number: 'desc' },
     take: 50,
   });
   res.json(orders);
 });
 
-router.put('/:номер/status', requireAuth('operator'), async (req, res) => {
-  const { статус } = req.body;
-  if (!статус) { res.status(400).json({ error: 'статус обязателен' }); return; }
+router.put('/:number/status', requireAuth('operator'), async (req, res) => {
+  const { status } = req.body;
+  if (!status) { res.status(400).json({ error: 'status обязателен' }); return; }
   const order = await prisma.workOrders.update({
-    where: { номер: param(req, 'номер') },
-    data: { статус },
+    where: { number: param(req, 'number') },
+    data: { status },
   });
   res.json(order);
 });

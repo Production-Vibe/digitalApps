@@ -5,7 +5,7 @@ import type { EmployeeRole } from '../lib/naryad-status';
 
 export interface AuthUser {
   login: string;
-  фио: string;
+  fullName: string;
   role: EmployeeRole;
 }
 

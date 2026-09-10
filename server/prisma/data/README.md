@@ -1,34 +1,24 @@
 # Seed Data
 
-Place JSON files here to seed the database. Format: arrays of objects matching the Google Sheets columns.
+Place JSON files here to seed the database. Format: arrays of objects with Latin field names (matching the Prisma schema).
 
 ## Files
 
-- `catalog.json` — full nomenclature (24 columns per row)
-- `employees.json` — `[{ "login": "...", "password": "...", "ФИО": "...", "role": "master|shift|operator|otk" }]`
-- `equipment.json` — `[{ "название": "ПА8" }, ...]`
+- `catalog.json` — full nomenclature (Latin fields: `code`, `name`, `designation`, `designation2`, `parentQty`, `blankType`, `material`, `materialGrade`, `blankSize`, `wallThickness`, `cutLength`, `ppb`, `blankWeight`, `partWeight`, operations as booleans, `priority`)
+- `employees.json` — `[{ "login": "...", "password": "...", "fullName": "...", "role": "master|shift|operator|otk" }]`
+- `equipment.json` — `[{ "name": "Т1-1" }, ...]`
 
 ## How to export from Google Sheets
 
-In Apps Script editor, run:
+In Apps Script editor run `exportAllSheets()` (added to `Code.js`, route `?action=export` in `Auth.doGet`) and save the JSON body to `_export_raw.json`. Then apply the RU→EN column mapping:
 
-```javascript
-function exportSeedData() {
-  const sheets = ['Catalog', 'Employees', 'Equipment'];
-  const result = {};
-  sheets.forEach(name => {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
-    if (!sheet) return;
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    result[name.toLowerCase()] = data.slice(1).map(row => {
-      const obj = {};
-      headers.forEach((h, i) => obj[h] = row[i]);
-      return obj;
-    });
-  });
-  Logger.log(JSON.stringify(result, null, 2));
-}
-```
+- `Код` → `code`, `Наименование` → `name`, `Обозначение` → `designation`, `Обозначение 2` → `designation2`
+- `Кол-во на родителя` → `parentQty`, `Тип заготовки` → `blankType`, `Материал` → `material`, `Марка материала` → `materialGrade`
+- `Размер заготовки` → `blankSize`, `Толщина стенки` → `wallThickness`, `Длина резки` → `cutLength`, `ППБ` → `ppb`
+- `Масса заготовки` → `blankWeight`, `Масса детали` → `partWeight`
+- Внутрицеховые операции (`Резка`, `Термообработка`, ...) → booleans (`cutting`, `heatTreatment`, `plasma`, `turning`, `milling`, `drilling`, `fitting`, `bending`, `coating`)
+- `Приоритет` → `priority`
+- Employees: `Логин` → `login`, `Пароль` → `password`, `ФИО` → `fullName`, `Роль` → `role`
+- Equipment: `Станок` → `name`
 
-Then paste the output and split into separate files.
+Passwords are hashed with bcrypt during seed (plaintext in the JSON is fine).

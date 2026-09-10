@@ -13,7 +13,7 @@
       <a href="/master" class="active">Планирование</a>
     </nav>
     <div class="top-bar__user">
-      <span><%= user.фио %> (master)</span>
+      <span><%= user.fullName %> (master)</span>
       <button onclick="localStorage.clear();location.href='/login'" class="btn btn--sm">Выйти</button>
     </div>
   </header>
@@ -78,11 +78,11 @@
     function renderStats(launches) {
       var el = document.getElementById('statsSection');
       if (!launches) launches = [];
-      var counts = { 'К_запуску': 0, 'Выдано': 0, 'В_работе': 0, 'Готово': 0 };
+      var counts = { to_launch: 0, issued: 0, in_work: 0, done: 0 };
       launches.forEach(function(l) {
-        if (counts[l.статус] !== undefined) counts[l.статус]++;
+        if (counts[l.status] !== undefined) counts[l.status]++;
       });
-      var labels = { 'К_запуску': 'К запуску', 'Выдано': 'Выдано', 'В_работе': 'В работе', 'Готово': 'Готово' };
+      var labels = { to_launch: 'К запуску', issued: 'Выдано', in_work: 'В работе', done: 'Готово' };
       el.innerHTML = '<div class="stat-grid">';
       Object.keys(counts).forEach(function(k) {
         el.innerHTML += '<div class="stat-card"><div class="stat-card__value">' + counts[k] + '</div>' +
@@ -97,19 +97,19 @@
         el.innerHTML = '<div class="panel"><h3>Запуски</h3><p class="muted">Нет запусков</p></div>';
         return;
       }
-      var statusLabels = { 'К_запуску': 'К запуску', 'Выдано': 'Выдано', 'В_работе': 'В работе', 'Готово': 'Готово' };
+      var statusLabels = { to_launch: 'К запуску', issued: 'Выдано', in_work: 'В работе', done: 'Готово' };
       var html = '<div class="panel"><h3>Запуски</h3><div class="tablewrap"><table class="table"><thead><tr>' +
         '<th>ID</th><th>Деталь</th><th>Наименование</th><th>ПА</th><th>Кол-во</th><th>Статус</th><th>Дата</th><th></th></tr></thead><tbody>';
       launches.forEach(function(l) {
-        var canDelete = l.статус === 'К_запуску';
+        var canDelete = l.status === 'to_launch';
         html += '<tr>' +
           '<td>' + escHtml(l.id) + '</td>' +
-          '<td>' + escHtml(l.кодДетали) + '</td>' +
-          '<td>' + escHtml(l.наименование) + '</td>' +
-          '<td>' + escHtml(l.номерПА) + '</td>' +
-          '<td>' + l.колВо + '</td>' +
-          '<td><span class="badge badge--' + (l.статус === 'К_запуску' ? 'info' : (l.статус === 'Выдано' ? 'warn' : (l.статус === 'Готово' ? 'ok' : 'muted'))) + '">' + escHtml(statusLabels[l.статус] || l.статус) + '</span></td>' +
-          '<td>' + fmtDate(l.дата) + '</td>' +
+          '<td>' + escHtml(l.partCode) + '</td>' +
+          '<td>' + escHtml(l.name) + '</td>' +
+          '<td>' + escHtml(l.paNumber) + '</td>' +
+          '<td>' + l.qty + '</td>' +
+          '<td><span class="badge badge--' + (l.status === 'to_launch' ? 'info' : (l.status === 'issued' ? 'warn' : (l.status === 'done' ? 'ok' : 'muted'))) + '">' + escHtml(statusLabels[l.status] || l.status) + '</span></td>' +
+          '<td>' + fmtDate(l.createdAt) + '</td>' +
           '<td>' + (canDelete ? '<button onclick="deleteLaunch(\'' + escHtml(l.id) + '\')" class="btn btn--sm">Удалить</button>' : '') + '</td>' +
           '</tr>';
       });
@@ -133,8 +133,8 @@
             return;
           }
           results.innerHTML = items.map(function(item) {
-            return '<div class="catalog-item" onclick="selectCatalogItem(\'' + escHtml(item.код) + '\', \'' + escHtml(item.наименование) + '\')">' +
-              escHtml(item.код) + ' — ' + escHtml(item.наименование) + '</div>';
+            return '<div class="catalog-item" onclick="selectCatalogItem(\'' + escHtml(item.code) + '\', \'' + escHtml(item.name) + '\')">' +
+              escHtml(item.code) + ' — ' + escHtml(item.name) + '</div>';
           }).join('');
         } catch (e) {
           showToast(e.message, true);
@@ -142,33 +142,33 @@
       }, 350);
     }
 
-    function selectCatalogItem(код, наименование) {
-      selectedCatalogItem = { код: код, наименование: наименование };
-      document.getElementById('launchSearch').value = код + ' — ' + наименование;
+    function selectCatalogItem(code, name) {
+      selectedCatalogItem = { code: code, name: name };
+      document.getElementById('launchSearch').value = code + ' — ' + name;
       document.getElementById('catalogResults').innerHTML = '';
-      document.getElementById('selectedItem').innerHTML = '<strong>Выбрано:</strong> ' + escHtml(код) + ' — ' + escHtml(наименование);
+      document.getElementById('selectedItem').innerHTML = '<strong>Выбрано:</strong> ' + escHtml(code) + ' — ' + escHtml(name);
     }
 
     async function createLaunch() {
       if (!selectedCatalogItem) { showToast('Сначала выберите деталь', true); return; }
-      var колВо = parseFloat(document.getElementById('launchQty').value);
-      var номерПА = document.getElementById('launchPA').value.trim();
-      var типЗапуска = document.getElementById('launchType').value;
+      var qty = parseFloat(document.getElementById('launchQty').value);
+      var paNumber = document.getElementById('launchPA').value.trim();
+      var launchType = document.getElementById('launchType').value;
       var user = getCurrentUser();
-      if (!колВо || колВо <= 0) { showToast('Укажите количество', true); return; }
-      if (!номерПА) { showToast('Укажите № ПА', true); return; }
+      if (!qty || qty <= 0) { showToast('Укажите количество', true); return; }
+      if (!paNumber) { showToast('Укажите № ПА', true); return; }
 
       try {
         await api('/api/launches', {
           method: 'POST',
           body: {
-            кодДетали: selectedCatalogItem.код,
-            наименование: selectedCatalogItem.наименование,
-            узел: '',
-            колВо: колВо,
-            номерПА: номерПА,
-            ктоСоздал: user ? user.фио : '',
-            типЗапуска: типЗапуска
+            partCode: selectedCatalogItem.code,
+            name: selectedCatalogItem.name,
+            assembly: '',
+            qty: qty,
+            paNumber: paNumber,
+            createdBy: user ? user.fullName : '',
+            launchType: launchType
           }
         });
         showToast('Запуск создан');
