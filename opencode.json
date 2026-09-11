@@ -7,6 +7,18 @@
     "instructions/safety.md",
     "instructions/verification.md"
   ],
+  "mcp": {
+    "postgres": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-postgres", "postgresql://production_user:{file:tests/e2e/.secrets/pgpass}@localhost:5432/MOSD"],
+      "enabled": true
+    },
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "-y", "@playwright/mcp", "--headless"],
+      "enabled": true
+    }
+  },
   "permission": {
     "skill": {
       "*": "allow"

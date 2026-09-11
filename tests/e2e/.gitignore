@@ -2,6 +2,8 @@
 # per-app consent approval — never commit these.
 # Patterns are relative to this directory (tests/e2e/).
 profile/
+# Local DB credentials referenced from opencode.json via {file:...} — never commit.
+.secrets/
 screenshots/
 __pycache__/
 *.pyc

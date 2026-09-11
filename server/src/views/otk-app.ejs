@@ -13,7 +13,7 @@
       <a href="/otk" class="active">ОТК</a>
     </nav>
     <div class="top-bar__user">
-      <span><%= user.fullName %> (otk)</span>
+      <span class="user-full-name"></span> (otk)
       <button onclick="localStorage.clear();location.href='/login'" class="btn btn--sm">Выйти</button>
     </div>
   </header>
@@ -38,6 +38,14 @@
 
   <script src="/api.js"></script>
   <script>
+    (function() {
+      var u = getCurrentUser();
+      if (!u) { location.href = '/login'; return; }
+      if (u.role !== 'otk') { location.href = '/'; return; }
+      var nameEl = document.querySelector('.user-full-name');
+      if (nameEl) nameEl.textContent = u.fullName;
+    })();
+
     var currentOrder = null;
 
     async function loadQueue() {

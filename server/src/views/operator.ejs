@@ -13,13 +13,13 @@
       <a href="/operator" class="active">Оператор</a>
     </nav>
     <div class="top-bar__user">
-      <span><%= user.fullName %> (operator)</span>
+      <span class="user-full-name"></span> (operator)
       <button onclick="localStorage.clear();location.href='/login'" class="btn btn--sm">Выйти</button>
     </div>
   </header>
   <main class="container">
     <div class="page-header">
-      <h1>Оператор: <%= user.fullName %></h1>
+      <h1>Оператор</h1>
       <button onclick="loadAll()" class="btn btn--primary">Обновить</button>
     </div>
 
@@ -56,6 +56,14 @@
 
   <script src="/api.js"></script>
   <script>
+    (function() {
+      var u = getCurrentUser();
+      if (!u) { location.href = '/login'; return; }
+      if (u.role !== 'operator') { location.href = '/'; return; }
+      var nameEl = document.querySelector('.user-full-name');
+      if (nameEl) nameEl.textContent = u.fullName;
+    })();
+
     var currentOrder = null;
     var currentShift = null;
 

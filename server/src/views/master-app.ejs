@@ -13,7 +13,7 @@
       <a href="/master" class="active">Планирование</a>
     </nav>
     <div class="top-bar__user">
-      <span><%= user.fullName %> (master)</span>
+      <span class="user-full-name"></span> (master)
       <button onclick="localStorage.clear();location.href='/login'" class="btn btn--sm">Выйти</button>
     </div>
   </header>
@@ -59,6 +59,14 @@
 
   <script src="/api.js"></script>
   <script>
+    (function() {
+      var u = getCurrentUser();
+      if (!u) { location.href = '/login'; return; }
+      if (u.role !== 'master') { location.href = '/'; return; }
+      var nameEl = document.querySelector('.user-full-name');
+      if (nameEl) nameEl.textContent = u.fullName;
+    })();
+
     var selectedCatalogItem = null;
     var searchTimer = null;
 
