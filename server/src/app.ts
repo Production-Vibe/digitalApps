@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { config } from './config';
 import { prisma } from './lib/prisma';
+import { wrapRouter } from './lib/async-wrap';
 import authRoutes from './routes/auth.routes';
 import pageRoutes from './routes/page.routes';
 import catalogRoutes from './routes/catalog.routes';
@@ -37,17 +38,36 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-app.use('/api', authRoutes);
-app.use('/api/catalog', catalogRoutes);
-app.use('/api/equipment', equipmentRoutes);
-app.use('/api/launches', launchesRoutes);
-app.use('/api/work-orders', workordersRoutes);
-app.use('/api/shifts', shiftsRoutes);
-app.use('/api/transitions', transitionsRoutes);
-app.use('/api/otk', otkRoutes);
-app.use('/api/employees', employeesRoutes);
-app.use('/api/vba', vbaRoutes);
-app.use('/', pageRoutes);
+interface PrismaError {
+  code?: string;
+}
+
+app.use('/api', wrapRouter(authRoutes));
+app.use('/api/catalog', wrapRouter(catalogRoutes));
+app.use('/api/equipment', wrapRouter(equipmentRoutes));
+app.use('/api/launches', wrapRouter(launchesRoutes));
+app.use('/api/work-orders', wrapRouter(workordersRoutes));
+app.use('/api/shifts', wrapRouter(shiftsRoutes));
+app.use('/api/transitions', wrapRouter(transitionsRoutes));
+app.use('/api/otk', wrapRouter(otkRoutes));
+app.use('/api/employees', wrapRouter(employeesRoutes));
+app.use('/api/vba', wrapRouter(vbaRoutes));
+app.use('/', wrapRouter(pageRoutes));
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: PrismaError, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err && err.code === 'P2003') {
+    res.status(400).json({ error: 'Ссылка на несуществующую запись (нарушение внешнего ключа)' });
+    return;
+  }
+  if (err && err.code === 'P2025') {
+    res.status(404).json({ error: 'Запись не найдена' });
+    return;
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error('[server] unhandled error:', msg);
+  res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+});
 
 app.listen(config.port, () => {
   console.log(`[server] listening on http://localhost:${config.port}`);
