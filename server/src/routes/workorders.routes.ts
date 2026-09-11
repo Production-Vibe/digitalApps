@@ -75,7 +75,7 @@ router.get('/my/list', requireAuth('operator'), async (req, res) => {
   const operator = queryStr(req, 'operator');
   if (!operator) { res.status(400).json({ error: 'operator обязателен' }); return; }
   const orders = await prisma.workOrders.findMany({
-    where: { operator, status: { in: ['created', 'in_progress'] } },
+    where: { operator, status: { in: ['created', 'in_progress', 'rework'] } },
     orderBy: { number: 'desc' },
   });
   res.json(orders);

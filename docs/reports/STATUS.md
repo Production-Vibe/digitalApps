@@ -16,6 +16,14 @@
 
 ## Последний завершённый этап
 
+- **11.09.2026 — Rework-цикл оператора восстановлен.** `GET /api/work-orders/my/list`
+  (`server/src/routes/workorders.routes.ts:78`) теперь включает `rework` в фильтре
+  статусов (`['created','in_progress','rework']`). Проверено end-to-end через API:
+  ОТК вернул наряд (`naryad rework`) → оператор увидел его в `/my/list` →
+  добавил переход (`waiting_otk`) → ОТК проверил и закрыл (`closed`). Обнаружен
+  при репродукции отдельный XSS-уровневый дефект: сервер падает при битом
+  `partCode` в `/issue` (P2003 — нет глобального error-handler'а, см. TODO).
+  Проверки: `npm run build` + `npm run check` PASS, E2E 18/18 PASS.
 - **11.09.2026 — E2E на `localhost:3000` адаптирован (JWT-стек), 18/18 PASS.**
   Харнесс `tests/e2e/` переписан под новый стек: `config.py` (APP_URL
   `http://localhost:3000`, CREDS из сида, LANDING → `/master|/shift|/operator|/otk`),
@@ -48,11 +56,10 @@
 
 ## Открытые баги / TODO
 
-- [ ] **Rework-цикл оператора сломан (баг паритета, HIGH).**
-  `GET /api/work-orders/my/list` (`server/src/routes/workorders.routes.ts:78`)
-  фильтрует `['created','in_progress']` → наряд со статусом `rework` оператор
-  не видит, обратный путь «ОТК вернул → правит → waiting_otk» непроходим
-  end-to-end. Чинить первым.
+- [ ] **Нет глобального error-handler'а (HIGH, надёжность).** Асинхронный throw в
+  хендлерах роутов (напр. P2003 при битом `partCode` в `/issue`) не перехватывается —
+  Express 4 роняет процесс, сервис «зависает» (ConnectionReset на клиенте). Нужен
+  оберточный `asyncHandler` + финальный error-middleware в `server/src/app.ts`.
 - [ ] **Docker-деплой не проверен вживую:** конфиг исправлен (context/`dockerfile`/
   `env_file`, `DATABASE_URL` сервиса `app` → host `db`, добавлен `prisma db seed`,
   Dockerfile копирует `prisma/` целиком), но `docker compose up --build` на
@@ -86,8 +93,9 @@
 
 ## Следующий шаг
 
-1. **Rework-цикл оператора** — включить `rework` в `/my/list` (+ проверить
-   флоу «ОТК вернул → оператор правит → waiting_otk»).
+1. **Глобальный error-handler (HIGH)** — `asyncHandler`-обёртка + финальный
+   error-middleware в `server/src/app.ts`, чтобы битый запрос (P2003) не ронял
+   процесс.
 2. **Docker-проверка** `docker compose up --build` на машине с Docker-CLI
    (после этого деплой перестанет быть «бумажным»).
 3. Master: Dashboard + очередь печати (минимум); далее безопасность
