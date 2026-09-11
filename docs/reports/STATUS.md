@@ -27,8 +27,11 @@
   запущен через Docker Desktop (`docker compose up -d --build` в `server/`): образ
   `server-app` собран, миграции применены, сид залит, `server-db-1` healthy.
   docker.io в Ubuntu-WSL отключён (`systemctl disable --now docker docker.socket`) —
-  два движка не конфликтуют за порты 3000/5432. Автозапуск Docker Desktop включён
-  (`AutoStart: true` в `settings-store.json`, Run-ключ HKCU). **Проверка живучести:
+  два движка не конфликтуют за порты 3000/5432. Автозапуск Docker Desktop: Run-ключ
+  HKCU присутствует (запуск при входе в Windows); флаг `AutoStart` в
+  `settings-store.json` Docker Desktop сбросил на `false` при перезаписи настроек —
+  проверить чекбокс «Start Docker Desktop when you sign in» в Settings→General.
+  **Проверка живучести:
   ссылка отвечает 200 непрерывно 5+ минут бездействия** (раньше падала за ~1 мин);
   контейнеры `Up 6 minutes` без рестарта, WSL-фон `docker-desktop` — `Running`,
   Ubuntu — `Stopped`. Проверено: `/health` 200 локально и через Funnel, `/login`
