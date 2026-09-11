@@ -10,7 +10,11 @@ Place JSON files here to seed the database. Format: arrays of objects with Latin
 
 ## How to export from Google Sheets
 
-In Apps Script editor run `exportAllSheets()` (added to `Code.js`, route `?action=export` in `Auth.doGet`) and save the JSON body to `_export_raw.json`. Then apply the RU→EN column mapping:
+> Скрипт экспорта (`exportAllSheets()`, роут `?action=export` в `Auth.doGet`) —
+> артефакт Google-стека и живёт в ветке `google-apps`. Действующие JSON в этой
+> папке уже подготовлены из боевого экспорта.
+
+In Apps Script editor run `exportAllSheets()` and save the JSON body to `_export_raw.json`. Then apply the RU→EN column mapping:
 
 - `Код` → `code`, `Наименование` → `name`, `Обозначение` → `designation`, `Обозначение 2` → `designation2`
 - `Кол-во на родителя` → `parentQty`, `Тип заготовки` → `blankType`, `Материал` → `material`, `Марка материала` → `materialGrade`

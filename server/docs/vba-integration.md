@@ -1,6 +1,7 @@
 # VBA-интеграция с новым бэкендом
 
-> Ветка `future`. Заменяет `doPost` Google Apps Script на REST API собственного сервера.
+> Ветка `main`. Заменяет `doPost` Google Apps Script на REST API собственного сервера.
+> Источник правды — `server/src/routes/vba.routes.ts`.
 
 ## Эндпоинт
 
@@ -19,7 +20,9 @@ X-VBA-Secret: <VBA_SECRET из .env>
 
 ### 1. `uploadCatalog` — выгрузка номенклатуры
 
-Заменяет `CatalogAPI.uploadCatalog`. Полностью перезаписывает каталог новыми данными (upsert по `Код`).
+Заменяет `CatalogAPI.uploadCatalog`. Upsert по `Код` (`code`): существующие записи
+не изменяются (`update: {}`), добавляются только новые. Поля строк — **русские**
+(как в Excel), маппинг на латинские поля `Catalog` выполняет сервер.
 
 ```json
 {
@@ -57,18 +60,19 @@ X-VBA-Secret: <VBA_SECRET из .env>
 
 ### 2. `createTransition` — создание технологического перехода
 
-Заменяет `createTransition` (VBA-поток). Переход создаётся со статусом `in_progress`, оператор завершает через `completeTransition`.
+Заменяет `createTransition` (VBA-поток). Переход создаётся со статусом `in_progress`, оператор завершает через `completeTransition`. Поля — **латинские**:
+обязательны `orderNumber`, `description`, `machine`.
 
 ```json
 {
   "action": "createTransition",
-  "naryadNomer": "Н-260904-131352",
-  "описание": "Токарная обработка",
-  "оператор": "Морозов И.А.",
-  "время": 2.5,
-  "плавка": "07-1234",
-  "станок": "ПА8",
-  "колВо": 5
+  "orderNumber": "Н-260904-131352",
+  "description": "Токарная обработка",
+  "operator": "Морозов И.А.",
+  "time": 2.5,
+  "melt": "07-1234",
+  "machine": "ПА8",
+  "qty": 5
 }
 ```
 

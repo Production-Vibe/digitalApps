@@ -1,7 +1,7 @@
 # Архитектура «ЦифровойНаряд»
 
-Статус: справочная спецификация (уточняется при изменении структуры листов/модулей).
-Источник контекста: `README.md`, `docs/Мастер-промпт.md`, код-модули `modules/*.md`.
+Статус: справочная спецификация (уточняется при изменении структуры
+сервера/схемы). Источник правды: `server/src/**`, `server/prisma/schema.prisma`.
 
 ## Цель системы
 
@@ -13,116 +13,102 @@
 ## Стек
 
 ```
-Excel (VBA)  →  Google Таблицы (хранилище)  →  Google Apps Script WebApp (логика + UI)
+Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 ```
 
-- Номенклатура загружается из Excel в лист `Catalog` (`CatalogAPI.uploadCatalog`).
-- Google Таблицы — единственное хранилище (11 листов флоу).
-- Apps Script — серверная логика + веб-интерфейсы ролей (роутинг в `Auth.doGet`).
+- Номенклатура загружается из Excel (VBA) через REST `/api/vba/ingest`
+  (`uploadCatalog`) в таблицу `Catalog`.
+- PostgreSQL — единственное хранилище (10 таблиц-моделей).
+- Node.js — серверная логика + веб-интерфейсы ролей (EJS-страницы, JWT-авторизация).
 
-## Листы Google Таблицы
+## Модель данных
 
-Имена листов — константы в `modules/Config.md` (`SHEET_*`). Функции читают листы
-по именам колонок (`headers.indexOf(...)`), что устойчиво к порядку колонок.
+Канон — `server/prisma/schema.prisma` (10 моделей):
 
-| Лист | Назначение | Заполняется |
+| Модель | Назначение | Заполняется |
 |---|---|---|
-| `Catalog` | Полная номенклатура (24 кол.) | Excel/VBA (`uploadCatalog`) |
-| `Planning` | Черновик запусков (25 кол.) | Нач. цеха; обрабатывается `onEdit` |
-| `Launches` | Запуски на конкретные ПА (12 кол.) | `confirmBatchLaunch` / `createLaunch` |
-| `Queue` | Очередь назначений операторам | Нач. смены (`onEdit` → Queue) |
-| `WorkOrders` | Цифровые наряды операторов (канон наряда, ADR-003) | `createWorkOrderFromQueue` / `issueWorkOrder` |
-| `Shifts` | Смены операторов и их станки | `openShift` / `closeShift` |
-| `PrintQueue` | Очередь печати документов | `createPrintJob` |
-| `Employees` | login, password, ФИО, role (переименован из `Сотрудники`) | Ручное администрирование |
-| `Equipment` | Справочник станков | Ручное администрирование |
-| `Transitions` | Технологические переходы наряда (связь по `Номер наряда`) | Оператор / VBA |
-| `ClosedOrders` | Итоги закрытых нарядов | ОТК (`closeNaryad`) |
+| `Catalog` | Полная номенклатура | VBA / seed |
+| `Launches` | Запуски на конкретные ПА | master (`POST /api/launches`) |
+| `WorkOrders` | Цифровые наряды операторов (канон наряда) | shift (`POST /api/work-orders/issue`) |
+| `Transitions` | Технологические переходы наряда (FK по `orderNumber`) | оператор / VBA |
+| `ClosedOrders` | Итоги закрытых нарядов | ОТК (`POST /api/otk/close`) |
+| `Shifts` | Смены операторов и их станки | оператор (`open`/`close`) |
+| `PrintQueue` | Очередь печати документов | shift (при выдаче наряда) |
+| `Employees` | login, bcrypt-password, fullName, role | seed / администрирование |
+| `Equipment` | Справочник станков | seed / администрирование |
+| `Queue` | Очередь назначений операторам | зарезервирована (не питается routes) |
 
-Кириллические легаси-листы `Сотрудники`/`Наряды`/`Переходы`/`Закрытые` в флоу
-не участвуют (код их не пишет и не читает).
+## REST-модули
 
-## Модули Apps Script
+Все API-модули — в `server/src/routes/*.ts`, подключены в `server/src/app.ts`:
 
-Код-модули `modules/*.md` 1:1 маппятся в `.gs`-модули с тем же именем.
-Серверные функции глобально видимы между модулями (Apps Script).
+| Модуль | Префикс | Публичные методы |
+|---|---|---|
+| `auth.routes.ts` | `/api` | `login`, `refresh`, `me` |
+| `page.routes.ts` | `/` | `GET /login`, `/master`, `/shift`, `/operator`, `/otk` (EJS) |
+| `catalog.routes.ts` | `/api/catalog` | `GET /`, `GET /:code`, `GET /tree/units` |
+| `equipment.routes.ts` | `/api/equipment` | `GET /`, `POST /`, `DELETE /:id` |
+| `launches.routes.ts` | `/api/launches` | `GET /`, `GET /pa/occupied`, `POST /`, `PUT /:id`, `DELETE /:id` |
+| `workorders.routes.ts` | `/api/work-orders` | `GET /`, `POST /issue`, `GET /my/list`, `GET /my/closed`, `PUT /:number/status` |
+| `shifts.routes.ts` | `/api/shifts` | `GET /active-operators`, `GET /my`, `POST /open`, `POST /close/:id` |
+| `transitions.routes.ts` | `/api/transitions` | `GET /`, `POST /`, `POST /complete`, `POST /check` |
+| `otk.routes.ts` | `/api/otk` | `GET /queue`, `GET /naryad/:number`, `POST /close`, `POST /rework`, `GET /closing-info/:number` |
+| `employees.routes.ts` | `/api/employees` | `GET /` |
+| `vba.routes.ts` | `/api/vba` | `POST /ingest` (X-VBA-Secret) |
 
-| Модуль | Ответственность |
-|---|---|
-| `Code` | `doPost` (VBA-интеграция), `onEdit` (событийная модель) |
-| `Config` | Константы имён листов |
-| `Auth` | `checkAuth`, `doGet`, роутинг страниц, `appBaseUrl`, `escapeHtml` |
-| `MasterUI` | Нач. цеха: дерево номенклатуры, фильтры, запуски на ПА, Dashboard, печать |
-| `ShiftUI` | Нач. смены: запуски («К запуску»+), выдача нарядов операторам по количеству |
-| `PlanningAPI` | Чтение Catalog, запуски, Queue/WorkOrders |
-| `CatalogAPI` | `uploadCatalog` — загрузка номенклатуры из Excel (24 кол.) |
-| `Launches` | `createLaunch`, занятость ПА, сводки загрузки, `setLaunchStatus` |
-| `OperatorUI` | Оператор: смены, наряды, тех. переходы (фрагмент) |
-| `OtkUI` | ОТК: очередь нарядов, проверка переходов, закрытие/доработка (полная страница `otk-app`) |
-| `Shifts` | Смены операторов, станки, блокировки занятости станка |
-| `NaryadAPI` | Канон WorkOrders (карточки), переходы, закрытие |
-| `PrintQueue` | Очередь задач на печать комплекта приложений к наряду |
+## Точки входа и авторизация
 
-## Точки входа и события
-
-- `doGet(e)` — роутинг HTML-страниц по `?page=` (`modules/Auth.md:29`).
-- `checkAuth(login, password)` — авторизация по листу `Employees` (`modules/Auth.md:2`).
-- `doPost(e)` — приём данных от VBA (`modules/Code.md`).
-- `onEdit(e)` — событийная модель таблицы: `Planning → Queue → WorkOrders`
-  (`modules/Code.md`). Триггеры настраиваются вручную в Apps Script (onEdit),
-  и в Google Таблицах для `onFormSubmit` (VBA-интерфейс).
+- `GET /login` — страница входа (EJS). `POST /api/login` — bcrypt-сверка по
+  `Employees`, выдаёт `accessToken` (12ч) + `refreshToken` (7д) + `user`.
+- Страницы `/master|/shift|/operator|/otk` рендерятся сервером (EJS), фактический
+  доступ — на клиенте (`localStorage` + редирект на `/login`). Данные — только
+  через авторизованные API (`requireAuth(...roles)`).
+- JWT-содержимое: `{ login, fullName, role }`. Роль в подписанном токене —
+  спуфинг через URL невозможен.
+- VBA: `POST /api/vba/ingest` с `X-VBA-Secret`.
 
 ## Жизненный цикл работы (end-to-end)
 
 1. **Загрузка номенклатуры:** Excel (VBA) → `uploadCatalog` → `Catalog`.
-2. **Планирование запусков:** нач. цеха выбирает позиции в дереве, назначает на ПА →
-   `confirmBatchLaunch` → `Launches` со статусом «К запуску».
-3. **Назначение операторам:** нач. смены фильтрует запуски и выдаёт наряды
-   (оператор → станок → количество) → `issueWorkOrder` → `WorkOrders` (статус
-   `created`) + `PrintQueue`. Частичная выдача оставляет запуск «К запуску»;
-   полная выдача переводит его в «Выдано».
-4. **Выполнение:** оператор активирует смену (станок), принимает наряд в работу
-   (`in_progress`), отмечает тех. переходы. Все переходы выполнены → `waiting_otk`.
-5. **Контроль ОТК:** нач. цеха/ОТК принимает или бракует, закрывает наряд →
-   `closed` + итоги в `ClosedOrders`. Брак → повторный запуск.
-6. **Печать приложений (VBA):** при выдаче WorkOrder → `createPrintJob` — задача
-   на печать в `PrintQueue` (один job = **весь наряд**). VBA-слушатель
-   (`Module_PrintServer.bas`) опрашивает очередь, для `pending`-задач резолвит
-   чертежи по манифесту путей и печатает **комплект приложений на цеховом
-   принтере** с меткой-суперобложкой (первый/последний лист: наряд, оператор,
-   станок). После фактической печати задача отмечается `printed`.
+2. **Планирование запусков:** master → `POST /api/launches` (код детали, кол-во,
+   № ПА, тип) → `Launches` со статусом `to_launch`.
+3. **Выдача нарядов:** shift выдаёт наряд (оператор → станок → количество) →
+   `POST /api/work-orders/issue` → `WorkOrders` (`created`) + `PrintQueue`.
+   Полная выдача переводит запуск в `issued`.
+4. **Выполнение:** оператор активирует смену (`POST /api/shifts/open`, станок),
+   принимает наряд в работу (`in_progress`), отмечает тех. переходы
+   (`POST /api/transitions`). Все переходы выполнены → `waiting_otk`.
+5. **Контроль ОТК:** ОТК проверяет переходы (`POST /api/transitions/check`,
+   `accepted`/`defect`), закрывает наряд (`POST /api/otk/close`) → `closed` +
+   итоги в `ClosedOrders`. Возврат на доработку (`POST /api/otk/rework`) →
 
-## Политика хранения файлов приложений
+6. `rework` → оператору, правит, снова `waiting_otk` → `closed`.
+7. **Печать (VBA-этап):** при выдаче создаётся job в `PrintQueue`; печать
+   комплекта приложений — VBA-слушателем.
 
-- **Файлы приложений (чертежи и пр.) НЕ хранятся в Google** — ни в листах, ни в
-  Drive: это правовые риски (интеллектуальная собственность) и неоправданная
-  утечка. В Google уходит только **задача на печать** (PrintQueue) и служебные
-  данные наряда.
-- **Манифест путей** («код детали → путь к файлу чертежа») живёт в Excel/VBA
-  (отдельный лист / ini) и в Google не передаётся.
-- VBA-слушатель резолвит пути локально и печатает комплект на цеховом принтере.
-- Печать — **финальный этап** реализации: выполняется после отладки
-  WorkOrders / ОТК / смен.
-- **QR-коды не используются** (артефакт ранних версий): вход оператора в систему —
-  через веб-интерфейс без QR.
+## Docker-контуры
+
+- `server/docker-compose.yml`:
+  - сервис `db` — `postgres:16-alpine`;
+  - сервис `app` — сборка `server/Dockerfile` (builder: `prisma generate` + `tsc`;
+    runtime: node + `dist`), старт `prisma migrate deploy && node dist/app.js`.
+- Локальный dev — `npm run dev` (`tsx watch src/app.ts`) против локального `MOSD`.
+- Секреты — `server/.env` (не в git; шаблон `server/.env.example`).
 
 ## Технические конвенции
 
-- Полные страницы: `MasterUI`, `ShiftUI` (`render*AppPage`) — inline-`<script>`
-  через `innerHTML` в песочнице не выполняется.
-- Фрагменты: `OperatorUI` — встраивается через `innerHTML` + `runInsertedScripts`.
-- Навигация верхнего уровня — только через серверный `appBaseUrl()`.
-- Статусы Launches: `К запуску`, `Выдано`, `В работе`, `Готово`.
-- Статусы WorkOrders: `created`, `in_progress`, `waiting_otk`, `rework`, `closed`.
-- **Источник фактов наряда:** `WorkOrders` — канон (ADR-003, вариант A);
-  переходы — `Transitions`, итоги закрытия — `ClosedOrders`. Кириллическая
-  учётная проекция из флоу выведена.
-- ПА: 001–120, ведущие нули. Дата: `dd.MM.yyyy HH:mm`.
-- Операции Catalog: `'+'`, `'1'`, `'ДА'` означают «да».
-- Дерево номенклатуры вычисляется на клиенте (`computeType`/`computeUnit`).
+- Один Express-процесс, доменное разбиение на routes.
+- Валидация/инварианты: OТК-закрытие требует проверенные переходы (кроме
+  `rework`-direct-close), `accepted+defect ≤ qty`, запуск меняется только из
+  `to_launch`, смена не открывается на занятый станок.
+- ID: `Н-yyMMdd-HHmmss` (наряд), `ЗП-…` (запуск), `СМ-…` (смена); переходы —
+  `005, 010, 015…` (`server/src/lib/id.ts`).
+- Статусы — единые константы `server/src/lib/naryad-status.ts` (+ по enum в
+  Prisma-схеме).
+- Дата в UI: `dd.MM.yyyy HH:mm` (`fmtDate` в `api.js`).
 
 ## См. также
 
 - `roles.md` — роли, интерфейсы, роутинг.
-- `data-model.md` — структура записей листов.
-- `adr/deploy-manual.md` — почему деплой ручной, без clasp.
+- `data-model.md` — структура записей моделей Prisma.
+- `server/docs/vba-integration.md` — VBA REST-интеграция.

@@ -1,84 +1,86 @@
 # Роли, права и роутинг «ЦифровойНаряд»
 
-Статус: справочная спецификация. Роутинг живёт в `modules/Auth.md`; лист ролей — `Employees`.
-
-## Хранилище ролей
-
-Лист `Employees`, колонки `login | password | ФИО | role` (индексы 0..3).
-(Переименован из `Сотрудники`; код ссылается на `SHEET_EMPLOYEES`.)
-
-| # | Колонка | Использование |
-|---|---|---|
-| 0 | `login` | Идентификатор входа |
-| 1 | `password` | Пароль (открытым текстом, MVP) |
-| 2 | `ФИО` | Отображаемое имя (`name`) |
-| 3 | `role` | Роль (`master` / `shift` / `operator` / `otk`) |
+Статус: справочная спецификация. Роутинг живёт в `server/src/routes/`; таблица
+ролей — `Employees` в PostgreSQL.
 
 ## Роли
 
-| role | Интерфейс | Страница | Реализация |
+| role | Интерфейс | Страница | Вью |
 |---|---|---|---|
-| `master` | Начальник цеха: дерево номенклатуры, запуски на ПА, Dashboard, очередь печати | `?page=master-app` | `modules/MasterUI.md`, полная страница |
-| `shift` | Начальник смены: выдача нарядов операторам из запусков | `?page=shift-app` | `modules/ShiftUI.md`, полная страница |
-| `operator` | Оператор: смены, назначенные наряды, тех. переходы | `?page=operator` | `modules/OperatorUI.md`, фрагмент |
-| `otk` | ОТК: приёмка/брак/закрытие/доработка нарядов | `?page=otk-app` | `modules/OtkUI.md`, полная страница |
+| `master` | Начальник цеха: дерево номенклатуры, запуски на ПА, сводки | `/master` | `master-app.ejs` |
+| `shift` | Начальник смены: выдача нарядов операторам из запусков | `/shift` | `shift-app.ejs` |
+| `operator` | Оператор: смены, наряды, тех. переходы | `/operator` | `operator.ejs` |
+| `otk` | ОТК: приёмка/брак/закрытие/доработка нарядов | `/otk` | `otk-app.ejs` |
 
-## Источник фактов наряда (ADR-003, вариант A, реализован)
+Роли — enum `EmployeeRole` в Prisma-схеме и `EMPLOYEE_ROLE` в
+`server/src/lib/naryad-status.ts`.
 
-- **Канон** — `WorkOrders` (колонки в `data-model.md`, включая `Статус` и
-  `Причина доработки`). Все факты наряда записываются здесь «впервые».
-- **Переходы** — англоязычный лист `Transitions` (связь по `Номер наряда`).
-- **Итоги закрытия** — англоязычный лист `ClosedOrders` (пишется при закрытии ОТК).
-- Оператор/ОТК читают карточку наряда напрямую из канона `WorkOrders` + переходы
-  из `Transitions`. Кириллические листы `Наряды`/`Переходы`/`Закрытые` в флоу
-  не участвуют (легаси).
-- Кто пишет в какой лист — по `data-model.md`.
+## Хранилище ролей
 
-## Роутинг (`modules/Auth.doGet`)
+Таблица `Employees`:
 
-Параметр `page` в URL (`modules/Auth.md:36-62`):
+| Поле | Тип | Использование |
+|---|---|---|
+| `login` | `String @id` | Идентификатор входа |
+| `password` | `String` | **bcrypt-хэш** (не открытый текст) |
+| `fullName` | `String` | Отображаемое имя |
+| `role` | `EmployeeRole` | `master` / `shift` / `operator` / `otk` |
 
-| `?page=` | Обработчик |
-|---|---|
-| `login` | `renderLogin(naryadId)` — страница входа (default) |
-| `operator` | `renderOperatorPage(name, naryadId)` |
-| `otk` | `renderAfterLogin(name, role)` |
-| `master` | `renderAfterLogin(name, role)` |
-| `master-app` | `renderMasterAppPage(name)` |
-| `shift-app` | `renderShiftAppPage(name)` |
-| `otk-app` | `renderOtkAppPage(name)` |
-| `naryad` | `renderNaryad(naryadId, role, name)` |
-| прочее | `renderLogin(naryadId)` |
+## Авторизация
 
-## Логика входа (`modules/Auth.md`)
+- `POST /api/auth/login` (`server/src/routes/auth.routes.ts`) — bcrypt-сверка,
+  возвращает `{ accessToken, refreshToken, user }`.
+- `accessToken` (12ч) — JWT с payload `{ login, fullName, role }`.
+- `refreshToken` (7д) — `{ login }`; обновляется на 401-ответе автоматически.
+- `requireAuth(...roles)` (`server/src/middleware/auth.ts`) проверяет
+  `Authorization: Bearer <token>` и роль **из подписанного токена** — спуфинг
+  роли через URL невозможен.
+- Клиент: `server/src/public/api.js` — `api()` добавляет Bearer, на 401 делает
+  refresh и повторяет запрос; `localStorage` хранит `token`/`refreshToken`/`user`.
 
-- `checkAuth(login, password)` читает `Employees`, сверяет по `login`+`password`,
-  возвращает `{ success, name, role, execUrl }`.
-- После успешного логина:
-  - `operator` → страница оператора (`?page=operator`).
-  - `shift` → `?page=shift-app`.
-  - `otk` → `?page=otk-app`.
-  - остальные (включая `master`) → `?page=master-app` (`modules/Auth.md:243-272`).
-- `renderAfterLogin` / `getAfterLoginFragment` — промежуточная экранная страница
-  с role-badge и переходом (используется для `master`, `otk` при прямом заходе).
-- `appBaseUrl()` — абсолютный URL WebApp для верхнеуровневой навигации
-  (логин/выход); относительные `?page=` из песочницы не работают.
+## Роутинг страниц (`server/src/routes/page.routes.ts`)
+
+| Путь | Вью | Доступ |
+|---|---|---|
+| `/login` | `login.ejs` | публичная |
+| `/master` | `master-app.ejs` | client-side (JWT, роль `master`) |
+| `/shift` | `shift-app.ejs` | client-side (JWT, роль `shift`) |
+| `/operator` | `operator.ejs` | client-side (JWT, роль `operator`) |
+| `/otk` | `otk-app.ejs` | client-side (JWT, роль `otk`) |
+| `/` | редирект на `/login` | — |
+| `/health` | JSON `{status, db}` | — |
+
+Сервер отдаёт EJS-страницу без проверки роли; фактический доступ контролируется
+на клиенте (отсутствие/иная роль → редирект на `/login`). Данные страниц —
+только через авторизованные API.
+
+## Источник фактов наряда (ADR-003, реализован)
+
+- **Канон** — `WorkOrders`. Все факты наряда записываются здесь «впервые».
+- **Переходы** — `Transitions` (связь по `orderNumber`, `@@unique([orderNumber, number])`).
+- **Итоги закрытия** — `ClosedOrders` (пишется при закрытии ОТК).
+- Оператор/ОТК читают карточку наряда из канона `WorkOrders` + переходы из
+  `Transitions`.
+
+## Кто пишет в какие таблицы
+
+| Модель | Кто пишет | Маршрут |
+|---|---|---|
+| `WorkOrders` | shift (выдача), оператор (статусы), ОТК (закрытие/rework) | `workorders`, `otk` |
+| `Transitions` | operator, VBA | `transitions`, `vba` |
+| `ClosedOrders` | ОТК | `otk/close` |
+| `Shifts` | operator | `shifts/open`, `shifts/close` |
+| `Launches` | master (+ смена статуса при выдаче) | `launches`, `workorders/issue` |
+| `PrintQueue` | shift (при выдаче наряда) | `workorders/issue` |
 
 ## Роль `otk`
 
-Полный интерфейс в `modules/OtkUI.md` (`?page=otk-app`): очередь нарядов по
-категориям (Ждут ОТК / Доработка / В работе), карточка наряда с переходом
-(принято/брак), закрытие наряда (disposition) и возврат на доработку
-(статус `rework`). Все операции защищены `isRole(name, 'otk')`.
-
-## Расхождения в источниках (актуально на момент написания spec)
-
-- `docs/Мастер-промпт.md` описывает распределение по ролям — сверять с кодом
-  модулей `modules/Auth.md` и `modules/ShiftUI.md` перед реализацией.
-- Роль `shift` выходит на полную страницу `shift-app`; при этом «выдать в никуда»
-  нельзя — `ShiftUI` показывает активные смены операторов.
+Полный интерфейс `otk-app.ejs` + `otk.routes.ts`: очередь нарядов (ожидают ОТК /
+доработка), карточка наряда с переходами (принято/брак), закрытие (guard: без
+проверенных переходов запрещено, кроме `rework`-direct-close) и возврат на
+доработку (`rework`).
 
 ## См. также
 
 - `architecture.md` — модули и точки входа.
-- `data-model.md` — структура записей.
+- `data-model.md` — структура записей моделей Prisma.

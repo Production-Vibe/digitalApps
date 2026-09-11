@@ -4,53 +4,44 @@
 наряды цифровым потоком: планирование запусков → выдача нарядов нач. смены →
 выполнение оператором → контроль ОТК.
 
-**Стек:** Excel (VBA) → Google Таблицы (хранилище данных) → Google Apps Script
-WebApp (веб-интерфейс и серверная логика).
+**Стек:** Excel (VBA) → Node.js (Express + EJS + Prisma) → PostgreSQL. Монолит
+на TypeScript, JWT + bcrypt авторизация, без фреймворков UI.
 
 ## Как начать работу с репозиторием
 
 1. Прочитай `AGENTS.md` — обязательный контракт работы.
 2. Техническая документация — в `docs/specs/`:
-   - `architecture.md` — стеки, листы, модули, потоки данных;
+   - `architecture.md` — стек, модули, потоки данных, Docker-контуры;
    - `roles.md` — роли, права, роутинг страниц;
-   - `data-model.md` — структура колонок листов, статусы;
+   - `data-model.md` — структура таблиц Prisma, статусы;
    - `adr/` — принятые архитектурные решения.
 3. Отчёты по этапам — в `docs/reports/`.
-4. Диагностика «вечной Загрузки…»/пустой страницы — `docs/МАСТЕР-ДИАГНОСТИКА.md`.
+4. Локальный запуск — `server/` + `server/.env` (из `.env.example`), `npm run dev`.
+5. E2E (Playwright) — `docs/testing/e2e-runbook.md`.
 
 ## Роли
 
-| role | Интерфейс | Страница | Модуль |
+| role | Интерфейс | Страница | Реализация |
 |---|---|---|---|
-| `master` | Начальник цеха: дерево номенклатуры, запуски на ПА, Dashboard, печать | `?page=master-app` | `MasterUI` |
-| `shift` | Начальник смены: выдача нарядов операторам из запусков | `?page=shift-app` | `ShiftUI` |
-| `operator` | Оператор: смены, наряды, тех. переходы | `?page=operator` | `OperatorUI` |
-| `otk` | ОТК: приёмка/брак/закрытие нарядов, возврат на доработку | `?page=otk-app` | `OtkUI` |
+| `master` | Начальник цеха: дерево номенклатуры, запуски на ПА, сводки | `/master` | `server/src/views/master-app.ejs` |
+| `shift` | Начальник смены: выдача нарядов операторам из запусков | `/shift` | `server/src/views/shift-app.ejs` |
+| `operator` | Оператор: смены, наряды, тех. переходы | `/operator` | `server/src/views/operator.ejs` |
+| `otk` | ОТК: приёмка/брак/закрытие нарядов, возврат на доработку | `/otk` | `server/src/views/otk-app.ejs` |
 
-## Google Таблицы
+## PostgreSQL
 
-Единственное хранилище (флоу), 11 листов:
-`Catalog`, `Planning`, `Launches`, `Queue`, `WorkOrders`, `Shifts`, `PrintQueue`,
-`Employees`, `Equipment`, `Transitions`, `ClosedOrders`.
-Кириллические легаси-листы `Наряды`/`Переходы`/`Закрытые`/`Сотрудники` в флоу
-не участвуют. Реальные имена/колонки — в `modules/Config.md` и `docs/specs/data-model.md`.
-
-## Модули Apps Script (13)
-
-`Code`, `Config`, `Auth`, `MasterUI`, `ShiftUI`, `PlanningAPI`, `CatalogAPI`,
-`Launches`, `OperatorUI`, `OtkUI`, `Shifts`, `NaryadAPI`, `PrintQueue`.
-Краткое описание — в `docs/specs/architecture.md`.
+Единственное хранилище. Локальная БД `MOSD`, пользователь `production_user`
+(см. `server/.env`, в git не хранится). Схема — канон в
+`server/prisma/schema.prisma` (10 моделей).
 
 ## Источник правды и деплой
 
-Файлы `modules/*.md` — это **дословные `.gs`-исходники** (не документация).
-Каждый код-модуль `.md` 1:1 маппится в `.gs`-модуль Apps Script.
-
-Деплой **только ручной** (никакого clasp/`dist/`): правка `modules/*.md` →
-`node .opencode/skills/digitalapps-deploy/scripts/check-modules.js` →
-копирование файла целиком в редактор Apps Script →
-«Развернуть → Новая версия» → «тестируй». Подробности — `AGENTS.md` и
-`.opencode/skills/digitalapps-deploy/SKILL.md`. Почему так — `docs/specs/adr/deploy-manual.md`.
+- **`server/src/`** — исходник; **`server/prisma/schema.prisma`** — схема БД (канон).
+- Миграции — `server/prisma/migrations/*` (через `prisma migrate dev`).
+- Сид — `server/prisma/seed.ts` + `server/prisma/data/*.json` (каталог, роли, станки).
+- Деплой — **Docker + PM2** (`server/docker-compose.yml`, `server/Dockerfile`,
+  `server/ecosystem.config.cjs`): `docker compose up --build`. Секреты — в
+  `server/.env` (кроме `.env.example`, в git не хранятся).
 
 ## Структура файлов
 
@@ -58,30 +49,32 @@ WebApp (веб-интерфейс и серверная логика).
 digitalApps/
 ├── AGENTS.md                # Контракт работы (читать первым)
 ├── README.md                # Этот файл (карта проекта)
-├── modules/                 # Код-модули (деплоятся)
-│   ├── Code.md              # doPost/onEdit, событийная модель
-│   ├── Config.md            # Константы имён листов
-│   ├── Auth.md              # checkAuth, doGet, роутинг страниц
-│   ├── MasterUI.md          # Нач. цеха: дерево, запуски на ПА, Dashboard
-│   ├── ShiftUI.md           # Нач. смены: выдача нарядов из запусков
-│   ├── PlanningAPI.md       # Чтение Catalog, Queue/WorkOrders
-│   ├── CatalogAPI.md        # uploadCatalog (номенклатура из Excel)
-│   ├── Launches.md          # Запуски на ПА, занятость, сводки
-│   ├── OperatorUI.md        # Оператор: смены, наряды, тех. переходы
-│   ├── Shifts.md            # Смены операторов, станки
-│   ├── NaryadAPI.md         # Канон WorkOrders, переходы, закрытие (ОТК/оператор)
-│   └── PrintQueue.md        # Очередь печати
+├── server/                  # New-стек: Node/Express + Prisma + PostgreSQL
+│   ├── src/
+│   │   ├── app.ts           # Express-приложение, роутинг
+│   │   ├── config.ts        # порт, JWT/VBA-секреты, DATABASE_URL
+│   │   ├── routes/          # REST-модули по доменам (auth, catalog, launches,
+│   │   │                    #   workorders, shifts, transitions, otk, vba, …)
+│   │   ├── middleware/auth.ts    # requireAuth(...roles)
+│   │   ├── lib/             # id, naryad-status, transition-logic, prisma, request
+│   │   ├── views/           # EJS: login, master-app, shift-app, operator, otk-app
+│   │   └── public/          # api.js, styles.css
+│   ├── prisma/
+│   │   ├── schema.prisma    # Канон схемы БД (10 моделей)
+│   │   ├── migrations/      # Миграции (prisma migrate dev)
+│   │   ├── seed.ts          # Сид (bcrypt-хэши ролей)
+│   │   └── data/            # catalog.json, employees.json, equipment.json
+│   ├── Dockerfile, docker-compose.yml, ecosystem.config.cjs
+│   ├── docs/vba-integration.md
+│   ├── .env.example         # Шаблон секретов (реальный .env не в git)
+│   └── package.json
 ├── docs/
-│   ├── Мастер-промпт.md     # Документация-память (не деплоится)
-│   ├── МАСТЕР-ДИАГНОСТИКА.md# Диагностика «Загрузка…» (не деплоится)
-│   ├── чек-лист внедрения...md  # Чек-лист введения (не деплоится)
-│   ├── specs/               # Технические спецификации
-│   │   ├── architecture.md
-│   │   ├── roles.md
-│   │   ├── data-model.md
-│   │   └── adr/
-│   └── reports/             # Отчёты по этапам
-└── .opencode/skills/        # Скиллы opencode
+│   ├── specs/               # architecture.md, roles.md, data-model.md, adr/
+│   ├── reports/             # Отчёты по этапам + STATUS.md (живое состояние)
+│   └── testing/e2e-runbook.md
+├── tests/e2e/               # Playwright-харнесс (Python)
+├── .opencode/               # Скиллы и subagents opencode
+└── opencode.json            # Конфиг opencode (инструкции, MCP, permissions)
 ```
 
 ## Жизненный цикл работы (end-to-end)
@@ -91,12 +84,17 @@ digitalApps/
 
 ## Ключевые технические особенности
 
-- Роли разграничены на уровне листа `Employees` (login/password/role) и
-  роутинга в `doGet` (`modules/Auth.md`).
-- `MasterUI` и `ShiftUI` грузятся как **полная страница** (`?page=master-app` /
-  `?page=shift-app`) — inline-`<script>` через `innerHTML` в песочнице не
-  выполняется. `OperatorUI` — фрагмент + `runInsertedScripts`.
-- Навигация верхнего уровня — только через серверный `appBaseUrl()`.
-- Событийная модель: `onEdit` в таблице (Planning → Queue → WorkOrders),
-  `doPost` для VBA. Детали — `modules/Code.md`, `docs/specs/architecture.md`.
-- Функции читают листы по именам колонок (`headers.indexOf`) — устойчиво к порядку.
+- Авторизация — JWT: `POST /api/auth/login` (bcrypt → `accessToken` 12ч +
+  `refreshToken` 7д). Роль — в подписанном токене, спуфинг через URL невозможен.
+  Клиент хранит токены в `localStorage`, общий `api()` в `public/api.js`.
+- Бинес-инварианты в хендлерах/`lib/`: закрытие без проверенных переходов
+  запрещено, `accepted+defect ≤ qty`, смена упирается в занятость станка.
+- Словари статусов — единые константы `server/src/lib/naryad-status.ts`.
+- VBA-интеграция — REST `/api/vba/ingest` (X-VBA-Secret): `uploadCatalog`,
+  `createTransition`, `completeTransition` (см. `server/docs/vba-integration.md`).
+
+## Ветки
+
+- `main` — новый стек (Node/Express + Prisma + PostgreSQL). Рабочая ветка.
+- `google-apps` — легаси Google Apps Script-наработки (модули, GAS-скиллы,
+  GAS-документация). В `main` переносить без явного решения нельзя.

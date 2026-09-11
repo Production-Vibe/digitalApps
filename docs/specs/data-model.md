@@ -1,164 +1,152 @@
 # Модель данных «ЦифровойНаряд»
 
-Статус: справочная спецификация. Точные заголовки и значения берутся из
-`modules/Config.md`, `modules/Launches.md`, `modules/PlanningAPI.md`,
-`modules/ShiftUI.md`, `modules/Shifts.md`, `modules/NaryadAPI.md`,
-`modules/PrintQueue.md`, `modules/CatalogAPI.md`. Названия колонок читаются по
-`headers.indexOf(...)` — порядок колонок не фиксирован.
+Статус: справочная спецификация. Канон — `server/prisma/schema.prisma`.
+Локальная БД: `MOSD`, пользователь `production_user`, PostgreSQL.
 
-## Каталог (лист `Catalog`)
+## Модели
 
-Создаётся/перезаписывается `uploadCatalog` (`modules/CatalogAPI.md:16-35`). 24 колонки:
+### Catalog — номенклатура
 
-`Код`, `Наименование`, `Обозначение`, `Обозначение 2`, `Кол-во на родителя`,
-`Тип заготовки`, `Материал`, `Марка материала`, `Размер заготовки`,
-`Толщина стенки`, `Длина резки`, `ППБ`, `Масса заготовки`, `Масса детали`,
-`Резка`, `Термообработка`, `Плазма`, `Токарная`, `Фрезерная`,
-`Сверлильная`, `Слесарная`, `Гибка`, `Покрытие`, `Приоритет`.
+Создаётся/обновляется `uploadCatalog` (`/api/vba/ingest`, action `uploadCatalog`)
+и сидом (`server/prisma/data/catalog.json`). Ключ — `code` (текст).
 
-Ключевые колонки для UI (`getCatalogForMaster`, `modules/PlanningAPI.md:22-45`):
-`Код`, `Наименование`, `Обозначение`, `Кол-во на родителя`, `Материал`,
-`Марка материала`, `Масса детали`, `Приоритет` и 9 операций обработки.
-
-Операции: значения `'+'`, `'1'`, `'ДА'` считаются «да».
-
-## Запуски (лист `Launches`)
-
-Создаётся `createLaunch` (`modules/Launches.md:13-19`). 12 колонок:
-
-| Позиция | Колонка | Примечание |
-|---|---|---|
-| 0 | `ID` | `ЗП-yyMMdd-HHmmss` |
-| 1 | `Код детали` | `itemCode` |
-| 2 | `Наименование` | `itemName` |
-| 3 | `Узел` | `unit` |
-| 4 | `Кол-во` | число |
-| 5 | `№ ПА` | напр. `001, 002` |
-| 6 | `Статус` | `К запуску` / `Выдано` / `В работе` / `Готово` |
-| 7 | `Кто создал` | email из `Session.getActiveUser()` |
-| 8 | `Дата` | Date |
-| 9 | `Тип запуска` | `Основной` (по умолч.) |
-| 10 | `Причина` | (пусто) |
-| 11 | `Связанный запуск` | (пусто; для брака/повторных) |
-
-Обновления: статус — колонка 7 (`setLaunchStatus`, `modules/Launches.md:325`),
-кол-во — колонка 5, `№ ПА` — колонка 6 (`updateLaunch*`, `modules/Launches.md:379-383`).
-
-## Очередь назначений (лист `Queue`)
-
-Создаётся `addToQueue` (`modules/PlanningAPI.md:103-109`). 15 колонок:
-
-`Код`, `Наименование`, `Обозначение`, `Узел`, `Тип`, `Станки`, `Кол-во`,
-`Приоритет`, `Заказчик`, `СП`, `Программа`, `Оператор`, `Станок выдачи`,
-`Выдать`, `Статус`.
-
-Данные берутся из строки планировочного листа (бывший `Planning`); колонки
-считываются по именам (`cP`/`cQ`). `Статус` = `К запуску`; `Выдать` = false.
-
-## Наряды (лист `WorkOrders`) — канон наряда
-
-**Канон цифрового наряда (ADR-003, вариант A):** источник фактов наряда —
-`WorkOrders`. Кириллические листы `Наряды`/`Переходы`/`Закрытые` из флоу
-выведены (легаси); вместо них — англоязычные `Transitions`, `ClosedOrders`.
-
-Создаётся в `createWorkOrderFromQueue` (`modules/PlanningAPI.md:171-176`) и
-`issueWorkOrder` (`modules/ShiftUI.md:99-104`). Колонки:
-
-| Позиция | Колонка |
+| Поле | Тип |
 |---|---|
-| 0 | `Номер` (`Н-yyMMdd-HHmm` или `Н-yyMMdd-HHmmss`) |
-| 1 | `Код детали` |
-| 2 | `Наименование` |
-| 3 | `Обозначение` |
-| 4 | `Узел` |
-| 5 | `Программа` |
-| 6 | `Заказчик` |
-| 7 | `СП` |
-| 8 | `Оператор` |
-| 9 | `Станок` |
-| 10 | `Кол-во` |
-| 11 | `Статус` |
-| 12 | `Launch ID` (при выдаче через `issueWorkOrder`; у `createWorkOrderFromQueue` отсутствует) |
-| 13 | `Причина доработки` |
+| `code` | `String @id` |
+| `name`, `designation`, `designation2` | `String` |
+| `parentQty` | `Float` |
+| `blankType`, `material`, `materialGrade`, `blankSize` | `String` |
+| `wallThickness`, `cutLength`, `blankWeight`, `partWeight` | `Float` |
+| `ppb` | `String` |
+| `cutting`, `heatTreatment`, `plasma`, `turning`, `milling`, `drilling`, `fitting`, `bending`, `coating` | `Boolean` |
+| `priority` | `String` |
 
-Чтение/запись — по именам колонок (`headers.indexOf`): дополнительная колонка
-`Причина доработки` может стоять в любой позиции. Статусы: `created`,
-`in_progress`, `waiting_otk`, `rework`, `closed`.
+Операции: сид/VBA маппят `'+'`, `'1'`, `'ДА'` → `true` (см. `toBool` в `vba.routes.ts`).
 
-При выдаче из `ShiftUI.issueWorkOrder` поля Программа/Заказчик/СП пустые
-(не хранятся в `Launches`); при выдаче из ClearingQueue — берутся из `Queue`.
+### Launches — запуски на ПА
 
-## Смены (лист `Shifts`)
+Создаётся `POST /api/launches` (`launches.routes.ts`). ID — `ЗП-yyMMdd-HHmmss`.
 
-Создаётся `getOrCreateShiftsSheet` (`modules/Shifts.md:91-93`). 6 колонок:
-`ID` (`СМ-yyMMdd-HHmmss`), `Оператор`, `Станок`, `Открыта`, `Закрыта`, `Статус`.
+| Поле | Примечание |
+|---|---|
+| `id` | `ЗП-yyMMdd-HHmmss` |
+| `partCode` | FK на `Catalog.code` |
+| `name`, `assembly` | строки |
+| `qty` | `Float` |
+| `paNumber` | напр. `001, 002` |
+| `status` | `LaunchStatus`: `to_launch` → `issued` → `in_work` → `done` |
+| `createdBy`, `createdAt`, `launchType`, `reason`, `relatedLaunchId` | мета |
 
-- `Статус`: `open` / `closed`.
-- `openShift`: станок не должен быть занят другим оператором со статусом `open`
-  (`modules/Shifts.md:21-22`).
+Правила: `PUT /:id` меняет запуск только из `to_launch`; `DELETE /:id` удаляет
+связанные наряды (`WorkOrders.deleteMany`). При выдаче всех нарядов запуск
+переходит в `issued` (`workorders.routes.ts:66-68`).
 
-## Очередь печати (лист `PrintQueue`)
+### WorkOrders — канон наряда
 
-Создаётся `createPrintJob` (`modules/PrintQueue.md:13-16`). 13 колонок:
-`ID` (Date), `Номер наряда`, `Код детали`, `Наименование`, `Обозначение`,
-`Узел`, `Программа`, `Заказчик`, `СП`, `Оператор`, `Станок`, `Кол-во`, `Статус`.
+**Канон цифрового наряда (ADR-003).** Создаётся `POST /api/work-orders/issue`
+(shift). ID — `Н-yyMMdd-HHmmss`.
 
-- `Статус`: `pending` → `printed` (`printed` ставится после **фактической печати**
-  комплекта VBA-слушателем; ручная отметка мастером — только как откат).
-- `createPrintJob` не создаёт дубль для одного `Номер наряда` (возвращает
-  `status: 'exists'`). **Один job = весь наряд целиком** (все позиции).
-- **Манифест путей** к файлам приложений (код детали → файл чертежа) хранится в
-  Excel/VBA и в Google НЕ передаётся; сам файл приложения также не хранится в
-  Google (правовые риски). В Google — только задача на печать.
-- Печать приложений — **финальный этап** реализации (VBA-слушатель
-  `Module_PrintServer.bas`: опрос очереди → резолв путей → печать комплекта
-  с меткой первым/последним листом → `printed`).
+| Поле | Тип |
+|---|---|
+| `number` | `String @id` (`Н-yyMMdd-HHmmss`) |
+| `partCode` | FK на `Catalog.code` |
+| `name`, `designation`, `assembly` | `String` |
+| `program`, `customer`, `sp` | `String?` |
+| `operator`, `machine` | `String` |
+| `qty` | `Float` |
+| `status` | `WorkOrderStatus` |
+| `launchId` | `Launches?` (при выдаче из запуска) |
+| `reworkReason` | `String?` |
 
-## Сотрудники (лист `Employees`)
+Статусы (`UpdateNaryadStatus` в `server/src/lib/transition-logic.ts`):
+`created` → `in_progress` → `waiting_otk` → `closed`, а также `rework`
+(«Доработка»): ОТК вернул оператору → оператор правит → снова `waiting_otk` →
+`closed`.
 
-Колонки `login | password | ФИО | role` (индексы 0..3). Роли:
-`master`, `shift`, `operator`, `otk`. См. `roles.md`.
-(Лист — переименованный `Сотрудники`; код ссылается на `SHEET_EMPLOYEES`.)
+### Transitions — тех. переходы наряда
 
-## Оборудование (лист `Equipment`)
+| Поле | Тип |
+|---|---|
+| `id` | `String @id @default(cuid())` |
+| `orderNumber` | FK на `WorkOrders.number` |
+| `number` | `005, 010, 015…` (`generateTransitionNumber`, max+5) |
+| `description`, `operator`, `machine` | `String` |
+| `time`, `qty` | `Float` |
+| `melt` | `String?` |
+| `status` | `TransitionStatus`: `in_progress` / `completed` / `checked` |
+| `accepted`, `defect` | `Float?` (проставляются ОТК при `check`) |
+| `createdAt` | `DateTime` |
 
-Колонка 0 — номер станка (напр. `ПА8`). `getMachines` возвращает список или
-фолбэк `['ПА8','ПА9','ПА10','ПА11','ПА12']` (`modules/Shifts.md:99-113`).
+`@@unique([orderNumber, number])`. Создаётся оператором (`POST /api/transitions`)
+или VBA (`createTransition`).
 
-## Переходы (лист `Transitions`)
+### ClosedOrders — итоги закрытых нарядов
 
-Тех. переходы наряда (заменяют кириллический лист `Переходы`). 12 колонок:
-`Номер наряда`, `№ перехода` (005, 010…), `Описание`, `Оператор`, `Время`,
-`Плавка`, `Станок`, `Кол-во`, `Статус`, `Дата`, `Принято`, `Брак`.
-Чтение/запись — по именам колонок. Связь с каноном — по `Номер наряда`.
-Статусы: `in_progress`, `completed`, `checked`.
-`createTransition` автонумерует: следующий `№` = max+5 (или 005).
+| Поле | Тип |
+|---|---|
+| `id` | `String @id @default(cuid())` |
+| `orderNumber` | FK на `WorkOrders.number` |
+| `acceptedTotal`, `defectTotal` | `Float` |
+| `defectReason`, `comment` | `String?` |
+| `closedBy`, `closedAt` | `String`, `DateTime` |
 
-## Закрытые (лист `ClosedOrders`)
+Пишется при закрытии ОТК (`POST /api/otk/close`), агрегация из переходов
+(sum accepted/defect).
 
-Итоги закрытия наряда (заменяют кириллический лист `Закрытые`). 7 колонок:
-`Номер наряда`, `Принято всего`, `Брак всего`, `Причина брака`, `Комментарий`,
-`Кем закрыт`, `Дата`. Записывается при закрытии ОТК (`closeNaryad`),
-читается (`getClosingInfo`) в карточке закрытого наряда.
-Чтение/запись — по именам колонок.
+### Shifts — смены операторов
+
+| Поле | Тип |
+|---|---|
+| `id` | `String @id` (`СМ-yyMMdd-HHmmss`) |
+| `operator`, `machine` | `String` |
+| `openedAt`, `closedAt` | `DateTime` |
+| `status` | `ShiftStatus`: `open` / `closed` / `auto_closed` |
+
+Правила (`shifts.routes.ts`): максимум 2 открытые смены на оператора; станок не
+должен быть занят другим оператором со статусом `open`.
+
+### PrintQueue — очередь печати
+
+| Поле | Тип |
+|---|---|
+| `id` | `DateTime @id @default(now())` |
+| `orderNumber` | `String @unique` (FK на `WorkOrders`) |
+| `partCode` (FK), `name`, `designation`, `assembly`, `program`, `customer`, `sp`, `operator`, `machine`, `qty` | данные наряда |
+| `status` | `PrintJobStatus`: `pending` / `printed` |
+
+Создаётся при выдаче наряда (`workorders.routes.ts:51-62`). Один job = весь наряд.
+
+### Employees — сотрудники
+
+`login` (@id), `password` (bcrypt-хэш), `fullName`, `role` (`EmployeeRole`).
+Сид хэширует пароли через `bcrypt.hash(password, 10)`.
+
+### Equipment — станки
+
+`id` (Int, autoincrement), `name` (`@unique`). Сид: `Т1-1..Т1-8`. При пустой
+таблице `GET /api/equipment` отдаёт дефолт `['ПА8'..'ПА12']`.
+
+### Queue — очередь назначений операторам
+
+`code` (FK на `Catalog`), `name`, `designation`, `assembly`, `type`, `machines`,
+`qty`, `priority`, `customer`, `sp`, `program`, `operator`, `issueMachine`,
+`issue` (bool), `status`. **Зарезервирована** — не питается ни одним route.
 
 ## Статусы жизненного цикла
 
-Общий словарь статусов наряда — единый перечень (ADR-005, вариант C); значения
-листов являются проекцией этого словаря и согласуются с ним.
-**Машиночитаемая копия словаря — `modules/Config.md`: `NARYAD_STATUS` (значения)
-и `NARYAD_STATUS_LABELS` (подписи для UI), которые инжектятся в клиентские
-страницы.** При правке списка ниже — синхронно обновлять `Config`.
+Общий словарь статусов — единый перечень (ADR-005); машиночитаемая копия —
+`server/src/lib/naryad-status.ts` (+ enum в `schema.prisma`), подписи для UI —
+`NARYAD_STATUS_LABELS`.
 
 | Сущность | Значения |
 |---|---|
-| `Launches.Статус` | `К запуску` → `Выдано` → `В работе` → `Готово` |
-| `WorkOrders.Статус` | `created` → `in_progress` → `waiting_otk` → `closed`, а также `rework` («Доработка»): ОТК вернул оператору → оператор правит → снова `waiting_otk` → `closed` (канон наряда, ADR-003) |
-| `Queue.Статус` | `К запуску` |
-| `PrintQueue.Статус` | `pending` → `printed` |
-| `Shifts.Статус` | `open` → `closed` |
+| `WorkOrders.status` | `created` → `in_progress` → `waiting_otk` → `closed`, а также `rework` |
+| `Launches.status` | `to_launch` → `issued` → `in_work` → `done` |
+| `Transitions.status` | `in_progress` → `completed` → `checked` |
+| `Shifts.status` | `open` → `closed` → `auto_closed` |
+| `PrintQueue.status` | `pending` → `printed` |
 
 ## См. также
 
 - `architecture.md` — модули, хранящие данные.
-- `roles.md` — кто пишет в какие листы.
+- `roles.md` — кто пишет в какие таблицы.
