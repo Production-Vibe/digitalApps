@@ -8,7 +8,9 @@
 
 - **`main`** — новый стек: Node/Express (TypeScript) + EJS + Prisma + PostgreSQL,
   JWT + bcrypt. Монолит без UI-фреймворков. Локальная БД `MOSD`
-  (`production_user`). Деплой — Docker + PM2 (в доводке).
+  (`production_user`). Деплой — **Docker Desktop** (Windows, контекст
+  `desktop-linux`, engine 29.7.2) + PM2 (в доводке). Локальный PostgreSQL на
+  Windows остановлен; порт 5432 держит Docker-PG.
 - **`google-apps`** — легаси Google Apps Script (модули, GAS-скиллы, GAS-доки,
   E2E против `/exec`, манифест деплоя). В `main` не переносить без явного решения.
 - Код-модули: `server/src/**`; схема БД (канон) — `server/prisma/schema.prisma`
@@ -16,14 +18,40 @@
 
 ## Последний завершённый этап
 
-- **11.09.2026 — Rework-цикл оператора восстановлен.** `GET /api/work-orders/my/list`
-  (`server/src/routes/workorders.routes.ts:78`) теперь включает `rework` в фильтре
-  статусов (`['created','in_progress','rework']`). Проверено end-to-end через API:
-  ОТК вернул наряд (`naryad rework`) → оператор увидел его в `/my/list` →
-  добавил переход (`waiting_otk`) → ОТК проверил и закрыл (`closed`). Обнаружен
-  при репродукции отдельный XSS-уровневый дефект: сервер падает при битом
-  `partCode` в `/issue` (P2003 — нет глобального error-handler'а, см. TODO).
-  Проверки: `npm run build` + `npm run check` PASS, E2E 18/18 PASS.
+- **11.09.2026 — Стек переведён на Docker Desktop: глобальная ссылка перестала отваливаться.**
+  Причина нестабильности `https://el-konstr04.tail13402b.ts.net` найдена: контейнеры
+  крутил docker.io внутри Ubuntu-WSL, а сама Ubuntu-WSL **выключается по idle-таймауту
+  (~60 с)** — контейнеры умирали вместе с виртуалкой, Funnel получал пустой
+  `127.0.0.1:3000` → 502 → телефон «не может обработать запрос». Решение: Docker
+  контекст выставлен в `desktop-linux` (Docker Desktop 4.90.0, engine 29.7.2), проект
+  запущен через Docker Desktop (`docker compose up -d --build` в `server/`): образ
+  `server-app` собран, миграции применены, сид залит, `server-db-1` healthy.
+  docker.io в Ubuntu-WSL отключён (`systemctl disable --now docker docker.socket`) —
+  два движка не конфликтуют за порты 3000/5432. Автозапуск Docker Desktop включён
+  (`AutoStart: true` в `settings-store.json`, Run-ключ HKCU). **Проверка живучести:
+  ссылка отвечает 200 непрерывно 5+ минут бездействия** (раньше падала за ~1 мин);
+  контейнеры `Up 6 minutes` без рестарта, WSL-фон `docker-desktop` — `Running`,
+  Ubuntu — `Stopped`. Проверено: `/health` 200 локально и через Funnel, `/login`
+  рендерится, вход `operator/123` → `/api/login` выдаёт токен (роль operator).
+- **11.09.2026 — Docker-стек поднят вживую на WSL + глобальный доступ через Tailscale Funnel.**
+  Первый реальный `docker compose up --build` (`server/`), образ `server-app`
+  собран, миграции применены, сид залит, `/health` → `{status:'ok', db:'connected'}`.
+  В `docker-compose.yml` добавлен `restart: unless-stopped` обоим сервисам.
+  (Исторический этап: позже заменён Docker Desktop см. выше.)
+- **11.09.2026 — Глобальный error-handler: asyncHandler + Prisma JSON-ответы.**
+  Создан `server/src/lib/async-wrap.ts` (`asyncHandler` + `wrapRouter`), который
+  автоматически оборачивает все async-хендлеры в роутерах и перенаправляет
+  неперехваченные исключения в Express `next()`. Финальный error-middleware
+  (`server/src/app.ts`) возвращает JSON-ответ с понятным сообщением вместо
+  ConnectionReset: P2003 → 400 «Ссылка на несуществующую запись», P2025 → 404,
+  прочее → 500. Проверено: невалидный `partCode` в `/issue` теперь отдаёт 400,
+  сервер не падает (health проверялся сразу после). E2E 18/18 PASS (без изменений
+  в харнессе). Коммит: `5f161a7`.
+- **11.09.2026 — Rework-цикл оператора восстановлен.**
+  `GET /api/work-orders/my/list` (`server/src/routes/workorders.routes.ts:78`)
+  теперь включает `rework` в фильтре статусов.
+  Проверено end-to-end через API: rework → оператор видит → переход → waiting_otk →
+  ОТК закрывает. Коммит: `4d304a1`.
 - **11.09.2026 — E2E на `localhost:3000` адаптирован (JWT-стек), 18/18 PASS.**
   Харнесс `tests/e2e/` переписан под новый стек: `config.py` (APP_URL
   `http://localhost:3000`, CREDS из сида, LANDING → `/master|/shift|/operator|/otk`),
@@ -56,14 +84,6 @@
 
 ## Открытые баги / TODO
 
-- [ ] **Нет глобального error-handler'а (HIGH, надёжность).** Асинхронный throw в
-  хендлерах роутов (напр. P2003 при битом `partCode` в `/issue`) не перехватывается —
-  Express 4 роняет процесс, сервис «зависает» (ConnectionReset на клиенте). Нужен
-  оберточный `asyncHandler` + финальный error-middleware в `server/src/app.ts`.
-- [ ] **Docker-деплой не проверен вживую:** конфиг исправлен (context/`dockerfile`/
-  `env_file`, `DATABASE_URL` сервиса `app` → host `db`, добавлен `prisma db seed`,
-  Dockerfile копирует `prisma/` целиком), но `docker compose up --build` на
-  чистом окружении не прогонялся (на рабочей машине нет Docker-CLI).
 - [ ] **E2E покрывает только вход+рендер+refresh** (18/18 PASS); полный
   бизнес-цикл (выдача → оператор → ОТК → rework → закрытие) не автоматизирован —
   кандидат следующего этапа после восстановления rework-цикла.
@@ -93,19 +113,18 @@
 
 ## Следующий шаг
 
-1. **Глобальный error-handler (HIGH)** — `asyncHandler`-обёртка + финальный
-   error-middleware в `server/src/app.ts`, чтобы битый запрос (P2003) не ронял
-   процесс.
-2. **Docker-проверка** `docker compose up --build` на машине с Docker-CLI
-   (после этого деплой перестанет быть «бумажным»).
-3. Master: Dashboard + очередь печати (минимум); далее безопасность
+1. **Master: Dashboard + очередь печати (минимум)**; далее безопасность
    (rate-limit, секреты вне defaults).
+2. (опц.) Проверить автовосстановление стека после полной перезагрузки
+   Windows (ожидается: Docker Desktop поднимается сам, `restart: unless-stopped`
+   поднимает контейнеры без ручных команд).
 
 ## Активный URL
 
 - Локальный dev: `http://localhost:3000` (`GET /health` — `{status:'ok', db:'ok'}`).
-- Прод-деплой (Docker) — не выполнялся; журнал деплоев new-стек введём отдельно
-  (аналог `docs/reports/deploy-manifest.md`, там пока легаси GAS — в ветке `google-apps`).
+- **Глобальный (Tailscale Funnel):** `https://el-konstr04.tail13402b.ts.net`
+  (проброс на `127.0.0.1:3000`, без установки чего-либо на клиенте). Проверен
+  через интернет: `/health` 200, `/login` рендерится.
 
 ## Справочники
 
