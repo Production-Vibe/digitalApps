@@ -18,15 +18,19 @@ services:
   app:
     build:
       context: .
-      dockerfile: server/Dockerfile
-    env_file: server/.env
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      # В compose-сети база доступна как host `db`, а не localhost (из .env).
+      # Переопределяет DATABASE_URL из .env (environment приоритетнее env_file).
+      DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-digital_narad}
     ports:
       - "3000:3000"
     depends_on:
       db:
         condition: service_healthy
     command: >
-      sh -c "npx prisma migrate deploy && node dist/app.js"
+      sh -c "npx prisma migrate deploy && npx prisma db seed && node dist/app.js"
 
 volumes:
   pgdata:

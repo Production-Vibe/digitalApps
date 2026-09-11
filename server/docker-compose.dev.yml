@@ -1,0 +1,16 @@
+# Dev-контур: сборка образа + live-reload src через volume + seed.
+# Запуск: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-digital_narad}
+    volumes:
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+      - ./tsconfig.json:/app/tsconfig.json
+    command: >
+      sh -c "npx prisma migrate deploy && npx prisma db seed && npm run dev"

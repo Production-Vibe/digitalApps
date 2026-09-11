@@ -16,16 +16,24 @@
 
 ## Последний завершённый этап
 
-- **10.09.2026 — Адаптация документации и репозитория под новый стек.**
-  `main` переведён на new-стек: ветка `google-apps` создана из прежнего `main`
-  (снимок GAS-стека), `main` обновлён до `future` (Node/Express+Prisma+PG) и
-  зачищен от Google-артефактов (модули/скиллы/доки GAS-деплоя перенесены в
-  `google-apps`). Переписаны: `AGENTS.md`, `README.md`, `docs/specs/`
-  (`architecture.md`, `roles.md`, `data-model.md`), `instructions/safety.md`,
-  `instructions/verification.md`, `.opencode/agents/e2e.md` (под JWT-стек).
-  Изменённые файлы: server/src/** (полностью), server/prisma/** (полностью),
-  server/Dockerfile, server/docker-compose.yml, server/ecosystem.config.cjs,
-  opencode.json (MCP), .gitignore. Отчёты (новый стек): см. ниже.
+- **11.09.2026 — Документация и Docker-контур под new-стек (docs+Docker).**
+  `main` = new-стек; `google-apps` = легаси-ветка со снимком GAS-стека.
+  Переписаны под Node/Express+Prisma+PostgreSQL: `AGENTS.md`, `README.md`,
+  `docs/specs/` (`architecture.md`, `roles.md`, `data-model.md`),
+  `docs/testing/e2e-runbook.md`, `instructions/{safety,verification}.md`,
+  `.opencode/agents/e2e.md`, `server/docs/vba-integration.md`,
+  `docs/reports/STATUS.md`. Docker: исправлен `docker-compose.yml`
+  (контекст/`dockerfile`/`env_file` через `server/`, `DATABASE_URL` сервиса
+  `app` → host `db`, добавлен `prisma db seed`), добавлены
+  `server/docker-compose.dev.yml`, `server/.dockerignore`, обновлён
+  `server/Dockerfile` (build-tools для bcrypt, копирование `prisma/` целиком:
+  миграции+seed+data), `server/docs/onboarding.md`, `.env.example`
+  (POSTGRES_*-переменные). Проверки: `npm run build` + `npm run check` PASS,
+  `GET /health` → `{ok, connected}`. Docker-CLI на машине нет — прогон
+  `docker compose up --build` не выполнялся.
+- **10.09.2026 — Адаптация репозитория под новый стек.** Создана ветка
+  `google-apps`, `main` fast-forward на `future` + удалены Google-артефакты
+  (modules/, digitalapps-deploy-скилл, GAS-доки, `Мастер-промпт.md`).
 - **09.09.2026 — Проверка локального стека (пробы A–E, все PASS).** MCP-postgres
   против локального `MOSD` (PG 18.1, `production_user`): миграция
   `20260910105412_init` применена; 6 enum соответствуют `schema.prisma`; сид —
@@ -40,10 +48,10 @@
   фильтрует `['created','in_progress']` → наряд со статусом `rework` оператор
   не видит, обратный путь «ОТК вернул → правит → waiting_otk» непроходим
   end-to-end. Чинить первым.
-- [ ] **Docker-деплой не проверен вживую:** заложен конфликт `DATABASE_URL`
-  (`.env` указывает на `localhost:5432/MOSD`, в compose-сети host БД — `db`).
-  Нужно переопределить `DATABASE_URL` сервису `app`, добавить `prisma db seed`,
-  прогнать `docker compose up --build` на чистом окружении.
+- [ ] **Docker-деплой не проверен вживую:** конфиг исправлен (context/`dockerfile`/
+  `env_file`, `DATABASE_URL` сервиса `app` → host `db`, добавлен `prisma db seed`,
+  Dockerfile копирует `prisma/` целиком), но `docker compose up --build` на
+  чистом окружении не прогонялся (на рабочей машине нет Docker-CLI).
 - [ ] **E2E-автомата для new-стека нет:** харнесс `tests/e2e/` завязан на GAS
   `/exec` (ветка `google-apps`). Нужен регрессионный фасад против
   `localhost:3000` (JWT-логин через `/login`).
@@ -73,14 +81,13 @@
 
 ## Следующий шаг
 
-1. Закоммитить документацию new-стека (docs-этап; см. коммиты ниже).
-2. **Rework-цикл оператора** — включить `rework` в `/my/list` (+ проверить
+1. **Rework-цикл оператора** — включить `rework` в `/my/list` (+ проверить
    флоу «ОТК вернул → оператор правит → waiting_otk»).
-3. **Docker-проверка** с фиксом `DATABASE_URL` (сервис `app` → host `db`,
-   учётка сервиса `db`, добавить seed) — деплой перестанет быть «бумажным».
-4. **E2E на `localhost:3000`** — адаптировать харнесс (config.py APP_URL,
+2. **E2E на `localhost:3000`** — адаптировать харнесс (config.py APP_URL,
    JWT-логин, CREDS из сида), вернуть эталон 18/18.
-5. Master: Dashboard + очередь печати (минимум); далее безопасность
+3. **Docker-проверка** `docker compose up --build` на машине с Docker-CLI
+   (после этого деплой перестанет быть «бумажным»).
+4. Master: Dashboard + очередь печати (минимум); далее безопасность
    (rate-limit, секреты вне defaults).
 
 ## Активный URL
