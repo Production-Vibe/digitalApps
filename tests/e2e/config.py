@@ -1,28 +1,17 @@
 import os
 
-# Deployed Apps Script web app URL (target of E2E).
-APP_URL = os.environ.get(
-    "ND_APP_URL",
-    "https://script.google.com/macros/s/AKfycbwEW0eGDTYTuBStMJ7nc8cXOF3OzQ1YC9cT4t-Avmaqy4I1HuuzfQ0lnrwa0wtu8Wxj5g/exec",
-)
+# Target of E2E: local Node/Express stack (JWT-auth, EJS pages).
+APP_URL = os.environ.get("ND_APP_URL", "http://localhost:3000")
 
-# Browser channel for Playwright. Use a real installed browser (chrome/msedge)
-# instead of the bundled chromium, because Google blocks the automated
-# Playwright build from signing in ("браузер или приложение небезопасны").
-BROWSER_CHANNEL = os.environ.get("ND_BROWSER_CHANNEL", "chrome")
-
-# Persistent browser profile dir (holds the authenticated Google session and
-# the one-time app consent approval). Keep out of VCS (see .gitignore).
-PROFILE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profile")
-
-# Storage-state file written after a successful manual login+consent.
-STORAGE_STATE = os.path.join(PROFILE_DIR, "storage_state.json")
+# Headless chromium (Playwright bundled) — no Google session involved anymore.
+# Real installed browser channel no longer required.
+BROWSER_CHANNEL = os.environ.get("ND_BROWSER_CHANNEL") or None
 
 # Screenshots/artifacts output dir.
 SCREENSHOT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "screenshots")
 
-# In-app role credentials (from лист «Сотрудники»). Supplied via env so secrets
-# are never committed. Fall back to empty and let each test skip if missing.
+# Role credentials (from server/prisma/data/employees.json seed). Supplied via
+# env so secrets are never committed; fall back to the seeded test accounts.
 def _cred(role):
     login = os.environ.get("ND_LOGIN_" + role.upper())
     pwd = os.environ.get("ND_PASSWORD_" + role.upper())
@@ -32,9 +21,6 @@ def _cred(role):
     return {"login": login, "password": pwd, "name": name}
 
 
-# Sample known test accounts (from prior testing notes). Requires env overrides
-# on machines where these differ. Names are the EXACT ФИО as stored in лист
-# Employees (as returned by checkAuth) — server-side isRole() compares by ФИО.
 CREDS = {
     "operator": _cred("operator") or {"login": "operator", "password": "123", "name": "Иванов И. И."},
     "otk": _cred("otk") or {"login": "otk", "password": "123", "name": "Сидоров С. С."},
@@ -42,10 +28,10 @@ CREDS = {
     "shift": _cred("shift") or {"login": "shift", "password": "123", "name": "Умнов И. П."},
 }
 
-# Expected post-login landing page per role.
+# Expected post-login page per role (JWT-based client redirect in EJS views).
 LANDING = {
-    "operator": "page=operator",
-    "otk": "page=otk-app",
-    "master": "page=master-app",
-    "shift": "page=shift-app",
+    "operator": "/operator",
+    "otk": "/otk",
+    "master": "/master",
+    "shift": "/shift",
 }

@@ -1,7 +1,7 @@
-"""E2E: master role.
+"""E2E: master role (new stack).
 
 Verifies:
-  1. Login lands master on the FULL page (?page=master-app).
+  1. JWT-login lands master on the FULL page /master.
   2. The master shell renders (non-empty body).
   3. Refresh does not bounce to login.
 """
@@ -19,17 +19,15 @@ import runner
 def master_flow(page, cred):
     helpers.open_app(page)
 
-    fr = helpers.do_in_app_login(page, cred)
-    if fr is not None:
-        runner.check("вход по форме", True, cred["login"])
-    else:
-        runner.check("вход — без формы (сессия уже активна)", True, "")
+    logged = helpers.do_login(page, cred)
+    runner.check("вход по форме", logged, cred["login"])
+
     try:
-        page.wait_for_url("**page=master-app*", timeout=15000)
+        page.wait_for_url("**/master", timeout=15000)
     except Exception:
         pass
 
-    runner.full_page_and_refresh(page, "page=master-app", "мастера", "master")
+    runner.full_page_and_refresh(page, "/master", "мастера", "master")
 
 
 if __name__ == "__main__":

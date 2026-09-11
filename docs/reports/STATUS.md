@@ -16,21 +16,26 @@
 
 ## Последний завершённый этап
 
+- **11.09.2026 — E2E на `localhost:3000` адаптирован (JWT-стек), 18/18 PASS.**
+  Харнесс `tests/e2e/` переписан под новый стек: `config.py` (APP_URL
+  `http://localhost:3000`, CREDS из сида, LANDING → `/master|/shift|/operator|/otk`),
+  `helpers.py`/`runner.py` (full-page селекторы, JWT-логин через `/login`, без
+  Google-сессии/фреймов), `test_{operator,otk,master,shift}.py` — проверка
+  входа, отрисовки страницы роли и F5-редиректа. GAS-харнесс
+  (`session_setup.py`, `flows.py`, `seed_*.py`, `test_bizcycle.py`,
+  `test_otk_full.py`) удалён из `main` (копия — ветка `google-apps`).
+  Прогоны: operator 6/6, otk 4/4, master 4/4, shift 4/4 — итого **18/18 PASS**.
+  `docs/testing/e2e-runbook.md` актуализирован.
 - **11.09.2026 — Документация и Docker-контур под new-стек (docs+Docker).**
-  `main` = new-стек; `google-apps` = легаси-ветка со снимком GAS-стека.
   Переписаны под Node/Express+Prisma+PostgreSQL: `AGENTS.md`, `README.md`,
-  `docs/specs/` (`architecture.md`, `roles.md`, `data-model.md`),
-  `docs/testing/e2e-runbook.md`, `instructions/{safety,verification}.md`,
-  `.opencode/agents/e2e.md`, `server/docs/vba-integration.md`,
-  `docs/reports/STATUS.md`. Docker: исправлен `docker-compose.yml`
-  (контекст/`dockerfile`/`env_file` через `server/`, `DATABASE_URL` сервиса
-  `app` → host `db`, добавлен `prisma db seed`), добавлены
-  `server/docker-compose.dev.yml`, `server/.dockerignore`, обновлён
-  `server/Dockerfile` (build-tools для bcrypt, копирование `prisma/` целиком:
-  миграции+seed+data), `server/docs/onboarding.md`, `.env.example`
-  (POSTGRES_*-переменные). Проверки: `npm run build` + `npm run check` PASS,
-  `GET /health` → `{ok, connected}`. Docker-CLI на машине нет — прогон
-  `docker compose up --build` не выполнялся.
+  `docs/specs/`, `docs/testing/e2e-runbook.md`, `instructions/{safety,verification}.md`,
+  `.opencode/agents/e2e.md`, `server/docs/vba-integration.md`, STATUS.md.
+  Docker: исправлен `docker-compose.yml` (context/`dockerfile`/`env_file` через
+  `server/`, `DATABASE_URL` сервиса `app` → host `db`, `prisma db seed`),
+  добавлены `docker-compose.dev.yml`, `.dockerignore`, обновлён `Dockerfile`
+  (build-tools bcrypt, `prisma/` целиком), `server/docs/onboarding.md`,
+  `.env.example`. Проверки: `npm run build` + `npm run check` PASS, `/health` OK.
+  Docker-CLI нет — `docker compose up --build` не прогонялся.
 - **10.09.2026 — Адаптация репозитория под новый стек.** Создана ветка
   `google-apps`, `main` fast-forward на `future` + удалены Google-артефакты
   (modules/, digitalapps-deploy-скилл, GAS-доки, `Мастер-промпт.md`).
@@ -52,9 +57,9 @@
   `env_file`, `DATABASE_URL` сервиса `app` → host `db`, добавлен `prisma db seed`,
   Dockerfile копирует `prisma/` целиком), но `docker compose up --build` на
   чистом окружении не прогонялся (на рабочей машине нет Docker-CLI).
-- [ ] **E2E-автомата для new-стека нет:** харнесс `tests/e2e/` завязан на GAS
-  `/exec` (ветка `google-apps`). Нужен регрессионный фасад против
-  `localhost:3000` (JWT-логин через `/login`).
+- [ ] **E2E покрывает только вход+рендер+refresh** (18/18 PASS); полный
+  бизнес-цикл (выдача → оператор → ОТК → rework → закрытие) не автоматизирован —
+  кандидат следующего этапа после восстановления rework-цикла.
 - [ ] **Master урезан против GAS:** нет Dashboard/дерева/сводки занятости ПА,
   нет read-эндпоинта и экрана очереди печати (`PrintQueue` пишется при выдаче).
 - [ ] (опц.) Выделить сервисный слой инвариантов (закрытие, accepted+defect≤qty,
@@ -83,11 +88,9 @@
 
 1. **Rework-цикл оператора** — включить `rework` в `/my/list` (+ проверить
    флоу «ОТК вернул → оператор правит → waiting_otk»).
-2. **E2E на `localhost:3000`** — адаптировать харнесс (config.py APP_URL,
-   JWT-логин, CREDS из сида), вернуть эталон 18/18.
-3. **Docker-проверка** `docker compose up --build` на машине с Docker-CLI
+2. **Docker-проверка** `docker compose up --build` на машине с Docker-CLI
    (после этого деплой перестанет быть «бумажным»).
-4. Master: Dashboard + очередь печати (минимум); далее безопасность
+3. Master: Dashboard + очередь печати (минимум); далее безопасность
    (rate-limit, секреты вне defaults).
 
 ## Активный URL
@@ -100,6 +103,7 @@
 
 - Архитектура/роли/данные: `docs/specs/architecture.md`, `docs/specs/roles.md`,
   `docs/specs/data-model.md`.
-- E2E-алгоритм запуска: `docs/testing/e2e-runbook.md` (обновить под new-стек).
+- E2E-алгоритм запуска: `docs/testing/e2e-runbook.md` (актуален: 18/18 PASS
+  против `localhost:3000`).
 - VBA REST-интеграция: `server/docs/vba-integration.md`.
 - Отчёт с приоритетами паритета: `docs/reports/2026-09-10-future-architecture-review.md`.

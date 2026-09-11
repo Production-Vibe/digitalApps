@@ -33,31 +33,20 @@ def check(name, cond, detail=""):
     try:
         print(line)
     except UnicodeEncodeError:
-        # Console can't encode emoji/Cyrillic in the detail — print a safe copy.
         safe = line.encode("ascii", errors="replace").decode("ascii")
         print(safe)
 
 
-def full_page_and_refresh(page, expected_page_param, label, shot_prefix):
+def full_page_and_refresh(page, expected_path, label, shot_prefix):
     """Common E2E for full-page roles (otk/master/shift):
     verify landing URL, non-empty body, and F5 does not bounce to login."""
     url = page.url
     check(
         f"URL — полная страница {label}",
-        (expected_page_param in url) and ("page=login" not in url),
+        (expected_path in url) and ("/login" not in url),
         url,
     )
-    # The app body lives in the sandboxed iframe; a non-empty frame body means
-    # the role page actually rendered (top-frame text is the Google wrapper).
-    body_ok = False
-    for fr in page.frames:
-        try:
-            txt = fr.inner_text("body").strip()
-            if len(txt) > 30:
-                body_ok = True
-                break
-        except Exception:
-            continue
+    body_ok = len(page.inner_text("body").strip()) > 30
     check(f"страница {label} отрисована (не пустая)", body_ok, "")
     helpers.save_screenshot(page, f"{shot_prefix}_landed.png")
 
@@ -90,12 +79,8 @@ def finish(exit_code=True):
 
 
 def run(role, fn):
-    """Shared entry: open app with stored session, run role-specific fn."""
+    """Shared entry: log in as `role` against the local stack, run role-specific fn."""
     from playwright.sync_api import sync_playwright
-
-    if not os.path.exists(config.STORAGE_STATE):
-        print("Нет сохранённой сессии. Сначала выполните: python session_setup.py")
-        raise SystemExit(2)
 
     cred = config.CREDS.get(role)
     if not cred:
@@ -112,11 +97,9 @@ def run(role, fn):
             ],
             ignore_default_args=["--enable-automation"],
         )
-        # Fresh context per test seeded ONLY with the saved Google session.
-        # The app's own localStorage is empty -> the in-app login form always
-        # shows, so each role run starts clean regardless of prior runs.
+        # Fresh context per test with empty localStorage -> the login page
+        # always shows, so each role run starts clean regardless of prior runs.
         ctx = browser.new_context(
-            storage_state=config.STORAGE_STATE,
             viewport={"width": 1280, "height": 850},
         )
         ctx.add_init_script(

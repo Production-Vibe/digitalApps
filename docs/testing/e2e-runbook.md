@@ -3,10 +3,9 @@
 Проверенный алгоритм запуска E2E-прогонов по ролям. Применять после каждого
 деплоя (Docker) и при жалобах «пишет Загрузка…/пустая страница».
 
-> Статус: харнесс `tests/e2e/` к новому стеку **адаптируется** (см.
-> `docs/specs/architecture.md` и `docs/reports/2026-09-10-future-architecture-review.md`).
-> Ниже — целевой алгоритм против `localhost:3000`. Пока адаптация не завершена,
-> прогоны против GAS `/exec` живут только в ветке `google-apps`.
+> Статус: харнесс `tests/e2e/` адаптирован под новый стек (JWT-логин через
+> `/login`, full-page E2E без Google-сессии/фреймов). Прогон ролей — 18/18 PASS.
+> Исторический GAS-харнесс (против `/exec`) живёт в ветке `google-apps`.
 
 ## Почему новый алгоритм (коротко)
 
@@ -24,14 +23,14 @@ Google-шлюз и sandboxed-iframe остались в прошлом:
 
 `tests/e2e/`:
 - `config.py` — `APP_URL=http://localhost:3000`, учётные данные ролей из сида
-  (env-переопределяемые), карта лендингов.
+  (env-переопределяемые `ND_LOGIN_*`, `ND_PASSWORD_*`, `ND_NAME_*`), карта лендингов.
 - `helpers.py` — вход по форме `/login`, скриншоты, ожидания.
 - `runner.py` — общий прогон роли в чистом контексте + сводка PASS/FAIL.
 - `test_operator.py`, `test_otk.py`, `test_master.py`, `test_shift.py` — ролевые сценарии.
-- `profile/`, `screenshots/`, `.secrets/` — артефакты, **в git не идут** (`.gitignore`).
+- `screenshots/`, `.secrets/` — артефакты, **в git не идут** (`.gitignore`).
 
-GAS-специфика (Google-сессия, фреймы, `session_setup.py`) перенесена в ветку
-`google-apps`.
+GAS-специфика (Google-сессия, фреймы, `session_setup.py`, `flows.py`, seed-хелперы)
+перенесена в ветку `google-apps`.
 
 ## Шаг 1. Подъём стека
 
