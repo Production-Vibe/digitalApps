@@ -22,6 +22,25 @@
 
 ## Последний завершённый этап
 
+- **14.09.2026 — Этап 4: наладка интерфейса «Пульт цеха» + графики (ADR-006).**
+  Остаёмся на EJS+Vanilla (React-переплатформа отложена). Дизайн-система на
+  CSS-токенах в `server/src/public/styles.css`: тёмная шапка-планка (sticky),
+  светлые панели, «светофор цеха» (`.badge--info/ok/warn/error`), табулярные
+  цифры/моно-коды, `.empty-block`, `:focus-visible`, `prefers-reduced-motion`,
+  mobile-first (Funnel с телефона). Общий JS-слой `server/src/public/ui.js`
+  (`badge`, `emptyBlock`, `statCards`, `drawChart`). **Графики Chart.js v4
+  вендором** (`public/vendor/chart.umd.min.js`, без CDN): Сводка — bar «Наряды по
+  статусам» + bar «Загруженность ПА»; Отчёты — «Динамика закрытия нарядов»
+  (bar+line, две оси) на новых данных **`reports.daily`** в
+  `server/src/lib/analytics.ts` (единственная серверная правка). Выравнены
+  пустые состояния на operator/otk/shift. **Деплой:** Docker-образ пересобран
+  (`docker compose up -d --build`), применение на live-стенде :3000.
+  **Проверки:** `npm run build` + `npm run check` PASS; штатный E2E **26/26 PASS**
+  (селекторы не менялись); probe-прогон **12/12 PASS** на стенде — пустые
+  состояния при пустой БД, canvas НЕ рисуется без данных, после пробного запуска
+  (ЗП-260914-060800) canvas `paChart` отрисован с подписью «999», timeline —
+  пустое состояние, консоль без error, mobile `/login` (390×800) ок; пробный
+  запуск удалён, стенд чист (Orders/Closed/Transitions/Launches=0, Shifts=4).
 - **14.09.2026 — Этап 3: аналитика мастера (сводка + номенклатура + отчёты).**
   Роль `master` получила «полную картину» из **единого серверного источника**
   метрик — `GET /api/analytics/dashboard` (`server/src/routes/analytics.routes.ts`,
@@ -186,7 +205,8 @@
 
 1. **Полный E2E бизнес-цикла** (выдача наряда shift → оператор смены/переходы →
    ОТК → rework → закрытие) поверх JWT-стека против `localhost:3000`; вынести в
-   харнесс кейсы «закрытая смена в истории» и содержимое вкладок аналитики мастера.
+   харнесс кейсы «закрытая смена в истории» и содержимое вкладок/графиков
+   аналитики мастера.
 2. **Безопасность перед публикацией:** rate-limit `/login`, refresh-токен в
    `httpOnly`-cookie (проф. «Запомнить меня»), секреты из env, https.
 3. (опц.) Разрулить конфликт порта 5432: локальный Windows-PG (дев-контур `MOSD`)
@@ -207,7 +227,7 @@
 
 - Архитектура/роли/данные: `docs/specs/architecture.md`, `docs/specs/roles.md`,
   `docs/specs/data-model.md`.
-- E2E-алгоритм запуска: `docs/testing/e2e-runbook.md` (актуален: 18/18 PASS
+- E2E-алгоритм запуска: `docs/testing/e2e-runbook.md` (актуален: 26/26 PASS
   против `localhost:3000`).
 - VBA REST-интеграция: `server/docs/vba-integration.md`.
 - Отчёт с приоритетами паритета: `docs/reports/2026-09-10-future-architecture-review.md`.

@@ -72,6 +72,9 @@ Query для отчётов: `?from=YYYY-MM-DD&to=YYYY-MM-DD` (по умолча
     ],
     "machines": [
       { "machine": "Т1-1", "orders": 2, "qty": 30, "accepted": 30, "defect": 0, "defectPct": 0, "time": 6.5 }
+    ],
+    "daily": [
+      { "day": "2026-09-10", "orders": 1, "qty": 15, "accepted": 15, "defect": 0, "time": 4.0 }
     ]
   }
 }
@@ -89,6 +92,9 @@ Query для отчётов: `?from=YYYY-MM-DD&to=YYYY-MM-DD` (по умолча
 - `operators` / `machines` — те же показатели, сгруппированные по
   `WorkOrders.operator` / `WorkOrders.machine`; `time` — суммарные нормо-часы
   (`Transitions.time`) нарядов группы. Сортировка — по убыванию `orders`.
+- `daily` — временной ряд закрытых нарядов по дням (`closedAt`): нарядов, объём,
+  принято/брак, нормо-часы. Питает график «Динамика закрытия нарядов» на
+  вкладке «Отчёты» (добавлено на Этапе 4).
 
 ## UI `/master` (вкладки)
 
