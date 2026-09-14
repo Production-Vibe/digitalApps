@@ -90,9 +90,13 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 ## Docker-контуры
 
 - `server/docker-compose.yml`:
-  - сервис `db` — `postgres:16-alpine`;
+  - сервис `db` — `postgres:16-alpine`; хост-порт **`5434:5432`** (контур
+    стенда `digital_narad`; 5432 на хосте занят локальным Windows-PG дев-контура
+    `MOSD`);
   - сервис `app` — сборка `server/Dockerfile` (builder: `prisma generate` + `tsc`;
     runtime: node + `dist`), старт `prisma migrate deploy && node dist/app.js`.
+    К БД ходит внутри Docker-сети на `db:5432` — смена хост-порта на приложение
+    не влияет.
 - Локальный dev — `npm run dev` (`tsx watch src/app.ts`) против локального `MOSD`.
 - Секреты — `server/.env` (не в git; шаблон `server/.env.example`).
 

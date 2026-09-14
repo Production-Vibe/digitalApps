@@ -44,7 +44,10 @@
 ### WorkOrders — канон наряда
 
 **Канон цифрового наряда (ADR-003).** Создаётся `POST /api/work-orders/issue`
-(shift). ID — `Н-yyMMdd-HHmmss`.
+(shift). ID — `Н-yyMMdd-HHmmss`. Идентификация детали в наряде и очереди печати —
+«Обозначение — Наименование»: `name`/`designation` копируются из запуска, а если
+при выдаче они пусты — подставляются из `Catalog` по `partCode`
+(`server/src/routes/workorders.routes.ts`, `/issue`).
 
 | Поле | Тип |
 |---|---|
