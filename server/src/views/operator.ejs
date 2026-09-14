@@ -132,16 +132,17 @@
       }
 
       var html = '<div class="panel"><h3>Наряды в работе</h3><div class="tablewrap"><table class="table"><thead><tr>' +
-        '<th>Наряд</th><th>Деталь</th><th>Наименование</th><th>Кол-во</th><th>Статус</th><th></th></tr></thead><tbody>';
+        '<th>Наряд</th><th>Обозначение</th><th>Наименование</th><th>Кол-во</th><th>Статус</th><th></th></tr></thead><tbody>';
 
       var statusLabels = { created: 'Создан', in_progress: 'В работе', waiting_otk: 'Ждёт ОТК', rework: 'Доработка', closed: 'Закрыт' };
 
       orders.forEach(function(o) {
         var label = statusLabels[o.status] || o.status;
         var badge = o.status === 'in_progress' ? 'badge--info' : (o.status === 'created' ? 'badge--warn' : (o.status === 'waiting_otk' ? 'badge--ok' : (o.status === 'rework' ? 'badge--error' : 'badge--muted')));
+        var desig = o.designation || o.partCode;
         html += '<tr>' +
           '<td>' + escHtml(o.number) + '</td>' +
-          '<td>' + escHtml(o.partCode) + '</td>' +
+          '<td>' + escHtml(desig) + '</td>' +
           '<td>' + escHtml(o.name) + '</td>' +
           '<td>' + o.qty + '</td>' +
           '<td><span class="badge ' + badge + '">' + escHtml(label) + '</span></td>' +
@@ -196,7 +197,7 @@
         var order = await api('/api/work-orders/' + encodeURIComponent(number));
         document.getElementById('transitionOrderInfo').innerHTML =
           '<p><strong>Наряд:</strong> ' + escHtml(order.number) + '</p>' +
-          '<p><strong>Деталь:</strong> ' + escHtml(order.partCode) + ' — ' + escHtml(order.name) + '</p>' +
+          '<p><strong>Деталь:</strong> ' + escHtml(order.designation ? order.designation + ' — ' + order.name : order.name) + '</p>' +
           '<p><strong>Станок:</strong> ' + escHtml(order.machine) + ' | <strong>Кол-во:</strong> ' + order.qty + '</p>';
         document.getElementById('transitionModal').style.display = 'flex';
       } catch (e) {

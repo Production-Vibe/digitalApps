@@ -66,7 +66,7 @@
       }
 
       var html = '<table class="table"><thead><tr>' +
-        '<th>Наряд</th><th>Деталь</th><th>Наименование</th><th>Оператор</th><th>Станок</th><th>Кол-во</th>' +
+        '<th>Наряд</th><th>Обозначение</th><th>Наименование</th><th>Оператор</th><th>Станок</th><th>Кол-во</th>' +
         '<th>Переходы</th><th>Проверено</th><th>Статус</th><th></th></tr></thead><tbody>';
 
       queue.forEach(function(o) {
@@ -74,9 +74,10 @@
         var statusLabel = isRework ? 'Доработка' : (o.status === 'waiting_otk' ? 'Ждёт ОТК' : o.status);
         var badge = isRework ? 'badge--error' : 'badge--warn';
         var agg = o.aggregates || {};
+        var desig = o.designation || o.partCode;
         html += '<tr>' +
           '<td>' + escHtml(o.number) + '</td>' +
-          '<td>' + escHtml(o.partCode) + '</td>' +
+          '<td>' + escHtml(desig) + '</td>' +
           '<td>' + escHtml(o.name) + '</td>' +
           '<td>' + escHtml(o.operator) + '</td>' +
           '<td>' + escHtml(o.machine) + '</td>' +
@@ -109,7 +110,7 @@
       var o = data.order;
 
       var html = '<h3>Наряд: ' + escHtml(o.number) + '</h3>';
-      html += '<p><strong>Деталь:</strong> ' + escHtml(o.partCode) + ' — ' + escHtml(o.name) + '</p>';
+      html += '<p><strong>Деталь:</strong> ' + escHtml(o.designation ? o.designation + ' — ' + o.name : o.name) + '</p>';
       html += '<p><strong>Оператор:</strong> ' + escHtml(o.operator) + ' | <strong>Станок:</strong> ' + escHtml(o.machine) + ' | <strong>Кол-во:</strong> ' + o.qty + '</p>';
       if (o.reworkReason) {
         html += '<div class="alert alert--error"><strong>Причина доработки:</strong> ' + escHtml(o.reworkReason) + '</div>';

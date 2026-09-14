@@ -12,12 +12,20 @@ router.get('/', requireAuth('master', 'shift'), async (req, res) => {
   const where: Record<string, unknown> = {};
   if (status) where.status = status;
   if (pa) where.paNumber = { contains: pa };
-  const launches = await prisma.launches.findMany({ where, orderBy: { createdAt: 'desc' }, take: 200 });
+  const launches = await prisma.launches.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+    include: { catalog: { select: { code: true, name: true, designation: true } } },
+  });
   res.json(launches);
 });
 
 router.get('/:id', requireAuth('master', 'shift'), async (req, res) => {
-  const launch = await prisma.launches.findUnique({ where: { id: param(req, 'id') } });
+  const launch = await prisma.launches.findUnique({
+    where: { id: param(req, 'id') },
+    include: { catalog: { select: { code: true, name: true, designation: true } } },
+  });
   if (!launch) { res.status(404).json({ error: 'Не найдено' }); return; }
   res.json(launch);
 });

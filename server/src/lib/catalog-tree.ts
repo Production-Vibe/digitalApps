@@ -9,12 +9,24 @@ export interface CatalogTreeUnit<T extends CatalogTreeNode = CatalogTreeNode> {
   items: T[];
 }
 
+function parentKey(code: string): string {
+  const i = code.lastIndexOf('/');
+  return i === -1 ? '' : code.slice(0, i);
+}
+
 export function buildCatalogTree<T extends CatalogTreeNode>(items: T[]): CatalogTreeUnit<T>[] {
+  const byCode = new Map(items.map((i) => [i.code, i]));
   const map = new Map<string, T[]>();
   for (const item of items) {
-    const key = item.designation.split('-')[0] || 'Без узла';
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(item);
+    const parent = parentKey(item.code);
+    if (!map.has(parent)) map.set(parent, []);
+    map.get(parent)!.push(item);
   }
-  return Array.from(map.entries()).map(([unit, unitItems]) => ({ unit, items: unitItems }));
+  const units: CatalogTreeUnit<T>[] = [];
+  for (const [parent, unitItems] of map) {
+    const node = byCode.get(parent);
+    const unit = node ? (node.name || node.code) : 'Каталог';
+    units.push({ unit, items: unitItems });
+  }
+  return units.sort((a, b) => a.unit.localeCompare(b.unit, 'ru'));
 }

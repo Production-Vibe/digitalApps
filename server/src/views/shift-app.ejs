@@ -98,8 +98,10 @@
       var filtered = launches;
       if (search) {
         filtered = launches.filter(function(l) {
+          var desig = (l.catalog && l.catalog.designation) || '';
           return (l.name || '').toLowerCase().indexOf(search) >= 0 ||
-                 (l.partCode || '').toLowerCase().indexOf(search) >= 0;
+                 (l.partCode || '').toLowerCase().indexOf(search) >= 0 ||
+                 desig.toLowerCase().indexOf(search) >= 0;
         });
       }
 
@@ -109,16 +111,17 @@
       }
 
       var html = '<table class="table"><thead><tr>' +
-        '<th>ID</th><th>Деталь</th><th>Наименование</th><th>ПА</th><th>Кол-во</th><th>Статус</th><th>Дата</th><th></th>' +
+        '<th>ID</th><th>Обозначение</th><th>Наименование</th><th>ПА</th><th>Кол-во</th><th>Статус</th><th>Дата</th><th></th>' +
         '</tr></thead><tbody>';
 
       filtered.forEach(function(l) {
         var statusLabels = { to_launch: 'К запуску', issued: 'Выдано', in_work: 'В работе', done: 'Готово' };
         var statusLabel = statusLabels[l.status] || l.status;
         var canIssue = l.status === 'to_launch';
+        var desig = (l.catalog && l.catalog.designation) || l.partCode;
         html += '<tr>' +
           '<td>' + escHtml(l.id) + '</td>' +
-          '<td>' + escHtml(l.partCode) + '</td>' +
+          '<td>' + escHtml(desig) + '</td>' +
           '<td>' + escHtml(l.name) + '</td>' +
           '<td>' + escHtml(l.paNumber) + '</td>' +
           '<td>' + l.qty + '</td>' +
@@ -130,6 +133,11 @@
 
       html += '</tbody></table>';
       container.innerHTML = html;
+    }
+
+    function desigLabel(l) {
+      var desig = (l.catalog && l.catalog.designation) || '';
+      return desig ? desig + ' — ' + l.name : l.name;
     }
 
     async function openIssueModal(launchId) {
@@ -156,7 +164,7 @@
 
         document.getElementById('issueDetails').innerHTML =
           '<p><strong>Запуск:</strong> ' + escHtml(launch.id) + '</p>' +
-          '<p><strong>Деталь:</strong> ' + escHtml(launch.partCode) + ' — ' + escHtml(launch.name) + '</p>' +
+          '<p><strong>Деталь:</strong> ' + escHtml(desigLabel(launch)) + '</p>' +
           '<p><strong>ПА:</strong> ' + escHtml(launch.paNumber) + '</p>' +
           '<p><strong>Всего:</strong> ' + launch.qty + '</p>';
 
@@ -188,7 +196,7 @@
             launchId: currentLaunch.id,
             partCode: currentLaunch.partCode,
             name: currentLaunch.name,
-            designation: currentLaunch.designation || '',
+            designation: (currentLaunch.catalog && currentLaunch.catalog.designation) || '',
             assembly: currentLaunch.assembly || '',
             operator: operator,
             machine: machine,

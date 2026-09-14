@@ -31,14 +31,24 @@ router.post('/issue', requireAuth('shift'), async (req, res) => {
     return;
   }
 
+  let nameStr = name || '';
+  let designationStr = designation || '';
+  if (!nameStr || !designationStr) {
+    const catalog = await prisma.catalog.findUnique({ where: { code: partCode } });
+    if (catalog) {
+      if (!nameStr) nameStr = catalog.name;
+      if (!designationStr) designationStr = catalog.designation;
+    }
+  }
+
   const number = generateNaryadId();
 
   const order = await prisma.workOrders.create({
     data: {
       number,
       partCode,
-      name: name || '',
-      designation: designation || '',
+      name: nameStr,
+      designation: designationStr,
       assembly: assembly || '',
       operator,
       machine,
@@ -52,8 +62,8 @@ router.post('/issue', requireAuth('shift'), async (req, res) => {
     data: {
       orderNumber: number,
       partCode,
-      name: name || '',
-      designation: designation || '',
+      name: nameStr,
+      designation: designationStr,
       assembly: assembly || '',
       operator,
       machine,
