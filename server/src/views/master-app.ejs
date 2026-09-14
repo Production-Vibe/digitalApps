@@ -29,6 +29,8 @@
       </div>
       <div id="launchCardsSection"></div>
       <div id="orderCardsSection"></div>
+      <div id="ordersChartSection"></div>
+      <div id="paChartSection"></div>
       <div id="paLoadSection"></div>
       <div id="machinesSection"></div>
     </section>
@@ -93,6 +95,7 @@
           <button onclick="applyReport()" class="btn btn--primary">Показать</button>
         </div>
       </div>
+      <div id="timelineSection"></div>
       <div id="execSection"></div>
       <div id="operatorsSection"></div>
       <div id="reportMachinesSection"></div>
@@ -101,6 +104,8 @@
   </main>
 
   <script src="/api.js"></script>
+  <script src="/ui.js"></script>
+  <script src="/vendor/chart.umd.min.js"></script>
   <script>
     (function() {
       var u = getCurrentUser();
@@ -127,45 +132,133 @@
       });
     }
 
-    function statCards(elId, counts, labels) {
-      var el = document.getElementById(elId);
-      if (!counts) counts = {};
-      var keys = Object.keys(labels);
-      var html = '<div class="stat-grid" style="margin-bottom:1rem">';
-      keys.forEach(function(k) {
-        html += '<div class="stat-card"><div class="stat-card__value">' + (counts[k] || 0) + '</div>' +
-          '<div class="stat-card__label">' + labels[k] + '</div></div>';
+    var STATUS_COLORS = {
+      created: '#60a5fa',
+      in_progress: '#f59e0b',
+      waiting_otk: '#f97316',
+      rework: '#ef4444',
+      closed: '#10b981'
+    };
+    var STATUS_ORDER = [
+      { key: 'created', label: 'Создан' },
+      { key: 'in_progress', label: 'В работе' },
+      { key: 'waiting_otk', label: 'Ждёт ОТК' },
+      { key: 'rework', label: 'Доработка' },
+      { key: 'closed', label: 'Закрыт' }
+    ];
+
+    function renderOrdersChart(d) {
+      var el = document.getElementById('ordersChartSection');
+      if (!el) return;
+      var s = d.summary.ordersByStatus || {};
+      var labels = [];
+      var data = [];
+      var colors = [];
+      STATUS_ORDER.forEach(function(item) {
+        if (s[item.key]) {
+          labels.push(item.label);
+          data.push(s[item.key]);
+          colors.push(STATUS_COLORS[item.key]);
+        }
       });
-      html += '</div>';
-      el.innerHTML = html;
+      if (data.length === 0) {
+        el.innerHTML = '<div class="panel"><h3>Наряды по статусам</h3>' + emptyBlock('Нет нарядов') + '</div>';
+        return;
+      }
+      el.innerHTML = chartBoxHtml('ordersChart', 'Наряды по статусам');
+      drawChart('ordersChart', {
+        type: 'bar',
+        data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderRadius: 4, maxBarThickness: 52 }] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        }
+      });
+    }
+
+    function renderPaChart(d) {
+      var el = document.getElementById('paChartSection');
+      if (!el) return;
+      var pa = d.summary.paLoad || [];
+      if (!pa.length) {
+        el.innerHTML = '<div class="panel"><h3>Загруженность ПА</h3>' + emptyBlock('Нет активных запусков') + '</div>';
+        return;
+      }
+      el.innerHTML = chartBoxHtml('paChart', 'Загруженность ПА');
+      drawChart('paChart', {
+        type: 'bar',
+        data: {
+          labels: pa.map(function(p) { return p.paNumber; }),
+          datasets: [{ data: pa.map(function(p) { return p.qty; }), backgroundColor: '#60a5fa', borderRadius: 4, maxBarThickness: 52 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+
+    function renderTimeline(d) {
+      var el = document.getElementById('timelineSection');
+      if (!el) return;
+      var daily = (d.reports && d.reports.daily) || [];
+      if (!daily.length) {
+        el.innerHTML = '<div class="panel"><h3>Динамика закрытия нарядов</h3>' + emptyBlock('За период закрытых нарядов нет') + '</div>';
+        return;
+      }
+      el.innerHTML = chartBoxHtml('timelineChart', 'Динамика закрытия нарядов');
+      drawChart('timelineChart', {
+        type: 'bar',
+        data: {
+          labels: daily.map(function(r) { return r.day.slice(5); }),
+          datasets: [
+            { label: 'Нарядов', data: daily.map(function(r) { return r.orders; }), backgroundColor: '#2563eb', borderRadius: 3, maxBarThickness: 26, yAxisID: 'y' },
+            { label: 'Объём', data: daily.map(function(r) { return r.qty; }), type: 'line', borderColor: '#f59e0b', backgroundColor: '#f59e0b', tension: 0.3, yAxisID: 'y1' }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { beginAtZero: true, position: 'left', ticks: { precision: 0 } },
+            y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } }
+          }
+        }
+      });
     }
 
     function renderSummary(d) {
       var s = d.summary;
       statCards('launchCardsSection', s.launchesByStatus, LAUNCH_LABELS)
       statCards('orderCardsSection', s.ordersByStatus, ORDER_LABELS)
+      renderOrdersChart(d);
+      renderPaChart(d);
 
       var paEl = document.getElementById('paLoadSection');
       if (!s.paLoad || s.paLoad.length === 0) {
-        paEl.innerHTML = '<div class="panel"><h3>Загруженность ПА</h3><p class="muted">Нет активных запусков</p></div>';
+        paEl.innerHTML = '<div class="panel"><h3>Активные запуски по ПА</h3>' + emptyBlock('Нет активных запусков') + '</div>';
       } else {
         var rows = s.paLoad.map(function(p) {
-          return '<tr><td>' + escHtml(p.paNumber) + '</td><td>' + p.launches + '</td><td>' + p.qty + '</td></tr>';
+          return '<tr><td class="mono">' + escHtml(p.paNumber) + '</td><td class="num">' + p.launches + '</td><td class="num">' + p.qty + '</td></tr>';
         }).join('');
-        paEl.innerHTML = '<div class="panel"><h3>Загруженность ПА</h3>' +
+        paEl.innerHTML = '<div class="panel"><h3>Активные запуски по ПА</h3>' +
           '<div class="tablewrap"><table class="table"><thead><tr><th>№ ПА</th><th>Запусков</th><th>Кол-во</th></tr></thead>' +
           '<tbody>' + rows + '</tbody></table></div></div>';
       }
 
       var mEl = document.getElementById('machinesSection');
       var busyRows = (s.machinesBusy || []).map(function(m) {
-        return '<tr><td>' + escHtml(m.machine) + '</td><td>' + escHtml(m.operator) + '</td><td>' + fmtDate(m.since) + '</td></tr>';
+        return '<tr><td class="mono">' + escHtml(m.machine) + '</td><td>' + escHtml(m.operator) + '</td><td>' + fmtDate(m.since) + '</td></tr>';
       }).join('');
       var idle = (s.machinesIdle || []).join(', ');
       mEl.innerHTML = '<div class="panel"><h3>Станки</h3>' +
         (s.machinesBusy && s.machinesBusy.length
           ? '<div class="tablewrap"><table class="table"><thead><tr><th>Станок</th><th>Оператор</th><th>Смена с</th></tr></thead><tbody>' + busyRows + '</tbody></table></div>'
-          : '<p class="muted">Смены не открыты</p>') +
+          : emptyBlock('Смены не открыты')) +
         (idle ? '<p class="muted" style="margin-top:0.5rem">Свободны: ' + escHtml(idle) + '</p>' : '') +
         '</div>';
     }
@@ -174,7 +267,7 @@
       var el = document.getElementById('treeSection');
       var units = d.nomenclature.units;
       if (!units || units.length === 0) {
-        el.innerHTML = '<div class="panel"><h3>Номенклатура</h3><p class="muted">Пусто</p></div>';
+        el.innerHTML = '<div class="panel"><h3>Номенклатура</h3>' + emptyBlock('Каталог пуст') + '</div>';
         return;
       }
       var html = '<div class="panel"><h3>Номенклатура</h3>';
@@ -195,10 +288,11 @@
     function renderReports(d) {
       var r = d.reports;
       var e = r.exec;
+      renderTimeline(d);
       document.getElementById('execSection').innerHTML = '<div class="panel"><h3>Выполнение за период</h3>' +
         '<p class="muted">' + r.from + ' — ' + r.to + '</p>' +
         '<div class="tablewrap"><table class="table"><thead><tr><th>Закрыто нарядов</th><th>Объём</th><th>Принято</th><th>Брак</th><th>Брак, %</th><th>Нормо-часы</th></tr></thead>' +
-        '<tbody><tr><td>' + e.orders + '</td><td>' + e.qty + '</td><td>' + e.accepted + '</td><td>' + e.defect + '</td><td>' + e.defectPct + '</td><td>' + e.time + '</td></tr></tbody></table></div></div>';
+        '<tbody><tr><td class="num">' + e.orders + '</td><td class="num">' + e.qty + '</td><td class="num">' + e.accepted + '</td><td class="num">' + e.defect + '</td><td class="num">' + e.defectPct + '</td><td class="num">' + e.time + '</td></tr></tbody></table></div></div>';
 
       document.getElementById('operatorsSection').innerHTML =
         reportTable('Отчёты по операторам', r.operators, 'operator');
@@ -209,10 +303,10 @@
     function reportTable(title, rows, keyName) {
       var keyLabel = keyName === 'operator' ? 'Оператор' : 'Станок';
       var head = '<div class="panel"><h3>' + title + '</h3>';
-      if (!rows || rows.length === 0) return head + '<p class="muted">За период закрытых нарядов нет</p></div>';
+      if (!rows || rows.length === 0) return head + emptyBlock('За период закрытых нарядов нет') + '</div>';
       var body = rows.map(function(x) {
-        return '<tr><td>' + escHtml(x[keyName]) + '</td><td>' + x.orders + '</td><td>' + x.qty + '</td><td>' +
-          x.accepted + '</td><td>' + x.defect + '</td><td>' + x.defectPct + '</td><td>' + x.time + '</td></tr>';
+        return '<tr><td>' + escHtml(x[keyName]) + '</td><td class="num">' + x.orders + '</td><td class="num">' + x.qty + '</td><td class="num">' +
+          x.accepted + '</td><td class="num">' + x.defect + '</td><td class="num">' + x.defectPct + '</td><td class="num">' + x.time + '</td></tr>';
       }).join('');
       return head + '<div class="tablewrap"><table class="table"><thead><tr><th>' + keyLabel + '</th><th>Нарядов</th><th>Объём</th><th>Принято</th><th>Брак</th><th>Брак, %</th><th>Нормо-часы</th></tr></thead>' +
         '<tbody>' + body + '</tbody></table></div></div>';
@@ -281,7 +375,7 @@
     function renderLaunches(launches) {
       var el = document.getElementById('launchesSection');
       if (!launches || launches.length === 0) {
-        el.innerHTML = '<div class="panel"><h3>Запуски</h3><p class="muted">Нет запусков</p></div>';
+        el.innerHTML = '<div class="panel"><h3>Запуски</h3>' + emptyBlock('Нет запусков') + '</div>';
         return;
       }
       var html = '<div class="panel"><h3>Запуски</h3><div class="tablewrap"><table class="table"><thead><tr>' +

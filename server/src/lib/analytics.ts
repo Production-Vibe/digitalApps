@@ -82,6 +82,7 @@ export interface DashboardResponse {
     exec: { orders: number; qty: number; accepted: number; defect: number; defectPct: number; time: number };
     operators: Record<string, unknown>[];
     machines: Record<string, unknown>[];
+    daily: { day: string; orders: number; qty: number; accepted: number; defect: number; time: number }[];
   };
 }
 
@@ -176,7 +177,7 @@ export async function getDashboard(fromRaw?: string, toRaw?: string): Promise<Da
 
   const closedOrders = await prisma.closedOrders.findMany({
     where: { closedAt: { gte: from, lte: to } },
-    select: { orderNumber: true, acceptedTotal: true, defectTotal: true },
+    select: { orderNumber: true, acceptedTotal: true, defectTotal: true, closedAt: true },
   });
 
   const exec = {
@@ -191,6 +192,7 @@ export async function getDashboard(fromRaw?: string, toRaw?: string): Promise<Da
   const numbers = closedOrders.map((c) => c.orderNumber);
   let operators: Record<string, unknown>[] = [];
   let machines: Record<string, unknown>[] = [];
+  let daily: { day: string; orders: number; qty: number; accepted: number; defect: number; time: number }[] = [];
 
   if (numbers.length > 0) {
     const [orders, timeGroups] = await Promise.all([
@@ -239,6 +241,22 @@ export async function getDashboard(fromRaw?: string, toRaw?: string): Promise<Da
     machines = Array.from(machineMap.entries())
       .map(([key, t]) => toGroupRow(t, key, 'machine'))
       .sort((a, b) => Number(b.orders) - Number(a.orders));
+
+    const dailyMap = new Map<string, { orders: number; qty: number; accepted: number; defect: number; time: number }>();
+    for (const c of closedOrders) {
+      const day = fmtDay(c.closedAt);
+      const o = orderById.get(c.orderNumber);
+      const t = dailyMap.get(day) || { orders: 0, qty: 0, accepted: 0, defect: 0, time: 0 };
+      t.orders += 1;
+      t.qty += o ? o.qty : 0;
+      t.accepted += c.acceptedTotal;
+      t.defect += c.defectTotal;
+      t.time += timeById.get(c.orderNumber) ?? 0;
+      dailyMap.set(day, t);
+    }
+    daily = Array.from(dailyMap.entries())
+      .map(([day, t]) => ({ day, orders: t.orders, qty: Math.round(t.qty * 10) / 10, accepted: t.accepted, defect: t.defect, time: t.time }))
+      .sort((a, b) => a.day.localeCompare(b.day));
   }
 
   exec.defectPct = defectPct(exec.accepted, exec.defect);
@@ -258,6 +276,7 @@ export async function getDashboard(fromRaw?: string, toRaw?: string): Promise<Da
       exec,
       operators,
       machines,
+      daily,
     },
   };
 }

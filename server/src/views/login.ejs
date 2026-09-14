@@ -11,7 +11,7 @@
     <div class="auth-page">
       <div class="auth-card">
         <h1 class="auth-card__title">ЦифровойНаряд</h1>
-        <p class="auth-card__subtitle">Вход в систему</p>
+        <p class="auth-card__subtitle">Управление производством подъёмных агрегатов</p>
         <% if (error) { %>
           <div class="alert alert--error"><%= error %></div>
         <% } %>
@@ -39,8 +39,11 @@
   <script>
     document.getElementById('loginForm').addEventListener('submit', async function(e) {
       e.preventDefault();
+      var form = document.getElementById('loginForm');
+      var submitBtn = form.querySelector('button[type="submit"]');
       var login = document.getElementById('login').value;
       var password = document.getElementById('password').value;
+      submitBtn.disabled = true;
       try {
         var res = await fetch('/api/login', {
           method: 'POST',
@@ -69,6 +72,8 @@
         }
       } catch {
         alert('Сервер недоступен');
+      } finally {
+        submitBtn.disabled = false;
       }
     });
   </script>

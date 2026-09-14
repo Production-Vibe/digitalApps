@@ -55,6 +55,7 @@
   </div>
 
   <script src="/api.js"></script>
+  <script src="/ui.js"></script>
   <script>
     (function() {
       var u = getCurrentUser();
@@ -126,7 +127,7 @@
     function renderOrders(orders) {
       var el = document.getElementById('ordersSection');
       if (!orders || orders.length === 0) {
-        el.innerHTML = '<div class="panel"><h3>Наряды</h3><p class="muted">Нет активных нарядов</p></div>';
+        el.innerHTML = '<div class="panel"><h3>Наряды в работе</h3>' + emptyBlock('Нет активных нарядов') + '</div>';
         return;
       }
 

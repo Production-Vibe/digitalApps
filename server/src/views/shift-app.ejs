@@ -63,6 +63,7 @@
   </div>
 
   <script src="/api.js"></script>
+  <script src="/ui.js"></script>
   <script>
     (function() {
       var u = getCurrentUser();
@@ -90,7 +91,7 @@
       var container = document.getElementById('launchTable');
 
       if (!launches || launches.length === 0) {
-        container.innerHTML = '<p class="muted">Нет запусков</p>';
+        container.innerHTML = emptyBlock('Нет запусков');
         return;
       }
 
@@ -100,6 +101,11 @@
           return (l.name || '').toLowerCase().indexOf(search) >= 0 ||
                  (l.partCode || '').toLowerCase().indexOf(search) >= 0;
         });
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = emptyBlock('По запросу ничего не найдено');
+        return;
       }
 
       var html = '<table class="table"><thead><tr>' +

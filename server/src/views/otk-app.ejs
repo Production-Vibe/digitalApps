@@ -37,6 +37,7 @@
   </div>
 
   <script src="/api.js"></script>
+  <script src="/ui.js"></script>
   <script>
     (function() {
       var u = getCurrentUser();
@@ -60,7 +61,7 @@
     function renderQueue(queue) {
       var el = document.getElementById('queueSection');
       if (!queue || queue.length === 0) {
-        el.innerHTML = '<p class="muted">Очередь пуста. Все наряды приняты.</p>';
+        el.innerHTML = emptyBlock('Очередь пуста. Все наряды приняты.');
         return;
       }
 
