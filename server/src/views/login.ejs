@@ -24,11 +24,18 @@
             <label for="password">Пароль</label>
             <input type="password" id="password" name="password" required autocomplete="current-password">
           </div>
+          <div class="form-group form-group--inline">
+            <label for="remember" class="checkbox-label">
+              <input type="checkbox" id="remember" checked>
+              Запомнить меня
+            </label>
+          </div>
           <button type="submit" class="btn btn--primary btn--full">Войти</button>
         </form>
       </div>
     </div>
   </main>
+  <script src="/api.js"></script>
   <script>
     document.getElementById('loginForm').addEventListener('submit', async function(e) {
       e.preventDefault();
@@ -42,9 +49,8 @@
         });
         var data = await res.json();
         if (res.ok) {
-          localStorage.setItem('token', data.accessToken);
-          localStorage.setItem('refreshToken', data.refreshToken);
-          localStorage.setItem('user', JSON.stringify(data.user));
+          localStorage.setItem('remember', document.getElementById('remember').checked ? '1' : '0');
+          saveSession(data);
           var role = data.user.role;
           if (role === 'master') location.href = '/master';
           else if (role === 'shift') location.href = '/shift';

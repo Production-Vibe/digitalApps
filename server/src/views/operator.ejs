@@ -14,7 +14,7 @@
     </nav>
     <div class="top-bar__user">
       <span class="user-full-name"></span> (operator)
-      <button onclick="localStorage.clear();location.href='/login'" class="btn btn--sm">Выйти</button>
+      <button onclick="logout()" class="btn btn--sm">Выйти</button>
     </div>
   </header>
   <main class="container">
@@ -87,33 +87,40 @@
 
     function renderShifts(shifts, machines) {
       var el = document.getElementById('shiftsSection');
-      if (!shifts || shifts.length === 0) {
-        el.innerHTML = '<div class="panel"><h3>Смены</h3><p class="muted">Откройте смену на станке</p>' +
+      var hasOpen = (shifts || []).some(function(s) { return s.status === 'open'; });
+      var html = '<div class="panel"><h3>Смены</h3>';
+
+      if (!hasOpen) {
+        html += '<p class="muted">Откройте смену на станке</p>' +
           '<div class="form-group" style="margin-top:0.5rem"><select id="openMachine" class="input"></select></div>' +
-          '<button onclick="openShift()" class="btn btn--primary">Открыть смену</button></div>';
-        var sel = document.getElementById('openMachine');
-        if (sel) sel.innerHTML = machines.map(function(m) {
-          return '<option value="' + escHtml(m.name) + '">' + escHtml(m.name) + '</option>';
-        }).join('');
-        return;
+          '<button onclick="openShift()" class="btn btn--primary">Открыть смену</button>';
       }
 
-      var html = '<div class="panel"><h3>Смены</h3><div class="tablewrap"><table class="table"><thead><tr>' +
-        '<th>ID</th><th>Станок</th><th>Открыта</th><th>Статус</th><th></th></tr></thead><tbody>';
+      if (shifts && shifts.length > 0) {
+        html += '<div class="tablewrap"><table class="table"><thead><tr>' +
+          '<th>ID</th><th>Станок</th><th>Открыта</th><th>Статус</th><th></th></tr></thead><tbody>';
 
-      shifts.forEach(function(s) {
-        var isOpen = s.status === 'open';
-        html += '<tr>' +
-          '<td>' + escHtml(s.id) + '</td>' +
-          '<td>' + escHtml(s.machine) + '</td>' +
-          '<td>' + fmtDate(s.openedAt) + '</td>' +
-          '<td><span class="badge ' + (isOpen ? 'badge--ok' : 'badge--muted') + '">' + escHtml(s.status === 'open' ? 'Открыта' : (s.status === 'closed' ? 'Закрыта' : 'Авто-закрыта')) + '</span></td>' +
-          '<td>' + (isOpen ? '<button onclick="closeShift(\'' + escHtml(s.id) + '\')" class="btn btn--sm">Закрыть</button>' : '') + '</td>' +
-          '</tr>';
-      });
+        shifts.forEach(function(s) {
+          var isOpen = s.status === 'open';
+          html += '<tr>' +
+            '<td>' + escHtml(s.id) + '</td>' +
+            '<td>' + escHtml(s.machine) + '</td>' +
+            '<td>' + fmtDate(s.openedAt) + '</td>' +
+            '<td><span class="badge ' + (isOpen ? 'badge--ok' : 'badge--muted') + '">' + escHtml(s.status === 'open' ? 'Открыта' : (s.status === 'closed' ? 'Закрыта' : 'Авто-закрыта')) + '</span></td>' +
+            '<td>' + (isOpen ? '<button onclick="closeShift(\'' + escHtml(s.id) + '\')" class="btn btn--sm">Закрыть</button>' : '') + '</td>' +
+            '</tr>';
+        });
 
-      html += '</tbody></table></div></div>';
+        html += '</tbody></table></div>';
+      }
+
+      html += '</div>';
       el.innerHTML = html;
+
+      var sel = document.getElementById('openMachine');
+      if (sel) sel.innerHTML = machines.map(function(m) {
+        return '<option value="' + escHtml(m.name) + '">' + escHtml(m.name) + '</option>';
+      }).join('');
     }
 
     function renderOrders(orders) {

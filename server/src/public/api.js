@@ -1,5 +1,26 @@
+function tokenStore() {
+  return localStorage.getItem('remember') === '1' ? localStorage : sessionStorage;
+}
+
+function saveSession(data) {
+  var store = tokenStore();
+  store.setItem('token', data.accessToken);
+  store.setItem('refreshToken', data.refreshToken);
+  store.setItem('user', JSON.stringify(data.user));
+}
+
+function clearSession() {
+  localStorage.clear();
+  sessionStorage.clear();
+}
+
+function logout() {
+  clearSession();
+  location.href = '/login';
+}
+
 async function api(url, options) {
-  var token = localStorage.getItem('token');
+  var token = tokenStore().getItem('token');
   var headers = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = 'Bearer ' + token;
   var opts = Object.assign({}, options, { headers: headers });
@@ -7,7 +28,7 @@ async function api(url, options) {
 
   var res = await fetch(url, opts);
   if (res.status === 401) {
-    var refreshToken = localStorage.getItem('refreshToken');
+    var refreshToken = tokenStore().getItem('refreshToken');
     if (refreshToken) {
       var refreshRes = await fetch('/api/refresh', {
         method: 'POST',
@@ -16,13 +37,11 @@ async function api(url, options) {
       });
       if (refreshRes.ok) {
         var data = await refreshRes.json();
-        localStorage.setItem('token', data.accessToken);
-        localStorage.setItem('refreshToken', data.refreshToken);
-        localStorage.setItem('user', JSON.stringify(data.user));
+        saveSession(data);
         return api(url, options);
       }
     }
-    localStorage.clear();
+    clearSession();
     location.href = '/login';
     throw new Error('Not authorized');
   }
@@ -33,7 +52,7 @@ async function api(url, options) {
 
 function getCurrentUser() {
   try {
-    return JSON.parse(localStorage.getItem('user') || 'null');
+    return JSON.parse(tokenStore().getItem('user') || 'null');
   } catch {
     return null;
   }
