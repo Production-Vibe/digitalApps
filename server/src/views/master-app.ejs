@@ -3,14 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Планирование — ЦифровойНаряд</title>
+  <title>Мастер — ЦифровойНаряд</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <header class="top-bar">
     <div class="top-bar__brand">ЦифровойНаряд</div>
     <nav class="top-bar__nav">
-      <a href="/master" class="active">Планирование</a>
+      <button class="tab-btn active" data-tab="svodka" type="button" onclick="switchTab('svodka')">Сводка</button>
+      <button class="tab-btn" data-tab="plan" type="button" onclick="switchTab('plan')">Планирование</button>
+      <button class="tab-btn" data-tab="nomenclatura" type="button" onclick="switchTab('nomenclatura')">Номенклатура</button>
+      <button class="tab-btn" data-tab="otchety" type="button" onclick="switchTab('otchety')">Отчёты</button>
     </nav>
     <div class="top-bar__user">
       <span class="user-full-name"></span> (master)
@@ -18,43 +21,83 @@
     </div>
   </header>
   <main class="container">
-    <div class="page-header">
-      <h1>Планирование запусков</h1>
-      <button onclick="loadAll()" class="btn btn--primary">Обновить</button>
-    </div>
 
-    <div id="statsSection"></div>
-
-    <div class="panel">
-      <h3>Создать запуск</h3>
-      <div class="launch-form">
-        <div class="form-group">
-          <label for="launchSearch">Деталь (поиск)</label>
-          <input type="text" id="launchSearch" class="input" placeholder="Введите код или наименование" oninput="searchCatalog()">
-        </div>
-        <div id="catalogResults" style="max-height:200px;overflow-y:auto;margin-bottom:0.75rem"></div>
-        <div id="selectedItem" class="muted"></div>
-        <div class="form-group">
-          <label for="launchQty">Кол-во</label>
-          <input type="number" id="launchQty" class="input" min="1" value="1">
-        </div>
-        <div class="form-group">
-          <label for="launchPA">№ ПА</label>
-          <input type="text" id="launchPA" class="input" placeholder="001 или 009-011">
-        </div>
-        <div class="form-group">
-          <label for="launchType">Тип запуска</label>
-          <select id="launchType" class="input">
-            <option value="Основной">Основной</option>
-            <option value="Дополнительный">Дополнительный</option>
-            <option value="Доработка">Доработка</option>
-          </select>
-        </div>
-        <button onclick="createLaunch()" class="btn btn--primary">Создать запуск</button>
+    <section id="tab-svodka" class="tab-panel">
+      <div class="page-header">
+        <h1>Сводка по цеху</h1>
+        <button onclick="loadDashboard()" class="btn btn--primary">Обновить</button>
       </div>
-    </div>
+      <div id="launchCardsSection"></div>
+      <div id="orderCardsSection"></div>
+      <div id="paLoadSection"></div>
+      <div id="machinesSection"></div>
+    </section>
 
-    <div id="launchesSection"></div>
+    <section id="tab-plan" class="tab-panel" hidden>
+      <div class="page-header">
+        <h1>Планирование запусков</h1>
+        <button onclick="loadAll()" class="btn btn--primary">Обновить</button>
+      </div>
+
+      <div id="statsSection"></div>
+
+      <div class="panel">
+        <h3>Создать запуск</h3>
+        <div class="launch-form">
+          <div class="form-group">
+            <label for="launchSearch">Деталь (поиск)</label>
+            <input type="text" id="launchSearch" class="input" placeholder="Введите код или наименование" oninput="searchCatalog()">
+          </div>
+          <div id="catalogResults" style="max-height:200px;overflow-y:auto;margin-bottom:0.75rem"></div>
+          <div id="selectedItem" class="muted"></div>
+          <div class="form-group">
+            <label for="launchQty">Кол-во</label>
+            <input type="number" id="launchQty" class="input" min="1" value="1">
+          </div>
+          <div class="form-group">
+            <label for="launchPA">№ ПА</label>
+            <input type="text" id="launchPA" class="input" placeholder="001 или 009-011">
+          </div>
+          <div class="form-group">
+            <label for="launchType">Тип запуска</label>
+            <select id="launchType" class="input">
+              <option value="Основной">Основной</option>
+              <option value="Дополнительный">Дополнительный</option>
+              <option value="Доработка">Доработка</option>
+            </select>
+          </div>
+          <button onclick="createLaunch()" class="btn btn--primary">Создать запуск</button>
+        </div>
+      </div>
+
+      <div id="launchesSection"></div>
+    </section>
+
+    <section id="tab-nomenclatura" class="tab-panel" hidden>
+      <div class="page-header">
+        <h1>Номенклатура</h1>
+        <button onclick="loadDashboard()" class="btn btn--primary">Обновить</button>
+      </div>
+      <div id="treeSection"></div>
+    </section>
+
+    <section id="tab-otchety" class="tab-panel" hidden>
+      <div class="page-header">
+        <h1>Отчёты</h1>
+      </div>
+      <div class="panel">
+        <h3>Период</h3>
+        <div class="report-form">
+          <label for="repFrom">От <input type="date" id="repFrom" class="input"></label>
+          <label for="repTo">До <input type="date" id="repTo" class="input"></label>
+          <button onclick="applyReport()" class="btn btn--primary">Показать</button>
+        </div>
+      </div>
+      <div id="execSection"></div>
+      <div id="operatorsSection"></div>
+      <div id="reportMachinesSection"></div>
+    </section>
+
   </main>
 
   <script src="/api.js"></script>
@@ -69,6 +112,143 @@
 
     var selectedCatalogItem = null;
     var searchTimer = null;
+    var dashboard = null;
+
+    var LAUNCH_LABELS = { to_launch: 'К запуску', issued: 'Выдано', in_work: 'В работе', done: 'Готово' };
+    var ORDER_LABELS = { created: 'Создан', in_progress: 'В работе', waiting_otk: 'Ждёт ОТК', rework: 'Доработка', closed: 'Закрыт' };
+    var ORDER_BADGE = { created: 'info', in_progress: 'warn', waiting_otk: 'warn', rework: 'error', closed: 'ok' };
+
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-tab') === name);
+      });
+      document.querySelectorAll('.tab-panel').forEach(function(p) {
+        p.hidden = (p.id !== 'tab-' + name);
+      });
+    }
+
+    function statCards(elId, counts, labels) {
+      var el = document.getElementById(elId);
+      if (!counts) counts = {};
+      var keys = Object.keys(labels);
+      var html = '<div class="stat-grid" style="margin-bottom:1rem">';
+      keys.forEach(function(k) {
+        html += '<div class="stat-card"><div class="stat-card__value">' + (counts[k] || 0) + '</div>' +
+          '<div class="stat-card__label">' + labels[k] + '</div></div>';
+      });
+      html += '</div>';
+      el.innerHTML = html;
+    }
+
+    function renderSummary(d) {
+      var s = d.summary;
+      statCards('launchCardsSection', s.launchesByStatus, LAUNCH_LABELS)
+      statCards('orderCardsSection', s.ordersByStatus, ORDER_LABELS)
+
+      var paEl = document.getElementById('paLoadSection');
+      if (!s.paLoad || s.paLoad.length === 0) {
+        paEl.innerHTML = '<div class="panel"><h3>Загруженность ПА</h3><p class="muted">Нет активных запусков</p></div>';
+      } else {
+        var rows = s.paLoad.map(function(p) {
+          return '<tr><td>' + escHtml(p.paNumber) + '</td><td>' + p.launches + '</td><td>' + p.qty + '</td></tr>';
+        }).join('');
+        paEl.innerHTML = '<div class="panel"><h3>Загруженность ПА</h3>' +
+          '<div class="tablewrap"><table class="table"><thead><tr><th>№ ПА</th><th>Запусков</th><th>Кол-во</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody></table></div></div>';
+      }
+
+      var mEl = document.getElementById('machinesSection');
+      var busyRows = (s.machinesBusy || []).map(function(m) {
+        return '<tr><td>' + escHtml(m.machine) + '</td><td>' + escHtml(m.operator) + '</td><td>' + fmtDate(m.since) + '</td></tr>';
+      }).join('');
+      var idle = (s.machinesIdle || []).join(', ');
+      mEl.innerHTML = '<div class="panel"><h3>Станки</h3>' +
+        (s.machinesBusy && s.machinesBusy.length
+          ? '<div class="tablewrap"><table class="table"><thead><tr><th>Станок</th><th>Оператор</th><th>Смена с</th></tr></thead><tbody>' + busyRows + '</tbody></table></div>'
+          : '<p class="muted">Смены не открыты</p>') +
+        (idle ? '<p class="muted" style="margin-top:0.5rem">Свободны: ' + escHtml(idle) + '</p>' : '') +
+        '</div>';
+    }
+
+    function renderTree(d) {
+      var el = document.getElementById('treeSection');
+      var units = d.nomenclature.units;
+      if (!units || units.length === 0) {
+        el.innerHTML = '<div class="panel"><h3>Номенклатура</h3><p class="muted">Пусто</p></div>';
+        return;
+      }
+      var html = '<div class="panel"><h3>Номенклатура</h3>';
+      units.forEach(function(u) {
+        var rows = u.items.map(function(i) {
+          return '<tr><td>' + escHtml(i.code) + '</td><td>' + escHtml(i.name) + '</td>' +
+            '<td>' + i.activeLaunches + '</td><td>' + i.inWork + '</td><td>' + i.closed + '</td></tr>';
+        }).join('');
+        html += '<details style="margin-bottom:0.5rem"><summary><strong>' + escHtml(u.unit) + '</strong>' +
+          ' <span class="muted">(в запуске: ' + u.totals.activeLaunches + ', в работе: ' + u.totals.inWork + ', закрыто: ' + u.totals.closed + ')</span></summary>' +
+          '<div class="tablewrap"><table class="table"><thead><tr><th>Код</th><th>Наименование</th><th>В запуске</th><th>В работе</th><th>Закрыто</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody></table></div></details>';
+      });
+      html += '</div>';
+      el.innerHTML = html;
+    }
+
+    function renderReports(d) {
+      var r = d.reports;
+      var e = r.exec;
+      document.getElementById('execSection').innerHTML = '<div class="panel"><h3>Выполнение за период</h3>' +
+        '<p class="muted">' + r.from + ' — ' + r.to + '</p>' +
+        '<div class="tablewrap"><table class="table"><thead><tr><th>Закрыто нарядов</th><th>Объём</th><th>Принято</th><th>Брак</th><th>Брак, %</th><th>Нормо-часы</th></tr></thead>' +
+        '<tbody><tr><td>' + e.orders + '</td><td>' + e.qty + '</td><td>' + e.accepted + '</td><td>' + e.defect + '</td><td>' + e.defectPct + '</td><td>' + e.time + '</td></tr></tbody></table></div></div>';
+
+      document.getElementById('operatorsSection').innerHTML =
+        reportTable('Отчёты по операторам', r.operators, 'operator');
+      document.getElementById('reportMachinesSection').innerHTML =
+        reportTable('Отчёты по станкам', r.machines, 'machine');
+    }
+
+    function reportTable(title, rows, keyName) {
+      var keyLabel = keyName === 'operator' ? 'Оператор' : 'Станок';
+      var head = '<div class="panel"><h3>' + title + '</h3>';
+      if (!rows || rows.length === 0) return head + '<p class="muted">За период закрытых нарядов нет</p></div>';
+      var body = rows.map(function(x) {
+        return '<tr><td>' + escHtml(x[keyName]) + '</td><td>' + x.orders + '</td><td>' + x.qty + '</td><td>' +
+          x.accepted + '</td><td>' + x.defect + '</td><td>' + x.defectPct + '</td><td>' + x.time + '</td></tr>';
+      }).join('');
+      return head + '<div class="tablewrap"><table class="table"><thead><tr><th>' + keyLabel + '</th><th>Нарядов</th><th>Объём</th><th>Принято</th><th>Брак</th><th>Брак, %</th><th>Нормо-часы</th></tr></thead>' +
+        '<tbody>' + body + '</tbody></table></div></div>';
+    }
+
+    function defaultPeriod() {
+      function fmt(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      }
+      var to = new Date();
+      var from = new Date(to.getTime() - 29 * 86400000);
+      var fEl = document.getElementById('repFrom');
+      var tEl = document.getElementById('repTo');
+      if (fEl && !fEl.value) fEl.value = fmt(from);
+      if (tEl && !tEl.value) tEl.value = fmt(to);
+    }
+
+    async function loadDashboard() {
+      try {
+        var q = '';
+        var fEl = document.getElementById('repFrom');
+        var tEl = document.getElementById('repTo');
+        if (fEl && fEl.value) q += '?from=' + encodeURIComponent(fEl.value);
+        if (tEl && tEl.value) q += (q ? '&' : '?') + 'to=' + encodeURIComponent(tEl.value);
+        dashboard = await api('/api/analytics/dashboard' + q);
+        renderSummary(dashboard);
+        renderTree(dashboard);
+        renderReports(dashboard);
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    function applyReport() {
+      loadDashboard();
+    }
 
     async function loadAll() {
       try {
@@ -90,11 +270,10 @@
       launches.forEach(function(l) {
         if (counts[l.status] !== undefined) counts[l.status]++;
       });
-      var labels = { to_launch: 'К запуску', issued: 'Выдано', in_work: 'В работе', done: 'Готово' };
       el.innerHTML = '<div class="stat-grid">';
       Object.keys(counts).forEach(function(k) {
         el.innerHTML += '<div class="stat-card"><div class="stat-card__value">' + counts[k] + '</div>' +
-          '<div class="stat-card__label">' + labels[k] + '</div></div>';
+          '<div class="stat-card__label">' + LAUNCH_LABELS[k] + '</div></div>';
       });
       el.innerHTML += '</div>';
     }
@@ -105,7 +284,6 @@
         el.innerHTML = '<div class="panel"><h3>Запуски</h3><p class="muted">Нет запусков</p></div>';
         return;
       }
-      var statusLabels = { to_launch: 'К запуску', issued: 'Выдано', in_work: 'В работе', done: 'Готово' };
       var html = '<div class="panel"><h3>Запуски</h3><div class="tablewrap"><table class="table"><thead><tr>' +
         '<th>ID</th><th>Деталь</th><th>Наименование</th><th>ПА</th><th>Кол-во</th><th>Статус</th><th>Дата</th><th></th></tr></thead><tbody>';
       launches.forEach(function(l) {
@@ -116,7 +294,7 @@
           '<td>' + escHtml(l.name) + '</td>' +
           '<td>' + escHtml(l.paNumber) + '</td>' +
           '<td>' + l.qty + '</td>' +
-          '<td><span class="badge badge--' + (l.status === 'to_launch' ? 'info' : (l.status === 'issued' ? 'warn' : (l.status === 'done' ? 'ok' : 'muted'))) + '">' + escHtml(statusLabels[l.status] || l.status) + '</span></td>' +
+          '<td><span class="badge badge--' + (l.status === 'to_launch' ? 'info' : (l.status === 'issued' ? 'warn' : (l.status === 'done' ? 'ok' : 'muted'))) + '">' + escHtml(LAUNCH_LABELS[l.status] || l.status) + '</span></td>' +
           '<td>' + fmtDate(l.createdAt) + '</td>' +
           '<td>' + (canDelete ? '<button onclick="deleteLaunch(\'' + escHtml(l.id) + '\')" class="btn btn--sm">Удалить</button>' : '') + '</td>' +
           '</tr>';
@@ -202,7 +380,10 @@
       }
     }
 
+    defaultPeriod();
+    switchTab('svodka');
     loadAll();
+    loadDashboard();
   </script>
 </body>
 </html>

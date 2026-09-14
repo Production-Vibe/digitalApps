@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
+import { buildCatalogTree } from '../lib/catalog-tree';
 import { requireAuth } from '../middleware/auth';
 import { param, queryStr } from '../lib/request';
 
@@ -30,14 +31,12 @@ router.get('/:code', requireAuth('master', 'shift'), async (req, res) => {
 });
 
 router.get('/tree/units', requireAuth('master', 'shift'), async (_req, res) => {
-  const items = await prisma.catalog.findMany({ orderBy: { code: 'asc' } });
-  const units = new Map<string, { code: string; name: string; designation: string }[]>();
-  for (const item of items) {
-    const key = item.designation.split('-')[0] || 'Без узла';
-    if (!units.has(key)) units.set(key, []);
-    units.get(key)!.push({ code: item.code, name: item.name, designation: item.designation });
-  }
-  res.json(Object.fromEntries(units));
+  const items = await prisma.catalog.findMany({
+    select: { code: true, name: true, designation: true },
+    orderBy: { code: 'asc' },
+  });
+  const units = buildCatalogTree(items);
+  res.json(Object.fromEntries(units.map((u) => [u.unit, u.items])));
 });
 
 export default router;

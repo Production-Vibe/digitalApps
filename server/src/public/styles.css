@@ -37,13 +37,23 @@ body {
   color: var(--color-primary);
 }
 
-.top-bar__nav { display: flex; gap: 1rem; }
+.top-bar__nav { display: flex; gap: 1rem; align-items: center; }
 .top-bar__nav a {
   text-decoration: none;
   color: var(--color-text-muted);
   font-size: 0.9rem;
 }
 .top-bar__nav a:hover { color: var(--color-primary); }
+.top-bar__nav .tab-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  font-family: inherit;
+  padding: 0;
+}
+.top-bar__nav .tab-btn:hover { color: var(--color-primary); }
 
 .top-bar__user {
   margin-left: auto;
@@ -172,6 +182,10 @@ body {
 }
 
 .top-bar__nav a.active {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+.top-bar__nav .tab-btn.active {
   color: var(--color-primary);
   font-weight: 500;
 }

@@ -13,6 +13,7 @@ import shiftsRoutes from './routes/shifts.routes';
 import transitionsRoutes from './routes/transitions.routes';
 import otkRoutes from './routes/otk.routes';
 import employeesRoutes from './routes/employees.routes';
+import analyticsRoutes from './routes/analytics.routes';
 import vbaRoutes from './routes/vba.routes';
 
 const app = express();
@@ -51,6 +52,7 @@ app.use('/api/shifts', wrapRouter(shiftsRoutes));
 app.use('/api/transitions', wrapRouter(transitionsRoutes));
 app.use('/api/otk', wrapRouter(otkRoutes));
 app.use('/api/employees', wrapRouter(employeesRoutes));
+app.use('/api/analytics', wrapRouter(analyticsRoutes));
 app.use('/api/vba', wrapRouter(vbaRoutes));
 app.use('/', wrapRouter(pageRoutes));
 
