@@ -54,6 +54,7 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 | `transitions.routes.ts` | `/api/transitions` | `GET /`, `POST /`, `POST /complete`, `POST /check` |
 | `otk.routes.ts` | `/api/otk` | `GET /queue`, `GET /naryad/:number`, `POST /close`, `POST /rework`, `GET /closing-info/:number` |
 | `employees.routes.ts` | `/api/employees` | `GET /` |
+| `analytics.routes.ts` | `/api/analytics` | `GET /dashboard` (master; сводка + номенклатура с метриками + отчёты за период) |
 | `vba.routes.ts` | `/api/vba` | `POST /ingest` (X-VBA-Secret) |
 
 ## Точки входа и авторизация
