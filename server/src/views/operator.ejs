@@ -144,7 +144,7 @@
           '<td>' + escHtml(o.number) + '</td>' +
           '<td>' + escHtml(desig) + '</td>' +
           '<td>' + escHtml(o.name) + '</td>' +
-          '<td>' + o.qty + '</td>' +
+          '<td>' + fmtNum(o.qty) + '</td>' +
           '<td><span class="badge ' + badge + '">' + escHtml(label) + '</span></td>' +
           '<td>' + (o.status === 'created' ? '<button onclick="takeOrder(\'' + escHtml(o.number) + '\')" class="btn btn--sm btn--primary">В работу</button>' : '') +
           (o.status === 'in_progress' || o.status === 'rework' ? '<button onclick="openTransitionModal(\'' + escHtml(o.number) + '\')" class="btn btn--sm">+ Переход</button>' : '') + '</td>' +
@@ -198,7 +198,7 @@
         document.getElementById('transitionOrderInfo').innerHTML =
           '<p><strong>Наряд:</strong> ' + escHtml(order.number) + '</p>' +
           '<p><strong>Деталь:</strong> ' + escHtml(order.designation ? order.designation + ' — ' + order.name : order.name) + '</p>' +
-          '<p><strong>Станок:</strong> ' + escHtml(order.machine) + ' | <strong>Кол-во:</strong> ' + order.qty + '</p>';
+          '<p><strong>Станок:</strong> ' + escHtml(order.machine) + ' | <strong>Кол-во:</strong> ' + fmtNum(order.qty) + '</p>';
         document.getElementById('transitionModal').style.display = 'flex';
       } catch (e) {
         showToast(e.message, true);
@@ -214,8 +214,8 @@
       if (!currentOrder) return;
       var user = getCurrentUser();
       var description = document.getElementById('trDescription').value;
-      var time = parseFloat(document.getElementById('trTime').value) || 0;
-      var qty = parseFloat(document.getElementById('trQty').value) || 0;
+      var time = roundSmart(parseFloat(document.getElementById('trTime').value) || 0);
+      var qty = roundSmart(parseFloat(document.getElementById('trQty').value) || 0);
       var melt = document.getElementById('trMelt').value;
 
       if (!description) { showToast('Укажите описание', true); return; }

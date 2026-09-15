@@ -191,7 +191,7 @@
         type: 'bar',
         data: {
           labels: pa.map(function(p) { return p.paNumber; }),
-          datasets: [{ data: pa.map(function(p) { return p.qty; }), backgroundColor: '#60a5fa', borderRadius: 4, maxBarThickness: 52 }]
+          datasets: [{ data: pa.map(function(p) { return roundSmart(p.qty); }), backgroundColor: '#60a5fa', borderRadius: 4, maxBarThickness: 52 }]
         },
         options: {
           responsive: true,
@@ -217,7 +217,7 @@
           labels: daily.map(function(r) { return r.day.slice(5); }),
           datasets: [
             { label: 'Нарядов', data: daily.map(function(r) { return r.orders; }), backgroundColor: '#2563eb', borderRadius: 3, maxBarThickness: 26, yAxisID: 'y' },
-            { label: 'Объём', data: daily.map(function(r) { return r.qty; }), type: 'line', borderColor: '#f59e0b', backgroundColor: '#f59e0b', tension: 0.3, yAxisID: 'y1' }
+            { label: 'Объём', data: daily.map(function(r) { return roundSmart(r.qty); }), type: 'line', borderColor: '#f59e0b', backgroundColor: '#f59e0b', tension: 0.3, yAxisID: 'y1' }
           ]
         },
         options: {
@@ -225,7 +225,7 @@
           maintainAspectRatio: false,
           scales: {
             y: { beginAtZero: true, position: 'left', ticks: { precision: 0 } },
-            y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } }
+            y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { precision: 2 } }
           }
         }
       });
@@ -243,7 +243,7 @@
         paEl.innerHTML = '<div class="panel"><h3>Активные запуски по ПА</h3>' + emptyBlock('Нет активных запусков') + '</div>';
       } else {
         var rows = s.paLoad.map(function(p) {
-          return '<tr><td class="mono">' + escHtml(p.paNumber) + '</td><td class="num">' + p.launches + '</td><td class="num">' + p.qty + '</td></tr>';
+          return '<tr><td class="mono">' + escHtml(p.paNumber) + '</td><td class="num">' + fmtNum(p.launches) + '</td><td class="num">' + fmtNum(p.qty) + '</td></tr>';
         }).join('');
         paEl.innerHTML = '<div class="panel"><h3>Активные запуски по ПА</h3>' +
           '<div class="tablewrap"><table class="table"><thead><tr><th>№ ПА</th><th>Запусков</th><th>Кол-во</th></tr></thead>' +
@@ -274,10 +274,10 @@
       units.forEach(function(u) {
         var rows = u.items.map(function(i) {
           return '<tr><td>' + escHtml(i.designation || '—') + '</td><td>' + escHtml(i.name) + '</td>' +
-            '<td>' + i.activeLaunches + '</td><td>' + i.inWork + '</td><td>' + i.closed + '</td></tr>';
+            '<td>' + fmtNum(i.activeLaunches) + '</td><td>' + fmtNum(i.inWork) + '</td><td>' + fmtNum(i.closed) + '</td></tr>';
         }).join('');
         html += '<details style="margin-bottom:0.5rem"><summary><strong>' + escHtml(u.unit) + '</strong>' +
-          ' <span class="muted">(в запуске: ' + u.totals.activeLaunches + ', в работе: ' + u.totals.inWork + ', закрыто: ' + u.totals.closed + ')</span></summary>' +
+          ' <span class="muted">(в запуске: ' + fmtNum(u.totals.activeLaunches) + ', в работе: ' + fmtNum(u.totals.inWork) + ', закрыто: ' + fmtNum(u.totals.closed) + ')</span></summary>' +
           '<div class="tablewrap"><table class="table"><thead><tr><th>Обозначение</th><th>Наименование</th><th>В запуске</th><th>В работе</th><th>Закрыто</th></tr></thead>' +
           '<tbody>' + rows + '</tbody></table></div></details>';
       });
@@ -292,7 +292,7 @@
       document.getElementById('execSection').innerHTML = '<div class="panel"><h3>Выполнение за период</h3>' +
         '<p class="muted">' + r.from + ' — ' + r.to + '</p>' +
         '<div class="tablewrap"><table class="table"><thead><tr><th>Закрыто нарядов</th><th>Объём</th><th>Принято</th><th>Брак</th><th>Брак, %</th><th>Нормо-часы</th></tr></thead>' +
-        '<tbody><tr><td class="num">' + e.orders + '</td><td class="num">' + e.qty + '</td><td class="num">' + e.accepted + '</td><td class="num">' + e.defect + '</td><td class="num">' + e.defectPct + '</td><td class="num">' + e.time + '</td></tr></tbody></table></div></div>';
+        '<tbody><tr><td class="num">' + fmtNum(e.orders) + '</td><td class="num">' + fmtNum(e.qty) + '</td><td class="num">' + fmtNum(e.accepted) + '</td><td class="num">' + fmtNum(e.defect) + '</td><td class="num">' + fmtNum(e.defectPct) + '</td><td class="num">' + fmtNum(e.time) + '</td></tr></tbody></table></div></div>';
 
       document.getElementById('operatorsSection').innerHTML =
         reportTable('Отчёты по операторам', r.operators, 'operator');
@@ -305,8 +305,8 @@
       var head = '<div class="panel"><h3>' + title + '</h3>';
       if (!rows || rows.length === 0) return head + emptyBlock('За период закрытых нарядов нет') + '</div>';
       var body = rows.map(function(x) {
-        return '<tr><td>' + escHtml(x[keyName]) + '</td><td class="num">' + x.orders + '</td><td class="num">' + x.qty + '</td><td class="num">' +
-          x.accepted + '</td><td class="num">' + x.defect + '</td><td class="num">' + x.defectPct + '</td><td class="num">' + x.time + '</td></tr>';
+        return '<tr><td>' + escHtml(x[keyName]) + '</td><td class="num">' + fmtNum(x.orders) + '</td><td class="num">' + fmtNum(x.qty) + '</td><td class="num">' +
+          fmtNum(x.accepted) + '</td><td class="num">' + fmtNum(x.defect) + '</td><td class="num">' + fmtNum(x.defectPct) + '</td><td class="num">' + fmtNum(x.time) + '</td></tr>';
       }).join('');
       return head + '<div class="tablewrap"><table class="table"><thead><tr><th>' + keyLabel + '</th><th>Нарядов</th><th>Объём</th><th>Принято</th><th>Брак</th><th>Брак, %</th><th>Нормо-часы</th></tr></thead>' +
         '<tbody>' + body + '</tbody></table></div></div>';
@@ -388,7 +388,7 @@
           '<td>' + escHtml(desig) + '</td>' +
           '<td>' + escHtml(l.name) + '</td>' +
           '<td>' + escHtml(l.paNumber) + '</td>' +
-          '<td>' + l.qty + '</td>' +
+          '<td>' + fmtNum(l.qty) + '</td>' +
           '<td><span class="badge badge--' + (l.status === 'to_launch' ? 'info' : (l.status === 'issued' ? 'warn' : (l.status === 'done' ? 'ok' : 'muted'))) + '">' + escHtml(LAUNCH_LABELS[l.status] || l.status) + '</span></td>' +
           '<td>' + fmtDate(l.createdAt) + '</td>' +
           '<td>' + (canDelete ? '<button onclick="deleteLaunch(\'' + escHtml(l.id) + '\')" class="btn btn--sm">Удалить</button>' : '') + '</td>' +

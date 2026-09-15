@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
 import { generateNaryadId } from '../lib/id';
 import { param, queryStr } from '../lib/request';
+import { roundSmart } from '../lib/round';
 
 const router = Router();
 
@@ -52,7 +53,7 @@ router.post('/issue', requireAuth('shift'), async (req, res) => {
       assembly: assembly || '',
       operator,
       machine,
-      qty: Number(qty),
+      qty: roundSmart(Number(qty)),
       status: 'created',
       launchId: launchId || null,
     },
@@ -67,7 +68,7 @@ router.post('/issue', requireAuth('shift'), async (req, res) => {
       assembly: assembly || '',
       operator,
       machine,
-      qty: Number(qty),
+      qty: roundSmart(Number(qty)),
     },
   });
 

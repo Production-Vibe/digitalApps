@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
 import { param } from '../lib/request';
+import { roundSmart } from '../lib/round';
 
 const router = Router();
 
@@ -26,8 +27,8 @@ router.get('/queue', requireAuth('otk'), async (_req, res) => {
     agg.transitionCount++;
     if (t.status === 'checked') {
       agg.checkedCount++;
-      agg.totalAccepted += t.accepted || 0;
-      agg.totalDefect += t.defect || 0;
+      agg.totalAccepted = roundSmart(agg.totalAccepted + (t.accepted || 0));
+      agg.totalDefect = roundSmart(agg.totalDefect + (t.defect || 0));
     }
   }
 
@@ -74,8 +75,8 @@ router.post('/close', requireAuth('otk'), async (req, res) => {
   }
 
   const transitions = await prisma.transitions.findMany({ where: { orderNumber } });
-  const totalAccepted = transitions.reduce((sum, t) => sum + (t.accepted || 0), 0);
-  const totalDefect = transitions.reduce((sum, t) => sum + (t.defect || 0), 0);
+  const totalAccepted = roundSmart(transitions.reduce((sum, t) => sum + (t.accepted || 0), 0));
+  const totalDefect = roundSmart(transitions.reduce((sum, t) => sum + (t.defect || 0), 0));
 
   await prisma.closedOrders.create({
     data: {

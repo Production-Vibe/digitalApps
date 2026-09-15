@@ -81,7 +81,7 @@
           '<td>' + escHtml(o.name) + '</td>' +
           '<td>' + escHtml(o.operator) + '</td>' +
           '<td>' + escHtml(o.machine) + '</td>' +
-          '<td>' + o.qty + '</td>' +
+          '<td>' + fmtNum(o.qty) + '</td>' +
           '<td>' + agg.transitionCount + '</td>' +
           '<td>' + agg.checkedCount + '/' + agg.transitionCount + '</td>' +
           '<td><span class="badge ' + badge + '">' + escHtml(statusLabel) + '</span></td>' +
@@ -111,7 +111,7 @@
 
       var html = '<h3>Наряд: ' + escHtml(o.number) + '</h3>';
       html += '<p><strong>Деталь:</strong> ' + escHtml(o.designation ? o.designation + ' — ' + o.name : o.name) + '</p>';
-      html += '<p><strong>Оператор:</strong> ' + escHtml(o.operator) + ' | <strong>Станок:</strong> ' + escHtml(o.machine) + ' | <strong>Кол-во:</strong> ' + o.qty + '</p>';
+      html += '<p><strong>Оператор:</strong> ' + escHtml(o.operator) + ' | <strong>Станок:</strong> ' + escHtml(o.machine) + ' | <strong>Кол-во:</strong> ' + fmtNum(o.qty) + '</p>';
       if (o.reworkReason) {
         html += '<div class="alert alert--error"><strong>Причина доработки:</strong> ' + escHtml(o.reworkReason) + '</div>';
       }
@@ -130,13 +130,13 @@
             '<td>' + escHtml(t.number) + '</td>' +
             '<td>' + escHtml(t.description) + '</td>' +
             '<td>' + escHtml(t.operator) + '</td>' +
-            '<td>' + t.time + '</td>' +
+            '<td>' + fmtNum(t.time) + '</td>' +
             '<td>' + escHtml(t.machine) + '</td>' +
-            '<td>' + t.qty + '</td>' +
+            '<td>' + fmtNum(t.qty) + '</td>' +
             '<td><span class="badge ' + (t.status === 'checked' ? 'badge--ok' : (t.status === 'completed' ? 'badge--warn' : 'badge--info')) + '">' + escHtml(label) + '</span></td>' +
-            '<td>' + (t.accepted || '') + '</td>' +
-            '<td>' + (t.defect || '') + '</td>' +
-            '<td>' + (t.status === 'completed' ? '<button onclick="checkTransition(\'' + escHtml(t.id) + '\', ' + o.qty + ')" class="btn btn--sm btn--primary">Проверить</button>' : '') + '</td>' +
+            '<td>' + fmtNum(t.accepted) + '</td>' +
+            '<td>' + fmtNum(t.defect) + '</td>' +
+            '<td>' + (t.status === 'completed' ? '<button onclick="checkTransition(\'' + escHtml(t.id) + '\', ' + roundSmart(o.qty) + ')" class="btn btn--sm btn--primary">Проверить</button>' : '') + '</td>' +
             '</tr>';
         });
 
@@ -168,12 +168,12 @@
     }
 
     async function checkTransition(transitionId, maxQty) {
-      var accepted = prompt('Принято (max ' + maxQty + '):');
+      var accepted = prompt('Принято (max ' + fmtNum(maxQty) + '):');
       if (accepted === null) return;
-      var acceptedNum = parseFloat(accepted) || 0;
+      var acceptedNum = roundSmart(parseFloat(accepted) || 0);
       var defect = prompt('Брак:');
       if (defect === null) return;
-      var defectNum = parseFloat(defect) || 0;
+      var defectNum = roundSmart(parseFloat(defect) || 0);
 
       if (acceptedNum + defectNum > maxQty) {
         showToast('Принято+Брак превышает количество', true);

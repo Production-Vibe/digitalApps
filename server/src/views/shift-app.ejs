@@ -124,7 +124,7 @@
           '<td>' + escHtml(desig) + '</td>' +
           '<td>' + escHtml(l.name) + '</td>' +
           '<td>' + escHtml(l.paNumber) + '</td>' +
-          '<td>' + l.qty + '</td>' +
+          '<td>' + fmtNum(l.qty) + '</td>' +
           '<td><span class="badge badge--' + escHtml(l.status === 'to_launch' ? 'info' : (l.status === 'issued' ? 'warn' : (l.status === 'done' ? 'ok' : 'muted'))) + '">' + escHtml(statusLabel) + '</span></td>' +
           '<td>' + fmtDate(l.createdAt) + '</td>' +
           '<td>' + (canIssue ? '<button onclick="openIssueModal(\'' + escHtml(l.id) + '\')" class="btn btn--sm btn--primary">Выдать</button>' : '') + '</td>' +
@@ -166,9 +166,9 @@
           '<p><strong>Запуск:</strong> ' + escHtml(launch.id) + '</p>' +
           '<p><strong>Деталь:</strong> ' + escHtml(desigLabel(launch)) + '</p>' +
           '<p><strong>ПА:</strong> ' + escHtml(launch.paNumber) + '</p>' +
-          '<p><strong>Всего:</strong> ' + launch.qty + '</p>';
+          '<p><strong>Всего:</strong> ' + fmtNum(launch.qty) + '</p>';
 
-        document.getElementById('issueQty').value = launch.qty;
+        document.getElementById('issueQty').value = roundSmart(launch.qty);
         document.getElementById('issueModal').style.display = 'flex';
       } catch (e) {
         showToast(e.message, true);
@@ -184,7 +184,7 @@
       if (!currentLaunch) return;
       var operator = document.getElementById('issueOperator').value;
       var machine = document.getElementById('issueMachine').value;
-      var qty = parseFloat(document.getElementById('issueQty').value);
+      var qty = roundSmart(parseFloat(document.getElementById('issueQty').value));
 
       if (!operator) { showToast('Выберите оператора', true); return; }
       if (!qty || qty <= 0) { showToast('Укажите количество', true); return; }

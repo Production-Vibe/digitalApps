@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { config } from '../config';
 import { generateTransitionNumber } from '../lib/id';
 import { updateNaryadStatus } from '../lib/transition-logic';
+import { roundSmart } from '../lib/round';
 
 const router = Router();
 
@@ -75,10 +76,10 @@ async function handleCreateTransition(payload: Record<string, unknown>) {
       number,
       description: String(description),
       operator: String(operator || ''),
-      time: Number(time || 0),
+      time: roundSmart(Number(time || 0)),
       melt: melt ? String(melt) : null,
       machine: String(machine),
-      qty: Number(qty || 0),
+      qty: roundSmart(Number(qty || 0)),
       status: 'in_progress',
     },
   });

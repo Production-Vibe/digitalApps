@@ -6,9 +6,20 @@ function emptyBlock(text) {
   return '<div class="empty-block">' + escHtml(text) + '</div>';
 }
 
-function fmtNum(n) {
+function roundSmart(n) {
   var v = Number(n);
-  return isNaN(v) ? '' : String(v);
+  if (!isFinite(v) || v === 0) return 0;
+  var abs = Math.abs(v);
+  var sign = v < 0 ? -1 : 1;
+  return sign * (abs >= 0.01 ? Math.round(abs * 100) / 100 : Number(abs.toPrecision(1)));
+}
+
+function fmtNum(n) {
+  if (n === null || n === undefined) return '';
+  var v = Number(n);
+  if (isNaN(v)) return '';
+  var r = roundSmart(v);
+  return String(r);
 }
 
 function statCards(elId, counts, labels) {

@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
 import { generateLaunchId } from '../lib/id';
 import { param, queryStr } from '../lib/request';
+import { roundSmart } from '../lib/round';
 
 const router = Router();
 
@@ -39,7 +40,7 @@ router.post('/', requireAuth('master'), async (req, res) => {
       partCode,
       name: name || '',
       assembly: assembly || '',
-      qty: Number(qty) || 0,
+      qty: roundSmart(Number(qty)),
       paNumber,
       createdBy: createdBy || '',
       launchType: launchType || 'Основной',
@@ -57,7 +58,7 @@ router.put('/:id', requireAuth('master'), async (req, res) => {
   if (existing.status !== 'to_launch') { res.status(400).json({ error: 'Можно менять только запуски со статусом "К запуску"' }); return; }
   const { qty, paNumber } = req.body;
   const update: Record<string, unknown> = {};
-  if (qty !== undefined) update.qty = Number(qty);
+  if (qty !== undefined) update.qty = roundSmart(Number(qty));
   if (paNumber !== undefined) update.paNumber = paNumber;
   const launch = await prisma.launches.update({ where: { id }, data: update });
   res.json(launch);

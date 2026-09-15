@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { buildCatalogTree, CatalogTreeNode } from './catalog-tree';
+import { roundSmart } from './round';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -53,11 +54,11 @@ function toGroupRow(t: GroupTotals, key: string, keyName: 'operator' | 'machine'
   return {
     [keyName]: key,
     orders: t.orders,
-    qty: t.qty,
-    accepted: t.accepted,
-    defect: t.defect,
+    qty: roundSmart(t.qty),
+    accepted: roundSmart(t.accepted),
+    defect: roundSmart(t.defect),
     defectPct: defectPct(t.accepted, t.defect),
-    time: t.time,
+    time: roundSmart(t.time),
   };
 }
 
@@ -120,7 +121,7 @@ export async function getDashboard(fromRaw?: string, toRaw?: string): Promise<Da
     paMap.set(l.paNumber, agg);
   }
   const paLoad = Array.from(paMap.entries())
-    .map(([paNumber, agg]) => ({ paNumber, launches: agg.launches, qty: Math.round(agg.qty * 10) / 10 }))
+    .map(([paNumber, agg]) => ({ paNumber, launches: agg.launches, qty: roundSmart(agg.qty) }))
     .sort((a, b) => a.paNumber.localeCompare(b.paNumber, 'ru', { numeric: true }));
 
   const busy = new Set(openShifts.map((s) => s.machine));
@@ -255,11 +256,22 @@ export async function getDashboard(fromRaw?: string, toRaw?: string): Promise<Da
       dailyMap.set(day, t);
     }
     daily = Array.from(dailyMap.entries())
-      .map(([day, t]) => ({ day, orders: t.orders, qty: Math.round(t.qty * 10) / 10, accepted: t.accepted, defect: t.defect, time: t.time }))
+      .map(([day, t]) => ({
+        day,
+        orders: t.orders,
+        qty: roundSmart(t.qty),
+        accepted: roundSmart(t.accepted),
+        defect: roundSmart(t.defect),
+        time: roundSmart(t.time),
+      }))
       .sort((a, b) => a.day.localeCompare(b.day));
   }
 
   exec.defectPct = defectPct(exec.accepted, exec.defect);
+  exec.qty = roundSmart(exec.qty);
+  exec.accepted = roundSmart(exec.accepted);
+  exec.defect = roundSmart(exec.defect);
+  exec.time = roundSmart(exec.time);
 
   return {
     summary: {
