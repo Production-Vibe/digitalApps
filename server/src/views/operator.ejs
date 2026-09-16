@@ -88,31 +88,51 @@
 
     function renderShifts(shifts, machines) {
       var el = document.getElementById('shiftsSection');
-      var hasOpen = (shifts || []).some(function(s) { return s.status === 'open'; });
+      shifts = shifts || [];
+      var open = shifts.filter(function(s) { return s.status === 'open'; });
+      var closed = shifts.filter(function(s) { return s.status !== 'open'; });
       var html = '<div class="panel"><h3>Смены</h3>';
 
-      if (!hasOpen) {
-        html += '<p class="muted">Откройте смену на станке</p>' +
-          '<div class="form-group" style="margin-top:0.5rem"><select id="openMachine" class="input"></select></div>' +
-          '<button onclick="openShift()" class="btn btn--primary">Открыть смену</button>';
-      }
-
-      if (shifts && shifts.length > 0) {
+      if (open.length > 0) {
         html += '<div class="tablewrap"><table class="table"><thead><tr>' +
           '<th>ID</th><th>Станок</th><th>Открыта</th><th>Статус</th><th></th></tr></thead><tbody>';
 
-        shifts.forEach(function(s) {
-          var isOpen = s.status === 'open';
+        open.forEach(function(s) {
           html += '<tr>' +
             '<td>' + escHtml(s.id) + '</td>' +
             '<td>' + escHtml(s.machine) + '</td>' +
             '<td>' + fmtDate(s.openedAt) + '</td>' +
-            '<td><span class="badge ' + (isOpen ? 'badge--ok' : 'badge--muted') + '">' + escHtml(s.status === 'open' ? 'Открыта' : (s.status === 'closed' ? 'Закрыта' : 'Авто-закрыта')) + '</span></td>' +
-            '<td>' + (isOpen ? '<button onclick="closeShift(\'' + escHtml(s.id) + '\')" class="btn btn--sm">Закрыть</button>' : '') + '</td>' +
+            '<td><span class="badge badge--ok">Открыта</span></td>' +
+            '<td><button onclick="closeShift(\'' + escHtml(s.id) + '\')" class="btn btn--sm">Закрыть</button></td>' +
             '</tr>';
         });
 
         html += '</tbody></table></div>';
+      }
+
+      if (open.length < 2) {
+        html += '<p class="muted">' + (open.length === 0 ? 'Откройте смену на станке' : 'Можно открыть ещё одну смену') + '</p>' +
+          '<div class="form-group" style="margin-top:0.5rem"><select id="openMachine" class="input"></select></div>' +
+          '<button onclick="openShift()" class="btn btn--primary">Открыть смену</button>';
+      } else {
+        html += '<p class="muted">Максимум 2 открытые смены</p>';
+      }
+
+      if (shifts.length > 0) {
+        html += '<details style="margin-top:0.75rem"><summary><strong>История смен</strong> (' + shifts.length + ')</summary>' +
+          '<div class="tablewrap"><table class="table"><thead><tr>' +
+          '<th>ID</th><th>Станок</th><th>Открыта</th><th>Статус</th></tr></thead><tbody>';
+
+        closed.forEach(function(s) {
+          html += '<tr>' +
+            '<td>' + escHtml(s.id) + '</td>' +
+            '<td>' + escHtml(s.machine) + '</td>' +
+            '<td>' + fmtDate(s.openedAt) + '</td>' +
+            '<td><span class="badge badge--muted">' + escHtml(s.status === 'closed' ? 'Закрыта' : 'Авто-закрыта') + '</span></td>' +
+            '</tr>';
+        });
+
+        html += '</tbody></table></div></details>';
       }
 
       html += '</div>';
