@@ -115,11 +115,16 @@ def wait_text(page, text, root=None, timeout=20000):
     return False
 
 
+def row_by_first_cell(page, section, value):
+    """Row of `section` whose first cell is exactly `value` (suffix-safe)."""
+    return page.locator(section + " tbody tr").filter(
+        has=page.locator("td", has_text=re.compile(r"^" + re.escape(value) + r"$"))
+    )
+
+
 def naryad_row(page, section, number):
     """Row of `section` whose first cell is exactly `number` (suffix-safe)."""
-    return page.locator(section + " tbody tr").filter(
-        has=page.locator("td", has_text=re.compile(r"^" + re.escape(number) + r"$"))
-    )
+    return row_by_first_cell(page, section, number)
 
 
 def wait_detached(page, number, section, timeout=20000):
@@ -231,6 +236,126 @@ def parse_operator_orders(page):
         qty = cells.nth(3).inner_text().strip()
         result[num] = qty
     return result
+
+
+def badge_value(page):
+    """Current unread badge value (0 when hidden/absent)."""
+    b = page.locator("#notifBadge")
+    try:
+        if b.count() and b.is_visible():
+            t = b.inner_text().strip()
+            return int(t) if t.isdigit() else 0
+    except Exception:
+        pass
+    return 0
+
+
+def operator_check_notifications(page, phase):
+    """Bell + unread badge + dropdown + mark-read against real notifications."""
+    runner.check(
+        "operator: колокольчик уведомлений (" + phase + ")",
+        page.locator(".notif__bell").count() > 0,
+        "",
+    )
+
+    unread = 0
+    end = time.time() + 20
+    while time.time() < end:
+        unread = badge_value(page)
+        if unread >= 1:
+            break
+        time.sleep(0.3)
+    runner.check("operator: бейдж непрочитанных ≥ 1 (" + phase + ")", unread >= 1, str(unread))
+
+    if page.locator(".notif__bell").count() == 0:
+        return
+    page.click(".notif__bell")
+    if not wait_selector(page, "#notifPanel", state="visible"):
+        runner.check("operator: dropdown уведомлений открыт (" + phase + ")", False, "")
+        return
+
+    items = page.locator("#notifPanel .notif__item")
+    items_end = time.time() + 10
+    while time.time() < items_end and items.count() == 0:
+        time.sleep(0.2)
+    n_items = items.count()
+    runner.check("operator: dropdown непуст (" + phase + ")", n_items >= 1, str(n_items) + " шт")
+    panel_text = page.locator("#notifPanel").inner_text()
+    runner.check(
+        "operator: уведомление о наряде (" + phase + ")",
+        "наряд" in panel_text.lower(),
+        panel_text[:80].replace("\n", " "),
+    )
+    if n_items == 0:
+        return
+
+    items.first.click()
+    drop_end = time.time() + 12
+    while time.time() < drop_end and badge_value(page) >= max(unread, 1):
+        time.sleep(0.3)
+    runner.check(
+        "operator: уведомление помечено прочитанным (" + phase + ")",
+        badge_value(page) < max(unread, 1),
+        "badge " + str(badge_value(page)),
+    )
+
+
+def operator_wait_toast(page, phase, keywords=("наряд", "закрыт", "доработк"), timeout=30000):
+    """Wait for a real notification toast on the still-open operator page.
+
+    Polls every 15s, so allow up to ~30s. Operator action toasts (e.g.
+    «Переход записан») are ignored via `keywords`.
+    """
+    end = time.time() + timeout / 1000.0
+    text = ""
+    while time.time() < end:
+        t = page.locator("#toast")
+        try:
+            if t.count() and t.is_visible():
+                current = (t.inner_text() or "").strip()
+                if any(k in current.lower() for k in keywords):
+                    text = current
+                    break
+        except Exception:
+            pass
+        time.sleep(0.2)
+    runner.check("operator: тост уведомления (" + phase + ")", bool(text), text[:80].replace("\n", " "))
+
+
+def operator_close_shift_history(page, machine, shift_id):
+    """Close the init shift; the open form + collapsed history must still render."""
+    runner.check("operator: вход (история смен)", "Смены" in page.inner_text("body"), "")
+    if not wait_selector(page, "#shiftsSection tbody tr"):
+        runner.check("operator: таблица смен", False, "")
+        return
+    before = wait_text(page, "Можно открыть ещё одну смену", root=page.locator("#shiftsSection"))
+    runner.check("operator: одна открытая смена (перед закрытием)", before, "")
+
+    if shift_id:
+        open_row = row_by_first_cell(page, "#shiftsSection", shift_id)
+    else:
+        open_row = page.locator("#shiftsSection tbody tr", has_text="Открыта").last
+    if open_row.locator("button:has-text('Закрыть')").count() == 0:
+        runner.check("operator: кнопка закрытия смены", False, "")
+        return
+    open_row.locator("button:has-text('Закрыть')").click()
+
+    zero = wait_text(page, "Откройте смену на станке", root=page.locator("#shiftsSection"))
+    runner.check("operator: форма открытия видна после закрытия смены", zero, "")
+    runner.check(
+        "operator: select станка доступен после закрытия",
+        wait_selector(page, "#openMachine", state="visible"),
+        "",
+    )
+
+    summary = page.locator("#shiftsSection details summary")
+    runner.check("operator: история смен присутствует", summary.count() > 0, "")
+    if summary.count() == 0:
+        return
+    if "Закрыта" not in page.locator("#shiftsSection").inner_text():
+        summary.first.click()
+    hist = wait_text(page, "Закрыта", root=page.locator("#shiftsSection"))
+    runner.check("operator: закрытая смена в истории", hist, shift_id or machine)
 
 
 def operator_run(page, target_qty, phase):
@@ -353,6 +478,10 @@ def master_analytics(page):
             print("DIAG #execSection:", txt.replace("\n", " | "))
         runner.check("master: отчёты — график динамики", timeline, "")
         runner.check("master: отчёты — выполнение за период", exec_ok, "")
+        exec_rows = page.locator("#execSection tbody tr").count()
+        runner.check("master: отчёты — таблица выполнения непуста", exec_rows >= 1, str(exec_rows) + " строк")
+        rep = page.locator("#reportMachinesSection").inner_text().strip()
+        runner.check("master: отчёты — разрез по станкам", len(rep) > 0, rep[:60].replace("\n", " "))
     else:
         runner.check("master: вкладка Отчёты", False, "")
 
@@ -390,12 +519,13 @@ def main():
                 shift_issue(page)
                 ctx.close()
 
-                ctx, page = login(browser, "operator")
+                op_ctx, op_page = login(browser, "operator")
                 for qty, phase in ((QTY_1, "happy-1"), (QTY_2, "happy-2")):
-                    n = operator_run(page, qty, phase)
+                    n = operator_run(op_page, qty, phase)
                     if n:
                         order_numbers.append(n)
-                ctx.close()
+                    if phase == "happy-1":
+                        operator_check_notifications(op_page, "happy-1")
 
                 if len(order_numbers) >= 2:
                     number1, number2 = order_numbers[0], order_numbers[1]
@@ -406,6 +536,9 @@ def main():
                         otk_check_and_close(page, number1, QTY_1)
                         otk_send_to_rework(page, number2)
                     ctx.close()
+
+                    operator_wait_toast(op_page, "rework")
+                    op_ctx.close()
 
                     ctx, page = login(browser, "operator")
                     n = operator_run(page, QTY_2, "rework")
@@ -424,6 +557,10 @@ def main():
 
                     ctx, page = login(browser, "master")
                     master_analytics(page)
+                    ctx.close()
+
+                    ctx, page = login(browser, "operator")
+                    operator_close_shift_history(page, "Т1-1", shift_ids[0] if shift_ids else None)
                     ctx.close()
             finally:
                 browser.close()
