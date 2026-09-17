@@ -193,6 +193,21 @@ model Employees {
   role     EmployeeRole
 }
 
+model Notification {
+  id          String        @id @default(cuid())
+  targetLogin String?
+  targetRole  EmployeeRole?
+  type        String
+  title       String
+  message     String?
+  link        String?
+  isRead      Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+
+  @@index([targetLogin, isRead])
+  @@index([targetRole, isRead])
+}
+
 model Equipment {
   id   Int    @id @default(autoincrement())
   name String @unique

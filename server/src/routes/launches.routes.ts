@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth';
 import { generateLaunchId } from '../lib/id';
 import { param, queryStr } from '../lib/request';
 import { roundSmart } from '../lib/round';
+import { notifyRole } from '../lib/notify';
 
 const router = Router();
 
@@ -48,6 +49,13 @@ router.post('/', requireAuth('master'), async (req, res) => {
       relatedLaunchId: relatedLaunchId || null,
     },
   });
+  await notifyRole('shift', {
+    type: 'launch_created',
+    title: 'Новый запуск',
+    message: launch.id + ' · ' + (name || partCode) + ' · ' + paNumber,
+    link: '/shift',
+  });
+
   res.status(201).json(launch);
 });
 

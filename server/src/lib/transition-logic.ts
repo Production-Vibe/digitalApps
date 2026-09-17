@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import { notifyRole } from './notify';
 
 export async function updateNaryadStatus(orderNumber: string) {
   const transitions = await prisma.transitions.findMany({ where: { orderNumber } });
@@ -19,5 +20,13 @@ export async function updateNaryadStatus(orderNumber: string) {
 
   if (newStatus !== order.status) {
     await prisma.workOrders.update({ where: { number: orderNumber }, data: { status: newStatus } });
+    if (newStatus === 'waiting_otk') {
+      await notifyRole('otk', {
+        type: 'waiting_otk',
+        title: 'Наряд готов к ОТК',
+        message: orderNumber + ' · ' + order.designation + ' · оператор ' + order.operator,
+        link: '/otk',
+      });
+    }
   }
 }

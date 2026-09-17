@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
 import { param } from '../lib/request';
 import { roundSmart } from '../lib/round';
+import { notifyOperator, notifyRole } from '../lib/notify';
 
 const router = Router();
 
@@ -94,6 +95,25 @@ router.post('/close', requireAuth('otk'), async (req, res) => {
     data: { status: 'closed' },
   });
 
+  await notifyOperator(order.operator, {
+    type: 'naryad_closed',
+    title: 'Наряд закрыт',
+    message: orderNumber + ' · принято ' + totalAccepted + (totalDefect ? ', брак ' + totalDefect : ''),
+    link: '/operator',
+  });
+  await notifyRole('master', {
+    type: 'naryad_closed',
+    title: 'Наряд закрыт',
+    message: orderNumber + ' · ' + order.designation + ' · оператор ' + order.operator,
+    link: '/master',
+  });
+  await notifyRole('shift', {
+    type: 'naryad_closed',
+    title: 'Наряд закрыт',
+    message: orderNumber + ' · ' + order.designation + ' · оператор ' + order.operator,
+    link: '/shift',
+  });
+
   res.json({ ok: true, totalAccepted, totalDefect });
 });
 
@@ -107,6 +127,13 @@ router.post('/rework', requireAuth('otk'), async (req, res) => {
   await prisma.workOrders.update({
     where: { number: orderNumber },
     data: { status: 'rework', reworkReason: reworkReason || null },
+  });
+
+  await notifyOperator(order.operator, {
+    type: 'rework',
+    title: 'Возврат на доработку',
+    message: orderNumber + ' · ' + order.designation + (reworkReason ? ' · ' + reworkReason : ''),
+    link: '/operator',
   });
 
   res.json({ ok: true });

@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth';
 import { generateNaryadId } from '../lib/id';
 import { param, queryStr } from '../lib/request';
 import { roundSmart } from '../lib/round';
+import { notifyOperator } from '../lib/notify';
 
 const router = Router();
 
@@ -78,6 +79,13 @@ router.post('/issue', requireAuth('shift'), async (req, res) => {
       await prisma.launches.update({ where: { id: launchId }, data: { status: 'issued' } });
     }
   }
+
+  await notifyOperator(operator, {
+    type: 'naryad_issued',
+    title: 'Новый наряд',
+    message: number + ' · ' + (designationStr || nameStr) + ' · ' + qty,
+    link: '/operator',
+  });
 
   res.status(201).json(order);
 });
