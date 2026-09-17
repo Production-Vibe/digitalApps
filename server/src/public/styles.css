@@ -577,6 +577,32 @@ body {
 details summary { cursor: pointer; }
 details summary strong { color: var(--ink-2); }
 
+.tree { padding: 0.25rem 0; }
+.tree-node { margin: 0 0 0.15rem; }
+.tree-node > summary {
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+  list-style: none;
+}
+.tree-node > summary::-webkit-details-marker { display: none; }
+.tree-node > summary::before {
+  content: '▸';
+  display: inline-block;
+  width: 1rem;
+  color: var(--muted);
+  transition: transform var(--duration, 0.15s) ease;
+}
+.tree-node[open] > summary::before { transform: rotate(90deg); }
+.tree-node > summary:hover { background: var(--info-bg); }
+.tree-leaf {
+  padding: 0.3rem 0.5rem 0.3rem 1.5rem;
+  border-radius: var(--radius-sm);
+}
+.tree-node .tree-node,
+.tree-node .tree-leaf { margin-left: 1.25rem; }
+.tree-label { font-weight: 600; color: var(--ink-2); }
+.tree-leaf .tree-label { font-weight: 500; color: var(--ink-1); }
+
 /* в”Ђв”Ђ РњРѕР±РёР»СЊРЅС‹Р№ (С‚РµР»РµС„РѕРЅ/РїР»Р°РЅС€РµС‚ С‡РµСЂРµР· Funnel) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
 
 @media (max-width: 640px) {

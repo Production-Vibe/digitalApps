@@ -137,7 +137,12 @@ async function main() {
   console.log('=== Seed start ===');
 
   const catalog = loadJson<CatalogRow>('catalog.json');
-  if (catalog.length > 0) await seedCatalog(catalog);
+  const catalogCount = await prisma.catalog.count();
+  if (catalog.length > 0 && catalogCount === 0) {
+    await seedCatalog(catalog);
+  } else if (catalog.length > 0) {
+    console.log(`Catalog не пуст (${catalogCount} строк) — сид каталога пропущен`);
+  }
 
   const employees = loadJson<EmployeeRow>('employees.json');
   if (employees.length > 0) await seedEmployees(employees);

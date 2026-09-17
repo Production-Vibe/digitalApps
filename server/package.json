@@ -11,6 +11,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
+    "import:excel": "tsx scripts/import-excel.ts",
     "check": "node --check dist/app.js"
   },
   "dependencies": {

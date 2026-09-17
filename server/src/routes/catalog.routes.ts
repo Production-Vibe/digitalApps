@@ -20,7 +20,11 @@ router.get('/', requireAuth('master', 'shift'), async (req, res) => {
   if (priority) {
     where.priority = priority;
   }
-  const items = await prisma.catalog.findMany({ where, orderBy: { code: 'asc' }, take: 500 });
+  const items = await prisma.catalog.findMany({
+    where,
+    orderBy: { code: 'asc' },
+    ...(search || priority ? { take: 500 } : {}),
+  });
   res.json(items);
 });
 
@@ -35,8 +39,8 @@ router.get('/tree/units', requireAuth('master', 'shift'), async (_req, res) => {
     select: { code: true, name: true, designation: true },
     orderBy: { code: 'asc' },
   });
-  const units = buildCatalogTree(items);
-  res.json(Object.fromEntries(units.map((u) => [u.unit, u.items])));
+  const tree = buildCatalogTree(items);
+  res.json(tree);
 });
 
 export default router;

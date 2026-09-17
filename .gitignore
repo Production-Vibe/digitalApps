@@ -1,2 +1,5 @@
 # Playwright MCP artifacts (snapshots/console logs).
 .playwright-mcp/
+
+# Источник номенклатуры (Excel) — не трекается, путь передаётся аргументом скрипта импорта.
+Номенклатура продукции.xlsm

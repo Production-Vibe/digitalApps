@@ -1,5 +1,5 @@
 import { prisma } from './prisma';
-import { buildCatalogTree, CatalogTreeNode } from './catalog-tree';
+import { buildCatalogTree, accumulateTotals, CatalogTreeUnit, CatalogTreeNode } from './catalog-tree';
 import { roundSmart } from './round';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -42,6 +42,8 @@ interface CatalogMetricNode extends CatalogTreeNode {
   closed: number;
 }
 
+export type NomenclatureUnit = CatalogTreeUnit<CatalogMetricNode>;
+
 interface GroupTotals {
   orders: number;
   qty: number;
@@ -71,11 +73,7 @@ export interface DashboardResponse {
     machinesIdle: string[];
   };
   nomenclature: {
-    units: {
-      unit: string;
-      totals: { activeLaunches: number; inWork: number; closed: number };
-      items: CatalogMetricNode[];
-    }[];
+    units: NomenclatureUnit[];
   };
   reports: {
     from: string;
@@ -163,18 +161,9 @@ export async function getDashboard(fromRaw?: string, toRaw?: string): Promise<Da
     closed: closedByCode.get(c.code) || 0,
   }));
 
-  const units = buildCatalogTree(nodes).map((u) => ({
-    unit: u.unit,
-    totals: u.items.reduce(
-      (acc, i) => ({
-        activeLaunches: acc.activeLaunches + i.activeLaunches,
-        inWork: acc.inWork + i.inWork,
-        closed: acc.closed + i.closed,
-      }),
-      { activeLaunches: 0, inWork: 0, closed: 0 },
-    ),
-    items: u.items,
-  }));
+  const tree = buildCatalogTree(nodes);
+  accumulateTotals(tree);
+  const units = tree;
 
   const closedOrders = await prisma.closedOrders.findMany({
     where: { closedAt: { gte: from, lte: to } },

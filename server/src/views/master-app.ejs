@@ -272,18 +272,27 @@
         el.innerHTML = '<div class="panel"><h3>Номенклатура</h3>' + emptyBlock('Каталог пуст') + '</div>';
         return;
       }
-      var html = '<div class="panel"><h3>Номенклатура</h3>';
-      units.forEach(function(u) {
-        var rows = u.items.map(function(i) {
-          return '<tr><td>' + escHtml(i.designation || '—') + '</td><td>' + escHtml(i.name) + '</td>' +
-            '<td>' + fmtNum(i.activeLaunches) + '</td><td>' + fmtNum(i.inWork) + '</td><td>' + fmtNum(i.closed) + '</td></tr>';
-        }).join('');
-        html += '<details style="margin-bottom:0.5rem"><summary><strong>' + escHtml(u.unit) + '</strong>' +
-          ' <span class="muted">(в запуске: ' + fmtNum(u.totals.activeLaunches) + ', в работе: ' + fmtNum(u.totals.inWork) + ', закрыто: ' + fmtNum(u.totals.closed) + ')</span></summary>' +
-          '<div class="tablewrap"><table class="table"><thead><tr><th>Обозначение</th><th>Наименование</th><th>В запуске</th><th>В работе</th><th>Закрыто</th></tr></thead>' +
-          '<tbody>' + rows + '</tbody></table></div></details>';
-      });
-      html += '</div>';
+
+      function leafLabel(node) {
+        var ref = node.item || node;
+        if (ref.designation) return ref.designation + ' — ' + (ref.name || node.code);
+        return ref.name || node.code;
+      }
+
+      function metrics(node) {
+        return '<span class="muted">(в запуске: ' + fmtNum(node.totals.activeLaunches) + ', в работе: ' + fmtNum(node.totals.inWork) + ', закрыто: ' + fmtNum(node.totals.closed) + ')</span>';
+      }
+
+      function subtree(node) {
+        var kids = node.children || [];
+        if (kids.length === 0) {
+          return '<div class="tree-leaf"><span class="tree-label">' + escHtml(leafLabel(node)) + '</span> ' + metrics(node) + '</div>';
+        }
+        var rows = kids.map(subtree).join('');
+        return '<details class="tree-node"><summary><span class="tree-label">' + escHtml(leafLabel(node)) + '</span> ' + metrics(node) + '</summary>' + rows + '</details>';
+      }
+
+      var html = '<div class="panel"><h3>Номенклатура</h3><div class="tree">' + units.map(subtree).join('') + '</div></div>';
       el.innerHTML = html;
     }
 
