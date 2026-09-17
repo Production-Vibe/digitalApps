@@ -1,4 +1,4 @@
-# Архитектура «ЦифровойНаряд»
+﻿# Архитектура «ЦифровойНаряд»
 
 Статус: справочная спецификация (уточняется при изменении структуры
 сервера/схемы). Источник правды: `server/src/**`, `server/prisma/schema.prisma`.
@@ -18,12 +18,12 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 
 - Номенклатура загружается из Excel (VBA) через REST `/api/vba/ingest`
   (`uploadCatalog`) в таблицу `Catalog`.
-- PostgreSQL — единственное хранилище (10 таблиц-моделей).
+- PostgreSQL — единственное хранилище (11 таблиц-моделей).
 - Node.js — серверная логика + веб-интерфейсы ролей (EJS-страницы, JWT-авторизация).
 
 ## Модель данных
 
-Канон — `server/prisma/schema.prisma` (10 моделей):
+Канон — `server/prisma/schema.prisma` (11 моделей):
 
 | Модель | Назначение | Заполняется |
 |---|---|---|
@@ -37,6 +37,7 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 | `Employees` | login, bcrypt-password, fullName, role | seed / администрирование |
 | `Equipment` | Справочник станков | seed / администрирование |
 | `Queue` | Очередь назначений операторам | зарезервирована (не питается routes) |
+| `Notification` | Уведомления ролей (бейдж/тост внутри приложения) | хуки событий (`lib/notify.ts`) |
 
 ## REST-модули
 
@@ -55,6 +56,7 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 | `otk.routes.ts` | `/api/otk` | `GET /queue`, `GET /naryad/:number`, `POST /close`, `POST /rework`, `GET /closing-info/:number` |
 | `employees.routes.ts` | `/api/employees` | `GET /` |
 | `analytics.routes.ts` | `/api/analytics` | `GET /dashboard` (master; сводка + номенклатура с метриками + отчёты за период) |
+| `notifications.routes.ts` | `/api/notifications` | `GET /my`, `POST /:id/read`, `POST /read-all` |
 | `vba.routes.ts` | `/api/vba` | `POST /ingest` (X-VBA-Secret) |
 
 ## Точки входа и авторизация

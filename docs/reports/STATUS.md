@@ -19,10 +19,36 @@
 - **`google-apps`** — легаси Google Apps Script (модули, GAS-скиллы, GAS-доки,
   E2E против `/exec`, манифест деплоя). В `main` не переносить без явного решения.
 - Код-модули: `server/src/**`; схема БД (канон) — `server/prisma/schema.prisma`
-  (10 моделей, 6 enum).
+  (11 моделей, 6 enum).
 
 ## Последний завершённый этап
 
+- **17.09.2026 — Этап 8: уведомления ролей (внутри приложения) + скрипты запуска.**
+  Внутренние уведомления нового события → получателю: колокольчик «Уведомления»
+  в шапке всех 4 ролей (`initNotifications()` в `ui.js`, поллинг `GET
+  /api/notifications/my` каждые 15 с), бейдж непрочитанных на токене `--error`,
+  тост при появлении, dropdown со списком (клик → `read` + переход по `link`).
+  **БД:** модель `Notification` (11-я; `targetLogin`/`targetRole`, type, title,
+  message, link, isRead; индексы по `[targetLogin, isRead]`/`[targetRole,
+  isRead]`), миграция `20260917034617_add_notifications`. **Сервер:**
+  `lib/notify.ts` (`notifyOperator(fullName,…)` по ФИО → `Employees.login`,
+  `notifyRole(role,…)`), `notifications.routes.ts` (`/my`, `/:id/read`,
+  `/read-all`, все под `requireAuth`). **Хуки:** `workorders/issue` → оператор
+  (`naryad_issued`), `transition-logic.updateNaryadStatus` → ОТК при переходе в
+  `waiting_otk` (только при смене статуса — без дублей), `otk/rework` → оператор
+  (`rework`), `launches POST` → shift (`launch_created`), `otk/close` →
+  оператор+master+shift (`naryad_closed`). Описано в `docs/specs/notifications.md`.
+  **Деплой:** образ пересобран (`docker compose up -d --build`), миграция
+  применена в контейнере (`migrate deploy` + seed), `/health` ok; открытые смены
+  оператора (Т1-2, Т1-1) не тронуты. **Проверки:** `npm run build` +
+  `npm run check` PASS; E2E **26/26 PASS** (в тексте оператора появилась кнопка
+  «Уведомления», селекторы не менялись); API-smoke **14/14 PASS** полного цикла
+  (запуск→shift, выдача→оператор, переход→ОТК, rework→оператор, закрытие→
+  мастер+shift+оператор, mark-read, read-all); браузерный probe: бейдж=1,
+  dropdown с текстом, клик → переход по `link`, бейдж скрывается. Тест-данные
+  удалены — стенд чист. **Также:** запущены в git скрипты старта
+  (`run-site.cmd` + bat-обёртки локально/глобально), волатильный Funnel-URL
+  остаётся настройкой пользователя (обёртки в репозитории).
 - **16.09.2026 — Этап 7: смены оператора — «вторая смена» и сворачиваемая история.**
   `renderShifts()` в `operator.ejs` переработан: (1) открытые смены всегда видны сверху
   панели «Смены» (ID, станок, дата, кнопка «Закрыть»); (2) форма «Открыть смену»
@@ -278,11 +304,15 @@
 
 1. **Полный E2E бизнес-цикла** (выдача наряда shift → оператор смены/переходы →
    ОТК → rework → закрытие) поверх JWT-стека против `localhost:3000`; вынести в
-   харнесс кейсы «закрытая смена в истории» и содержимое вкладок/графиков
-   аналитики мастера.
-2. **Безопасность перед публикацией:** rate-limit `/login`, refresh-токен в
+   харнесс кейсы «закрытая смена в истории», «уведомления» и содержимое
+   вкладок/графиков аналитики мастера.
+2. **Web Push уведомления на телефон (Фаза 2 уведомлений):** PWA
+   (`manifest.webmanifest` + Service Worker), `PushSubscriptions` +
+   `POST /api/push/subscribe`, `web-push` (VAPID из `.env`) при
+   `createNotification`; iOS — «на главный экран» (см. `docs/specs/notifications.md`).
+3. **Безопасность перед публикацией:** rate-limit `/login`, refresh-токен в
    `httpOnly`-cookie (проф. «Запомнить меня»), секреты из env, https.
-3. (опц.) Проверить автовосстановление стека после полной перезагрузки Windows
+4. (опц.) Проверить автовосстановление стека после полной перезагрузки Windows
    (ожидается: Docker Desktop поднимается сам, `restart: unless-stopped` поднимает
    контейнеры без ручных команд).
 
