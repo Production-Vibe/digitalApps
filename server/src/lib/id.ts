@@ -10,19 +10,31 @@ function ts(): { ymd: string; hms: string; hm: string } {
   return { ymd, hms, hm };
 }
 
-export function generateLaunchId(): string {
+let lastKey = '';
+let sameSecondSeq = 0;
+
+function stamp(prefix: string): string {
   const { ymd, hms } = ts();
-  return `ЗП-${ymd}-${hms}`;
+  const key = `${ymd}-${hms}`;
+  if (key !== lastKey) {
+    lastKey = key;
+    sameSecondSeq = 0;
+  } else {
+    sameSecondSeq += 1;
+  }
+  return `${prefix}-${key}` + (sameSecondSeq === 0 ? '' : '-' + (sameSecondSeq + 1));
+}
+
+export function generateLaunchId(): string {
+  return stamp('ЗП');
 }
 
 export function generateNaryadId(): string {
-  const { ymd, hms } = ts();
-  return `Н-${ymd}-${hms}`;
+  return stamp('Н');
 }
 
 export function generateShiftId(): string {
-  const { ymd, hms } = ts();
-  return `СМ-${ymd}-${hms}`;
+  return stamp('СМ');
 }
 
 export async function generateTransitionNumber(
