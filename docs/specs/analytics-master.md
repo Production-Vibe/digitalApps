@@ -26,6 +26,11 @@
    подпись узла — его `name`) выносится в `server/src/lib/catalog-tree.ts` и
    используется и `/api/catalog/tree/units`, и аналитикой. Идентификация детали в
    UI — «Обозначение — Наименование»: позиции узлов не показываются.
+   Смешанные разделители кодов (`.` и `/`) нормализуются при построении дерева:
+   `splitCode()` режет по `/[./]/`, каждый узел определяется по нормализованному
+   ключу (все сегменты, соединённые `/`), исходный код позиции сохраняется через
+   `byNorm` (смешанные разделители не ломают иерархию: `21.1/9`, `1.1.1` — с
+   корректной вложенностью).
 
 ## Термины (без дублей)
 
@@ -57,11 +62,28 @@ Query для отчётов: `?from=YYYY-MM-DD&to=YYYY-MM-DD` (по умолча
   "nomenclature": {
     "units": [
       {
-        "unit": "БАЗА",
-        "totals": { "activeLaunches": 1, "inWork": 2, "closed": 5 },
-        "items": [
-          { "code": "1001", "name": "…", "designation": "БАЗА-1001",
-            "activeLaunches": 1, "inWork": 2, "closed": 5 }
+        "code": "21",
+        "name": "Подъёмные агрегаты",
+        "designation": "",
+        "item": null,
+        "children": [
+          {
+            "code": "21.1",
+            "name": "Полуприцеп",
+            "item": null,
+            "children": [
+              {
+                "code": "21.1/9",
+                "name": "Гидробак",
+                "item": null,
+                "totals": { "activeLaunches": 1, "inWork": 2, "closed": 5 },
+                "children": [
+                  { "code": "21.1/9/18", "name": "Опора", "item": { "…": "…" },
+                    "totals": { "activeLaunches": 0, "inWork": 0, "closed": 1 } }
+                ]
+              }
+            ]
+          }
         ]
       }
     ]
@@ -82,10 +104,29 @@ Query для отчётов: `?from=YYYY-MM-DD&to=YYYY-MM-DD` (по умолча
 }
 ```
 
-Поля метрик позиции номенклатуры:
+Поля метрик позиции номенклатуры (аккумулируются снизу вверх в `totals` узла):
 - `activeLaunches` — число запусков `status ≠ done` по `partCode`;
 - `inWork` — наряды `created | in_progress | rework`;
 - `closed` — наряды `closed`.
+
+## Импорт номенклатуры
+
+Полный каталог загружается из Excel-файла («Номенклатура продукции.xlsm»,
+лист «Продукция», данные с row 8) скриптом `server/scripts/import-excel.ts`:
+
+```powershell
+cd server
+npm run import:excel -- "C:\путь\Номенклатура продукции.xlsm"   # DATABASE_URL → стенд
+```
+
+Скрипт: читает xlsx-архив без внешних зависимостей (zip + sharedStrings),
+маппит колонки (код, наименование, обозначение, обозначение(предыдущее),
+КОЛИЧЕСТВО, Т/О, Покрытие, Длина, Тип, Материал, Марка, ф/S, Стенка, Масса
+на дет., Масса), `dropOrphanRefs()` удаляет orphan-ссылки (запуски/наряды на
+коды, отсутствующие в новом каталоге), затем атомарно (в транзакции) —
+`deleteMany` каталога + `createMany` пачками по 500. X-файл в git не хранится
+(путь — аргументом). Историческая связка ЗП-260914-062420/Н-260914-062458
+(`partCode=1.1/1/1`) при импорте удалена как orphan.
 
 ## Поля отчётов
 
@@ -115,12 +156,16 @@ Query для отчётов: `?from=YYYY-MM-DD&to=YYYY-MM-DD` (по умолча
 
 ## Файлы
 
-- new `server/src/lib/catalog-tree.ts` — `buildCatalogTree(items)`.
+- new `server/src/lib/catalog-tree.ts` — `buildCatalogTree(items)` (вложенное
+  дерево, нормализация `.`/`/`, `accumulateTotals()`).
 - new `server/src/lib/analytics.ts` — `getDashboard({ from, to })`.
 - new `server/src/routes/analytics.routes.ts`.
 - edit `server/src/app.ts` — mount `/api/analytics`.
 - edit `server/src/routes/catalog.routes.ts` — `/tree/units` на `buildCatalogTree`.
-- edit `server/src/views/master-app.ejs` — вкладки + секции.
+- edit `server/src/views/master-app.ejs` — вкладки + секции; renderTree —
+  рекурсивные `<details class="tree-node">`.
+- new `server/scripts/import-excel.ts` — импорт полного каталога из Excel в `Catalog`
+  (`npm run import:excel`), атомарная замена + `dropOrphanRefs()`.
 - docs: `docs/specs/architecture.md` (таблица модулей), `docs/specs/roles.md`
   (назначение страницы мастера), STATUS.md, отчёт в `docs/reports/`.
 

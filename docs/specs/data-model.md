@@ -7,8 +7,11 @@
 
 ### Catalog — номенклатура
 
-Создаётся/обновляется `uploadCatalog` (`/api/vba/ingest`, action `uploadCatalog`)
-и сидом (`server/prisma/data/catalog.json`). Ключ — `code` (текст).
+Создаётся/обновляется трёмя путями: полный импорт из Excel —
+`server/scripts/import-excel.ts` (`npm run import:excel`, атомарная замена +
+`dropOrphanRefs()`), точечно `uploadCatalog` (`/api/vba/ingest`, action
+`uploadCatalog`) и сидом (`server/prisma/data/catalog.json`, только при пустой
+таблице). Ключ — `code` (текст).
 
 | Поле | Тип |
 |---|---|

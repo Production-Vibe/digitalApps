@@ -17,7 +17,9 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 ```
 
 - Номенклатура загружается из Excel (VBA) через REST `/api/vba/ingest`
-  (`uploadCatalog`) в таблицу `Catalog`.
+  (`uploadCatalog`) в таблицу `Catalog`; полный импорт файла — скриптом
+  `server/scripts/import-excel.ts` (`npm run import:excel`, атомарная замена +
+  удаление orphan-ссылок на старые коды).
 - PostgreSQL — единственное хранилище (11 таблиц-моделей).
 - Node.js — серверная логика + веб-интерфейсы ролей (EJS-страницы, JWT-авторизация).
 
@@ -27,7 +29,7 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 
 | Модель | Назначение | Заполняется |
 |---|---|---|
-| `Catalog` | Полная номенклатура | VBA / seed |
+| `Catalog` | Полная номенклатура (2208 позиций из Excel) | импорт-скрипт / VBA / seed |
 | `Launches` | Запуски на конкретные ПА | master (`POST /api/launches`) |
 | `WorkOrders` | Цифровые наряды операторов (канон наряда) | shift (`POST /api/work-orders/issue`) |
 | `Transitions` | Технологические переходы наряда (FK по `orderNumber`) | оператор / VBA |
@@ -47,7 +49,7 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 |---|---|---|
 | `auth.routes.ts` | `/api` | `login`, `refresh`, `me` |
 | `page.routes.ts` | `/` | `GET /login`, `/master`, `/shift`, `/operator`, `/otk` (EJS) |
-| `catalog.routes.ts` | `/api/catalog` | `GET /`, `GET /:code`, `GET /tree/units` |
+| `catalog.routes.ts` | `/api/catalog` | `GET /`, `GET /:code`, `GET /tree/units` (вложенное дерево номенклатуры) |
 | `equipment.routes.ts` | `/api/equipment` | `GET /`, `POST /`, `DELETE /:id` |
 | `launches.routes.ts` | `/api/launches` | `GET /`, `GET /pa/occupied`, `POST /`, `PUT /:id`, `DELETE /:id` |
 | `workorders.routes.ts` | `/api/work-orders` | `GET /`, `POST /issue`, `GET /my/list`, `GET /my/closed`, `PUT /:number/status` |
@@ -72,7 +74,9 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 
 ## Жизненный цикл работы (end-to-end)
 
-1. **Загрузка номенклатуры:** Excel (VBA) → `uploadCatalog` → `Catalog`.
+1. **Загрузка номенклатуры:** Excel (VBA) → `uploadCatalog` → `Catalog`; полный
+   импорт — `npm run import:excel` (`server/scripts/import-excel.ts`), каталог
+   заменяется атомарно, orphan-ссылки (запуски/наряды на удалённые коды) чистятся.
 2. **Планирование запусков:** master → `POST /api/launches` (код детали, кол-во,
    № ПА, тип) → `Launches` со статусом `to_launch`.
 3. **Выдача нарядов:** shift выдаёт наряд (оператор → станок → количество) →
@@ -115,6 +119,9 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
   интерполяциях UI (`fmtNum`/`roundSmart`).
 - ID: `Н-yyMMdd-HHmmss` (наряд), `ЗП-…` (запуск), `СМ-…` (смена); переходы —
   `005, 010, 015…` (`server/src/lib/id.ts`).
+- Коды номенклатуры: разделители `.` и `/` (`21.1/9`, `1.1.1`) считаются
+  взаимозаменяемыми по сегментам; дерево строится нормализованным ключом
+  (`splitCode` в `catalog-tree.ts`), исходный код позиции сохраняется в `byNorm`.
 - Статусы — единые константы `server/src/lib/naryad-status.ts` (+ по enum в
   Prisma-схеме).
 - Дата в UI: `dd.MM.yyyy HH:mm` (`fmtDate` в `api.js`).
