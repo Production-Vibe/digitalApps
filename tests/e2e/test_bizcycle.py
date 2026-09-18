@@ -324,7 +324,7 @@ def operator_wait_toast(page, phase, keywords=("наряд", "закрыт", "д
 
 def operator_close_shift_history(page, machine, shift_id):
     """Close the init shift; the open form + collapsed history must still render."""
-    runner.check("operator: вход (история смен)", "Смены" in page.inner_text("body"), "")
+    runner.check("operator: вход (история смен)", wait_text(page, "Смены", timeout=25000), "")
     if not wait_selector(page, "#shiftsSection tbody tr"):
         runner.check("operator: таблица смен", False, "")
         return
@@ -359,7 +359,10 @@ def operator_close_shift_history(page, machine, shift_id):
 
 
 def operator_run(page, target_qty, phase):
-    runner.check("operator: вход (" + phase + ")", "Наряды в работе" in page.inner_text("body"), "")
+    if not wait_text(page, "Наряды в работе", timeout=25000):
+        runner.check("operator: вход (" + phase + ")", False, page.url)
+        return None
+    runner.check("operator: вход (" + phase + ")", True, "")
     orders = parse_operator_orders(page)
     for attempt in range(5):
         if orders:
