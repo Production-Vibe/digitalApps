@@ -233,3 +233,14 @@ model Queue {
 
   catalog Catalog @relation(fields: [code], references: [code])
 }
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  login     String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([login])
+}
