@@ -16,6 +16,7 @@ import employeesRoutes from './routes/employees.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import vbaRoutes from './routes/vba.routes';
 import notificationsRoutes from './routes/notifications.routes';
+import pushRoutes from './routes/push.routes';
 
 const app = express();
 
@@ -56,6 +57,7 @@ app.use('/api/employees', wrapRouter(employeesRoutes));
 app.use('/api/analytics', wrapRouter(analyticsRoutes));
 app.use('/api/vba', wrapRouter(vbaRoutes));
 app.use('/api/notifications', wrapRouter(notificationsRoutes));
+app.use('/api/push', wrapRouter(pushRoutes));
 app.use('/', wrapRouter(pageRoutes));
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
