@@ -48,7 +48,7 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 
 | Модуль | Префикс | Публичные методы |
 |---|---|---|
-| `auth.routes.ts` | `/api` | `login`, `refresh`, `me` |
+| `auth.routes.ts` | `/api` | `login`, `refresh`, `session`, `logout`, `me` |
 | `page.routes.ts` | `/` | `GET /login`, `/master`, `/shift`, `/operator`, `/otk` (EJS) |
 | `catalog.routes.ts` | `/api/catalog` | `GET /`, `GET /:code`, `GET /tree/units` (вложенное дерево номенклатуры) |
 | `equipment.routes.ts` | `/api/equipment` | `GET /`, `POST /`, `DELETE /:id` |
@@ -66,12 +66,19 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 ## Точки входа и авторизация
 
 - `GET /login` — страница входа (EJS). `POST /api/login` — bcrypt-сверка по
-  `Employees`, выдаёт `accessToken` (12ч) + `refreshToken` (7д) + `user`.
+  `Employees`, выдаёт `accessToken` (12ч, в памяти JS) + кука `nd_refresh`
+  (refreshToken 7д, `httpOnly` + `SameSite=Strict`, `Secure` при
+  `COOKIE_SECURE=true`; при «Запомнить меня» maxAge 7д, иначе session-кука) +
+  `user`. `GET /api/session` — восстановление сессии по refresh-куке.
 - Страницы `/master|/shift|/operator|/otk` рендерятся сервером (EJS), фактический
-  доступ — на клиенте (`localStorage` + редирект на `/login`). Данные — только
+  доступ — на клиенте: `initSession()` (`public/api.js`) сверится с
+  `/api/session`, редирект на `/login` при отсутствии сессии. Данные — только
   через авторизованные API (`requireAuth(...roles)`).
-- JWT-содержимое: `{ login, fullName, role }`. Роль в подписанном токене —
-  спуфинг через URL невозможен.
+- JWT-содержимое: `{ login, fullName, role }`; refresh — `{ login, persist }`.
+  Роль в подписанном токене — спуфинг через URL невозможен.
+- Защита входа: `express-rate-limit` (120 запросов/15 мин на `/login`+`/refresh`),
+  in-memory блокировка логина (5 неудач → 15 мин; `lib/login-throttle.ts`),
+  helmet (CSP выключен), `x-powered-by` скрыт.
 - VBA: `POST /api/vba/ingest` с `X-VBA-Secret`.
 
 ## Жизненный цикл работы (end-to-end)
@@ -111,6 +118,9 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 ## Технические конвенции
 
 - Один Express-процесс, доменное разбиение на routes.
+- Защита входа — **per-instance** (состояние в памяти процесса):
+  `express-rate-limit` + `login-throttle`; при рестарте/кластеризации счётчики
+  обнуляются (при масштабировании — вынести в shared-store, напр. Redis).
 - Валидация/инварианты: OТК-закрытие требует проверенные переходы (кроме
   `rework`-direct-close), `accepted+defect ≤ qty`, запуск меняется только из
   `to_launch`, смена не открывается на занятый станок.

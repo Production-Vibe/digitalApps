@@ -19,11 +19,43 @@
 - **`google-apps`** — легаси Google Apps Script (модули, GAS-скиллы, GAS-доки,
   E2E против `/exec`, манифест деплоя). В `main` не переносить без явного решения.
 - Код-модули: `server/src/**`; схема БД (канон) — `server/prisma/schema.prisma`
-  (11 моделей, 6 enum).
+  (12 моделей, 6 enum).
 
 ## Последний завершённый этап
 
-- **18.09.2026 — Этап 12: Web Push (Фаза 2 уведомлений).**
+- **18.09.2026 — Этап 13: безопасность перед публикацией (ADR-007).**
+  Токены из `localStorage` перенесены в «access в памяти JS + refresh в
+  httpOnly-куке», вход защищён rate-limit'ом и блокировкой по логину, включён
+  helmet, в production принудительные реальные секреты. **Сервер:** `config.ts`
+  (nodeEnv/`cookieSecure`/`trustProxy`, валидация секретов в prod), `app.ts`
+  (trust proxy, `x-powered-by` off, helmet без CSP, cookie-parser),
+  `lib/login-throttle.ts` (5 неудач → блок 15 мин),
+  `auth.routes.ts` — `POST /login` → `{ accessToken, user }` + кука `nd_refresh`
+  (refresh 7д, claim `persist`, `httpOnly`, `SameSite=Strict`, `Secure` при
+  `COOKIE_SECURE`; maxAge 7д при «Запомнить меня», иначе session-кука);
+  `POST /refresh` (только кука, ротация), `GET /session`, `POST /logout`
+  (чистит куку). **Клиент:** `public/api.js` — `accessToken` в памяти,
+  `initSession()`/`api()` (тихий refresh на 401)/`logout()`; 4 вью ролей стартуют
+  через `await initSession()` (guard роли, `initNotifications`/`initPush`/loaders
+  внутри bootstrap); `login.ejs` — чекбокс «Запомнить меня» → `setSession`.
+  **Инфра:** `docker-compose.yml` — `NODE_ENV=production`, `COOKIE_SECURE=true`,
+  `TRUST_PROXY=true`; `scripts/set-passwords.ts` (`npm run passwords`);
+  секреты JWT/VBA уже были реальными в `server/.env`. **По ходу найден и
+  устранён реальный баг throttle:** `isLoginBlocked` удалял запись попыток на
+  каждой не-заблокированной проверке → блок никогда не срабатывал; после фикса
+  побеждено 6-я неудачная попытка отдаёт 429 (подтверждено на живом
+  контейнере). **Тест:** bizcycle «вход»-проверки переведены на
+  `wait_text` (асинхронный рендер после `initSession` — раньше был race, давал
+  false-fail). **Деплой:** образ пересобран, `/health` ok.
+  **Проверки:** `npm run build` + `npm run check` PASS (на каждом шаге);
+  auth-probe **17/17 PASS** (логин 200 + токен, refresh нет в теле, кука
+  HttpOnly+Secure, `document.cookie` пуст, session/refresh/logout/401 без куки,
+  блок 429 после 5 неудач, helmet-заголовки, x-powered-by скрыт); ролевой E2E
+  **26/26 PASS** (operator 6, otk 4, master 12, shift 4); push-probe
+  **13/13** (1 SKIP: реальная подписка headless недоступна); bizcycle
+  **51/51 PASS**. Стенд: тестовые артефакты чистые; **живые данные пользователя
+  за сегодня сохранены** (запуски `ЗП-260918-051641/053835/053904` на ПА 001/002,
+  выданный наряд, 2 push-подписки shift/master).
   PWA + Service Worker + `web-push`: уведомления приходят на телефон при
   закрытой вкладке. **БД:** модель `PushSubscription` (12-я; `login`,
   `endpoint @unique`, `p256dh`, `auth`), миграция `20260918043050_add_push_subscriptions`.
@@ -365,11 +397,24 @@
   или удалить.
 - [ ] (опц.) `ClosedOrders` — запись-дубликат итогов; рассмотреть пересчёт
   проекцией из переходов.
-- [ ] Безопасность перед публикацией: rate-limit на `/login`, refresh-токен в
-  `httpOnly`-cookie (проф. продолжение «Запомнить меня»), смена dev-секретов
-  (`config.ts`), https.
+- [ ] Смена сидовых паролей ролей (`123` → реальные): предусмотрен
+  `npm run passwords` (`scripts/set-passwords.ts`), но по решению пользователя
+  **отложено** — на стенде пока боевые пароли не заданы.
+- [ ] HTTPS-терминирование: внешний контур — Tailscale Funnel (уже https), но
+  локальный `http://localhost:3000` остаётся http; экранирующий reverse-proxy
+  для прода решить отдельно.
 
 ## Закрытые баги (new-стек)
+
+- ✅ **Токены в `localStorage` → XSS-захват.** Этап 13 (ADR-007): access-токен
+  только в памяти JS (`public/api.js`), refresh — в httpOnly `SameSite=Strict`
+  куке `nd_refresh`; `GET /api/session` восстанавливает сессию, `logout()` чистит
+  куку. Вход защищён rate-limit (120/15 мин на `/login`+`/refresh`) и блокировкой
+  логина (5 неудач → 15 мин); включён helmet, скрыт `x-powered-by`.
+- ✅ **Блокировка логина не срабатывала.** `isLoginBlocked` удалял запись
+  попыток при каждой не-заблокированной проверке → счётчик неудач обнулялся.
+  Фикс в `lib/login-throttle.ts` (не удалять в check; сброс при истёкшем блоке
+  в `recordLoginFailure`); подтверждено: 6-я неудача → 429.
 
 - ✅ **Идентификация деталей «Обозначение — Наименование».** Позиции узлов
   (`Catalog.code`: «1.1/1/10») больше не выдаются за коды деталей; наряды/запуски
@@ -406,9 +451,13 @@
    (Этап 12): PWA + Service Worker, `PushSubscription` + `/api/push/*`,
    `web-push` (VAPID из `.env`) при уведомлении роли/оператора. Ожидает ручного
    подтверждения push на телефоне (Android/iOS 16.4+, «на главный экран»).
-3. **Безопасность перед публикацией:** rate-limit `/login`, refresh-токен в
-   `httpOnly`-cookie (проф. «Запомнить меня»), секреты из env, https.
-4. (опц.) Проверить автовосстановление стека после полной перезагрузки Windows
+3. ✅ **Безопасность перед публикацией** (Этап 13): rate-limit `/login`,
+   refresh-токен в `httpOnly`-cookie, access только в памяти JS, блокировка
+   логина, helmet, секреты из env принудительно в production. https наружного
+   контура уже даёт Tailscale Funnel.
+4. **Смена боевых паролей ролей** (`npm run passwords`) — отложена пользователем;
+   задача стоит, пока пароли на стенде `123`.
+5. (опц.) Проверить автовосстановление стека после полной перезагрузки Windows
    (ожидается: Docker Desktop поднимается сам, `restart: unless-stopped` поднимает
    контейнеры без ручных команд).
 

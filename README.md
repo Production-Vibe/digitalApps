@@ -84,9 +84,13 @@ digitalApps/
 
 ## Ключевые технические особенности
 
-- Авторизация — JWT: `POST /api/auth/login` (bcrypt → `accessToken` 12ч +
-  `refreshToken` 7д). Роль — в подписанном токене, спуфинг через URL невозможен.
-  Клиент хранит токены в `localStorage`, общий `api()` в `public/api.js`.
+- Авторизация — JWT: `POST /api/login` (bcrypt → `accessToken` 12ч) + httpOnly-
+  кука `nd_refresh` (refreshToken 7д). Роль — в подписанном токене, спуфинг через
+  URL невозможен. Access-токен живёт только в памяти JS, refresh — в куке;
+  `GET /api/session` восстанавливает сессию, общий `api()` в `public/api.js`
+  делает тихий refresh на 401.
+- Защита входа — `express-rate-limit` на `/login`+`/refresh` (120/15 мин) +
+  in-memory блокировка логина (5 неудач → 15 мин), helmet (CSP выключен).
 - Бинес-инварианты в хендлерах/`lib/`: закрытие без проверенных переходов
   запрещено, `accepted+defect ≤ qty`, смена упирается в занятость станка.
 - Словари статусов — единые константы `server/src/lib/naryad-status.ts`.

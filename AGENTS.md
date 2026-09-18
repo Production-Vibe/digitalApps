@@ -85,15 +85,20 @@ GAS-артефакты обратно в `main` без явного решени
 
 ## Авторизация
 
-- `POST /api/auth/login` — сверка bcrypt по `Employees`, возвращает
-  `accessToken` (12ч) + `refreshToken` (7д) + `user`.
+- `POST /api/login` — сверка bcrypt по `Employees`, возвращает
+  `accessToken` (12ч) + `user`; refresh-токен (7д, claim `persist`) — в
+  httpOnly-куке `nd_refresh` (`SameSite=Strict`, `Secure` при `COOKIE_SECURE`).
 - JWT-payload: `{ login, fullName, role }`. Роль — в подписанном токене, спуфинг
   через URL невозможен.
 - `requireAuth(...roles)` в `server/src/middleware/auth.ts` — проверка Bearer-токена
   и роли.
-- Клиент хранит токены в `localStorage` (`token`, `refreshToken`, `user`);
-  общий `api()` в `server/src/public/api.js` добавляет `Authorization: Bearer …`,
-  на 401 делает refresh и повторяет запрос.
+- Access-токен хранится только в памяти JS (`server/src/public/api.js`), refresh —
+  в куке. `initSession()` (на страницах ролей) сверится с `GET /api/session`,
+  `api()` добавляет `Authorization: Bearer …`, на 401 делает тихий
+  `POST /api/refresh` (сама кука) и повторяет запрос; `logout()` вызывает
+  `POST /api/logout` (чистит куку).
+- Защита входа: `express-rate-limit` (120/15 мин), in-memory блокировка логина
+  (5 неудач → 15 мин; `server/src/lib/login-throttle.ts`), helmet (CSP выключен).
 - Страницы `/master|/shift|/operator|/otk` рендерит EJS; фактический доступ
   проверяется на клиенте (редирект на `/login`), данные — только через
   авторизованные API.
