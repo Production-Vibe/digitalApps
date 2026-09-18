@@ -13,6 +13,7 @@
     "db:studio": "prisma studio",
     "import:excel": "tsx scripts/import-excel.ts",
     "push:keys": "web-push generate-vapid-keys",
+    "passwords": "tsx scripts/set-passwords.ts",
     "check": "node --check dist/app.js"
   },
   "dependencies": {

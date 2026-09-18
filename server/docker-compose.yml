@@ -26,6 +26,9 @@ services:
       # В compose-сети база доступна как host `db`, а не localhost (из .env).
       # Переопределяет DATABASE_URL из .env (environment приоритетнее env_file).
       DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-digital_narad}
+      NODE_ENV: production
+      COOKIE_SECURE: 'true'
+      TRUST_PROXY: 'true'
     ports:
       - "3000:3000"
     depends_on:
