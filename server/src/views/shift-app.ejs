@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Выдача нарядов — ЦифровойНаряд</title>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#131c30">
+  <link rel="icon" href="/icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Наряд">
 </head>
 <body>
   <header class="top-bar">
@@ -64,6 +71,7 @@
 
   <script src="/api.js"></script>
   <script src="/ui.js"></script>
+  <script src="/push-init.js"></script>
   <script>
     (function() {
       var u = getCurrentUser();
@@ -74,6 +82,7 @@
     })();
 
     initNotifications();
+    initPush();
 
     var currentLaunch = null;
 

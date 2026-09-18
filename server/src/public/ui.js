@@ -103,12 +103,18 @@ function initNotifications() {
     if (panel && panel.style.display === 'block') renderNotifPanel(panel, data.notifications || []);
   }
 
+  function notifPushHeader() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return '';
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') return '';
+    return '<div class="notif__push"><button type="button" class="btn btn--sm" onclick="askPushPermission()">Разрешить уведомления</button></div>';
+  }
+
   function renderNotifPanel(panel, items) {
     if (!items || items.length === 0) {
-      panel.innerHTML = '<div class="notif__empty">Нет уведомлений</div>';
+      panel.innerHTML = notifPushHeader() + '<div class="notif__empty">Нет уведомлений</div>';
       return;
     }
-    panel.innerHTML = '<div class="notif__list">' + items.map(function(n) {
+    panel.innerHTML = notifPushHeader() + '<div class="notif__list">' + items.map(function(n) {
       return '<a class="notif__item' + (n.isRead ? '' : ' notif__item--new') + '" ' +
         'href="javascript:void(0)" onclick="openNotif(\'' + n.id + '\',\'' + n.link + '\')">' +
         '<div class="notif__title">' + escHtml(n.title) + '</div>' +
@@ -143,6 +149,7 @@ function initNotifications() {
     if (link) window.location.href = link;
     poll();
   };
+  window.reloadNotifPanel = function () { poll(); };
   document.addEventListener('click', function(e) {
     var panel = document.getElementById('notifPanel');
     var bellEl = document.querySelector('.notif');

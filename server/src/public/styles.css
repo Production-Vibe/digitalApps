@@ -149,6 +149,7 @@ body {
   text-align: left;
 }
 .notif__empty { padding: 1rem; color: var(--muted); font-size: 0.85rem; }
+.notif__push { padding: 0.55rem 0.85rem; border-bottom: 1px solid var(--line); }
 .notif__list { display: flex; flex-direction: column; }
 .notif__item {
   display: block;
