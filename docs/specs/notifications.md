@@ -95,9 +95,9 @@ dropdown со списком. Работает на любом устройст�
 - PWA: `manifest.webmanifest` + Service Worker (`public/sw.js`); страницы
   ролей и `/login` подключают manifest/theme-color/иконки (включая
   `apple-touch-icon`); приём `push`/`notificationclick` — в `public/sw.js`.
-- Иконка приложения — авторские placeholder-PNG (`public/icons/`,
-  `server/scripts/make-icons.ts`, цвета `#131c30`/`#2563eb`), заменяются на
-  реальный логотип позже.
+- Иконка приложения — реальный логотип («Элемент.png», см. `public/icons/`
+  и Этап 13). Плейсхолдер-генератор `scripts/make-icons.ts` (цвета
+  `#131c30`/`#2563eb`) удалён — иконки 192/512/180 заменил реальный логотип.
 - Таблица `PushSubscription` (12-я модель): `login`, `endpoint @unique`,
   `p256dh`, `auth`, `createdAt`, индекс `[login]`.
 - REST `routes/push.routes.ts` (префикс `/api/push`, все под
