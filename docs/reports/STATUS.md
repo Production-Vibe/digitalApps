@@ -23,7 +23,29 @@
 
 ## Последний завершённый этап
 
-- **17.09.2026 — Этап 11: E2E-харнесс дополнен (уведомления, история смен, аналитика).**
+- **18.09.2026 — Этап 12: Web Push (Фаза 2 уведомлений).**
+  PWA + Service Worker + `web-push`: уведомления приходят на телефон при
+  закрытой вкладке. **БД:** модель `PushSubscription` (12-я; `login`,
+  `endpoint @unique`, `p256dh`, `auth`), миграция `20260918043050_add_push_subscriptions`.
+  **Сервер:** `web-push` + `@types/web-push` (named exports!),
+  `lib/push.ts` (`initWebPush`/`isPushConfigured`/`dispatchPush`, TTL 86400,
+  404/410 → удаление подписки), `lib/notify.ts` — рассылка push адресату после
+  записи `Notification`; `routes/push.routes.ts` `/api/push` (`GET /vapid-key`,
+  `POST /subscribe` upsert, `POST /unsubscribe`; `requireAuth` 4 ролей);
+  VAPID из `server/.env` (`npm run push:keys`). **Клиент:** `public/sw.js` +
+  `public/push-init.js` (`initPush` на 4 ролях; авто-подписка при granted;
+  кнопка «Разрешить уведомления» в dropdown колокольчика при default —
+  `notifPushHeader`/`askPushPermission`, путь iOS 16.4+ через «на главный
+  экран»); `manifest.webmanifest` + author-иконки (`scripts/make-icons.ts`,
+  placeholder), подключены во всех вью. **Деплой:** `docker compose up -d
+  --build`, `/health` ok, миграция применена в контейнере. **Проверки:**
+  `npm run build` + `npm run check` PASS; push-probe **13/13 PASS**
+  (auth-gate 401, SW-регистрация, subscribe=upsert/400/удаление в БД;
+  реальная подписка headless-Chrome недоступна — `AbortError`, SKIP to phone);
+  ролевой E2E **26/26 PASS**; bizcycle **51/51 PASS**; стенд чист
+  (PushSubscription=0, бизнес-таблицы=0, Catalog 2208; живая связка
+  ЗП-260917-081251/смена Т1-2 не тронуты).
+- **18.09.2026 — Этап 11: E2E-харнесс дополнен (probe-кейсы вынесены в bizcycle).**
   Ранее проверявшиеся вручную probe-кейсы вынесены в `tests/e2e/test_bizcycle.py`:
   (1) **уведомления оператора** — колокольчик, бейдж непрочитанных ≥1, непустой
   dropdown, текст «Новый наряд», клик → `mark-read` (бейдж уменьшается);
@@ -380,10 +402,10 @@
 1. ✅ **E2E-харнесс дополнен** кейсами «закрытая смена в истории → форма открытия
    видна», «уведомления» (бейдж/тост/dropdown/mark-read) и содержимым вкладок
    аналитики мастера — `test_bizcycle.py` **51/51 PASS**.
-2. **Web Push уведомления на телефон (Фаза 2 уведомлений):** PWA
-   (`manifest.webmanifest` + Service Worker), `PushSubscriptions` +
-   `POST /api/push/subscribe`, `web-push` (VAPID из `.env`) при
-   `createNotification`; iOS — «на главный экран» (см. `docs/specs/notifications.md`).
+2. ✅ **Web Push уведомления на телефон (Фаза 2 уведомлений)** — реализовано
+   (Этап 12): PWA + Service Worker, `PushSubscription` + `/api/push/*`,
+   `web-push` (VAPID из `.env`) при уведомлении роли/оператора. Ожидает ручного
+   подтверждения push на телефоне (Android/iOS 16.4+, «на главный экран»).
 3. **Безопасность перед публикацией:** rate-limit `/login`, refresh-токен в
    `httpOnly`-cookie (проф. «Запомнить меня»), секреты из env, https.
 4. (опц.) Проверить автовосстановление стека после полной перезагрузки Windows

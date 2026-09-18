@@ -1,13 +1,13 @@
-# Уведомления ролей — спека (Фаза 1: внутренние)
+# Уведомления ролей — спека (Фаза 1: внутренние + Фаза 2: Web Push)
 
-Статус: реализовано (Этап 8). Фаза 2 (Web Push на телефон) — отдельный этап.
+Статус: Фаза 1 — реализовано (Этап 8); Фаза 2 Web Push — реализовано (Этап 12).
 
 ## Цель
 
 Операторы, нач. смены, ОТК и мастера внутри приложения видят новые события
 по роли/оператору: бейдж на «колокольчике» в шапке + тост при появлении +
 dropdown со списком. Работает на любом устройстве (включая телефон), пока
-вкладка открыта. Системные push при закрытой вкладке — следующая фаза (Web Push).
+вкладка открыта. При закрытой вкладке — системные Web Push (Фаза 2).
 
 ## Модель данных
 
@@ -90,10 +90,40 @@ dropdown со списком. Работает на любом устройст�
 - UI-probe: колокольчик виден, бейдж=1, dropdown с текстом, клик → переход по
   ссылке, бейдж скрывается. Тест-данные удалены (стенд чист).
 
-## Фаза 2 (отдельный этап) — Web Push
+## Фаза 2 — Web Push (реализовано, Этап 12)
 
-- PWA: `manifest.webmanifest` + Service Worker (`public/sw.js`);
-- таблица `PushSubscriptions` (логин, endpoint, keys), `POST /api/push/subscribe`;
-- при `createNotification` — параллельно `web-push` (npm `web-push`, VAPID из
-  `.env`) по подпискам адресата;
-- iOS: установка «на главный экран», тест на Android-браузере и iPhone.
+- PWA: `manifest.webmanifest` + Service Worker (`public/sw.js`); страницы
+  ролей и `/login` подключают manifest/theme-color/иконки (включая
+  `apple-touch-icon`); приём `push`/`notificationclick` — в `public/sw.js`.
+- Иконка приложения — авторские placeholder-PNG (`public/icons/`,
+  `server/scripts/make-icons.ts`, цвета `#131c30`/`#2563eb`), заменяются на
+  реальный логотип позже.
+- Таблица `PushSubscription` (12-я модель): `login`, `endpoint @unique`,
+  `p256dh`, `auth`, `createdAt`, индекс `[login]`.
+- REST `routes/push.routes.ts` (префикс `/api/push`, все под
+  `requireAuth('operator','shift','otk','master')`):
+  - `GET /vapid-key` → `{ publicKey }` (берётся из `config.vapidPublicKey`);
+  - `POST /subscribe` — upsert по endpoint (`p256dh/server`-валидация endpoint:
+    https или http://localhost);
+  - `POST /unsubscribe` — `deleteMany` по `login`+endpoint.
+- VAPID-ключи — в `server/.env` (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+  `VAPID_SUBJECT`, `APP_URL`); генерация — `npm run push:keys`; сервер
+  (необязательно) конфигурирует `web-push` через `lib/push.ts`
+  (`initWebPush`, `isPushConfigured`, `dispatchPush(login[], data)`):
+  TTL 86400, при 404/410 подписка удаляется из БД.
+- `lib/notify.ts` дополнен: `notifyOperator`/`notifyRole` после записи в
+  `Notification` рассылают `web-push` по подпискам адресата (роль резолвится
+  в логины). Push слайды отправляются только если VAPID сконфигурирован.
+- Клиент `public/push-init.js` (`initPush` после `initNotifications` на всех 4
+  ролях):
+  - регистрирует `/sw.js`; при `Notification.permission === 'granted'` сразу
+    подписывается (`pushManager.subscribe` с `applicationServerKey` из
+    `/api/push/vapid-key`) и `POST /subscribe`;
+  - при `default` — в dropdown «Уведомления» показывается кнопка
+    «Разрешить уведомления» (`notifPushHeader` в `ui.js`; клик →
+    `window.askPushPermission`, поддержка iOS 16.4+, PWA «на главный экран»);
+  - при `denied`/неподдержке — кнопка скрывается.
+- Проверки Этапа 12: `npm run build` + `npm run check` PASS; /health ok;
+  push-probe 13/13 (auth-gate 401, SW-регистрация, авто-подписка выполняет
+  путь без console-error, subscribe=upsert/400/удаление в БД); ролевой E2E
+  26/26 PASS; bizcycle 51/51 PASS; стенд чист (PushSubscription=0).

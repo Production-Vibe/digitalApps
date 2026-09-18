@@ -40,6 +40,7 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 | `Equipment` | Справочник станков | seed / администрирование |
 | `Queue` | Очередь назначений операторам | зарезервирована (не питается routes) |
 | `Notification` | Уведомления ролей (бейдж/тост внутри приложения) | хуки событий (`lib/notify.ts`) |
+| `PushSubscription` | Web Push-подписки (login, endpoint, VAPID-keys) | `POST /api/push/subscribe` (`public/push-init.js`) |
 
 ## REST-модули
 
@@ -59,6 +60,7 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 | `employees.routes.ts` | `/api/employees` | `GET /` |
 | `analytics.routes.ts` | `/api/analytics` | `GET /dashboard` (master; сводка + номенклатура с метриками + отчёты за период) |
 | `notifications.routes.ts` | `/api/notifications` | `GET /my`, `POST /:id/read`, `POST /read-all` |
+| `push.routes.ts` | `/api/push` | `GET /vapid-key`, `POST /subscribe`, `POST /unsubscribe` |
 | `vba.routes.ts` | `/api/vba` | `POST /ingest` (X-VBA-Secret) |
 
 ## Точки входа и авторизация
@@ -128,6 +130,9 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 - Статусы — единые константы `server/src/lib/naryad-status.ts` (+ по enum в
   Prisma-схеме).
 - Дата в UI: `dd.MM.yyyy HH:mm` (`fmtDate` в `api.js`).
+- Web Push: PWA (`manifest.webmanifest` + `public/sw.js`) подключён на всех
+  страницах; VAPID-ключи из `server/.env` (`npm run push:keys`); доставка через
+  `lib/push.ts` — если ключи не заданы, приложение работает без push.
 
 ## См. также
 
