@@ -1,5 +1,7 @@
 import express from 'express';
 import path from 'path';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { config } from './config';
 import { prisma } from './lib/prisma';
 import { wrapRouter } from './lib/async-wrap';
@@ -19,6 +21,11 @@ import notificationsRoutes from './routes/notifications.routes';
 import pushRoutes from './routes/push.routes';
 
 const app = express();
+
+app.set('trust proxy', config.trustProxy ? 1 : false);
+app.disable('x-powered-by');
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cookieParser());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
