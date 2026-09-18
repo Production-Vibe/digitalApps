@@ -115,16 +115,19 @@
   <script src="/vendor/chart.umd.min.js"></script>
   <script src="/push-init.js"></script>
   <script>
-    (function() {
-      var u = getCurrentUser();
-      if (!u) { location.href = '/login'; return; }
+    (async function() {
+      var u = await initSession();
+      if (!u) return;
       if (u.role !== 'master') { location.href = '/'; return; }
       var nameEl = document.querySelector('.user-full-name');
       if (nameEl) nameEl.textContent = u.fullName;
+      initNotifications();
+      initPush();
+      defaultPeriod();
+      switchTab('svodka');
+      loadAll();
+      loadDashboard();
     })();
-
-    initNotifications();
-    initPush();
 
     var selectedCatalogItem = null;
     var searchTimer = null;
@@ -495,11 +498,6 @@
         showToast(e.message, true);
       }
     }
-
-    defaultPeriod();
-    switchTab('svodka');
-    loadAll();
-    loadDashboard();
   </script>
 </body>
 </html>

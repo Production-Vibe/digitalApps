@@ -18,7 +18,7 @@
       </nav>
       <div class="top-bar__user">
         <span><%= user.fullName %> (<%= user.role %>)</span>
-        <button onclick="localStorage.removeItem('token');location.href='/login'" class="btn btn--sm">Выйти</button>
+        <button onclick="logout()" class="btn btn--sm">Выйти</button>
       </div>
     <% } %>
   </header>

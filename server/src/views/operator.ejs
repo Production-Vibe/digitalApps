@@ -65,16 +65,16 @@
   <script src="/ui.js"></script>
   <script src="/push-init.js"></script>
   <script>
-    (function() {
-      var u = getCurrentUser();
-      if (!u) { location.href = '/login'; return; }
+    (async function() {
+      var u = await initSession();
+      if (!u) return;
       if (u.role !== 'operator') { location.href = '/'; return; }
       var nameEl = document.querySelector('.user-full-name');
       if (nameEl) nameEl.textContent = u.fullName;
+      initNotifications();
+      initPush();
+      loadAll();
     })();
-
-    initNotifications();
-    initPush();
 
     var currentOrder = null;
     var currentShift = null;
@@ -273,8 +273,6 @@
         showToast(e.message, true);
       }
     }
-
-    loadAll();
   </script>
 </body>
 </html>

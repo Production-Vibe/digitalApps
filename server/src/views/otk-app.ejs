@@ -47,16 +47,16 @@
   <script src="/ui.js"></script>
   <script src="/push-init.js"></script>
   <script>
-    (function() {
-      var u = getCurrentUser();
-      if (!u) { location.href = '/login'; return; }
+    (async function() {
+      var u = await initSession();
+      if (!u) return;
       if (u.role !== 'otk') { location.href = '/'; return; }
       var nameEl = document.querySelector('.user-full-name');
       if (nameEl) nameEl.textContent = u.fullName;
+      initNotifications();
+      initPush();
+      loadQueue();
     })();
-
-    initNotifications();
-    initPush();
 
     var currentOrder = null;
 
@@ -234,8 +234,6 @@
         showToast(e.message, true);
       }
     }
-
-    loadQueue();
   </script>
 </body>
 </html>

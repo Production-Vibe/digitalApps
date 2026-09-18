@@ -55,12 +55,15 @@
         var res = await fetch('/api/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ login: login, password: password })
+          body: JSON.stringify({
+            login: login,
+            password: password,
+            remember: document.getElementById('remember').checked
+          })
         });
         var data = await res.json();
         if (res.ok) {
-          localStorage.setItem('remember', document.getElementById('remember').checked ? '1' : '0');
-          saveSession(data);
+          setSession(data.user, data.accessToken);
           var role = data.user.role;
           if (role === 'master') location.href = '/master';
           else if (role === 'shift') location.href = '/shift';

@@ -73,16 +73,16 @@
   <script src="/ui.js"></script>
   <script src="/push-init.js"></script>
   <script>
-    (function() {
-      var u = getCurrentUser();
-      if (!u) { location.href = '/login'; return; }
+    (async function() {
+      var u = await initSession();
+      if (!u) return;
       if (u.role !== 'shift') { location.href = '/'; return; }
       var nameEl = document.querySelector('.user-full-name');
       if (nameEl) nameEl.textContent = u.fullName;
+      initNotifications();
+      initPush();
+      loadLaunches();
     })();
-
-    initNotifications();
-    initPush();
 
     var currentLaunch = null;
 
@@ -228,7 +228,6 @@
       this._timer = setTimeout(function() { renderLaunches(null); loadLaunches(); }, 300);
     });
 
-    loadLaunches();
   </script>
 </body>
 </html>
