@@ -8,17 +8,18 @@ const attempts = new Map<string, { fails: number; blockedUntil: number }>();
 export function isLoginBlocked(login: string): boolean {
   const entry = attempts.get(login);
   if (!entry) return false;
-  if (entry.blockedUntil > Date.now()) return true;
-  attempts.delete(login);
-  return false;
+  return entry.blockedUntil > Date.now();
 }
 
 export function recordLoginFailure(login: string): void {
-  const entry = attempts.get(login) || { fails: 0, blockedUntil: 0 };
+  const now = Date.now();
+  const prev = attempts.get(login);
+  const expired = prev && prev.blockedUntil > 0 && prev.blockedUntil <= now;
+  const entry = expired ? { fails: 0, blockedUntil: 0 } : prev || { fails: 0, blockedUntil: 0 };
   entry.fails += 1;
   if (entry.fails >= MAX_FAILS) {
     entry.fails = 0;
-    entry.blockedUntil = Date.now() + LOCK_MS;
+    entry.blockedUntil = now + LOCK_MS;
   }
   attempts.set(login, entry);
 }
