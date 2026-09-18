@@ -1,61 +1,57 @@
-function tokenStore() {
-  return localStorage.getItem('remember') === '1' ? localStorage : sessionStorage;
+var accessToken = null;
+var currentUser = null;
+
+function setSession(user, token) {
+  currentUser = user;
+  accessToken = token;
 }
 
-function saveSession(data) {
-  var store = tokenStore();
-  store.setItem('token', data.accessToken);
-  store.setItem('refreshToken', data.refreshToken);
-  store.setItem('user', JSON.stringify(data.user));
+function getCurrentUser() {
+  return currentUser;
 }
 
-function clearSession() {
-  localStorage.clear();
-  sessionStorage.clear();
+async function initSession() {
+  try {
+    var res = await fetch('/api/session', { method: 'GET' });
+    if (!res.ok) throw new Error('not authorized');
+    var data = await res.json();
+    setSession(data.user, data.accessToken);
+    return data.user;
+  } catch (e) {
+    location.href = '/login';
+    return null;
+  }
 }
 
-function logout() {
-  clearSession();
+async function logout() {
+  try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+  accessToken = null;
+  currentUser = null;
   location.href = '/login';
 }
 
 async function api(url, options) {
-  var token = tokenStore().getItem('token');
   var headers = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = 'Bearer ' + token;
+  if (accessToken) headers['Authorization'] = 'Bearer ' + accessToken;
   var opts = Object.assign({}, options, { headers: headers });
   if (opts.body && typeof opts.body === 'object') opts.body = JSON.stringify(opts.body);
 
   var res = await fetch(url, opts);
   if (res.status === 401) {
-    var refreshToken = tokenStore().getItem('refreshToken');
-    if (refreshToken) {
-      var refreshRes = await fetch('/api/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: refreshToken })
-      });
-      if (refreshRes.ok) {
-        var data = await refreshRes.json();
-        saveSession(data);
-        return api(url, options);
-      }
+    var refreshRes = await fetch('/api/refresh', { method: 'POST' });
+    if (refreshRes.ok) {
+      var data = await refreshRes.json();
+      accessToken = data.accessToken;
+      return api(url, options);
     }
-    clearSession();
+    accessToken = null;
+    currentUser = null;
     location.href = '/login';
     throw new Error('Not authorized');
   }
   var result = await res.json().catch(function() { return null; });
   if (!res.ok) throw new Error((result && result.error) || 'Ошибка запроса');
   return result;
-}
-
-function getCurrentUser() {
-  try {
-    return JSON.parse(tokenStore().getItem('user') || 'null');
-  } catch {
-    return null;
-  }
 }
 
 function fmtDate(iso) {
