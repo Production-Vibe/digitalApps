@@ -8,4 +8,8 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET || 'dev-secret',
   vbaSecret: process.env.VBA_SECRET || 'dev-vba-secret',
   databaseUrl: process.env.DATABASE_URL || 'postgresql://localhost:5432/digital_narad',
+  appUrl: process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`,
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY || '',
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || '',
+  vapidSubject: process.env.VAPID_SUBJECT || '',
 };
