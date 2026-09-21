@@ -36,7 +36,7 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 | `ClosedOrders` | Итоги закрытых нарядов | ОТК (`POST /api/otk/close`) |
 | `Shifts` | Смены операторов и их станки | оператор (`open`/`close`) |
 | `PrintQueue` | Очередь печати документов | shift (при выдаче наряда) |
-| `Employees` | login, bcrypt-password, fullName, role | seed / администрирование |
+| `Employees` | login, bcrypt-password, fullName, role, `isActive` (деактивация) | seed / регистрация / администрирование (`admin`) |
 | `Equipment` | Справочник станков | seed / администрирование |
 | `Queue` | Очередь назначений операторам | зарезервирована (не питается routes) |
 | `Notification` | Уведомления ролей (бейдж/тост внутри приложения) | хуки событий (`lib/notify.ts`) |
@@ -48,8 +48,8 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 
 | Модуль | Префикс | Публичные методы |
 |---|---|---|
-| `auth.routes.ts` | `/api` | `login`, `refresh`, `session`, `logout`, `me` |
-| `page.routes.ts` | `/` | `GET /login`, `/master`, `/shift`, `/operator`, `/otk` (EJS) |
+| `auth.routes.ts` | `/api` | `login`, **`register`** (самозапись operator), `refresh`, `session`, `logout`, `me` |
+| `page.routes.ts` | `/` | `GET /login`, `/master`, `/shift`, `/operator`, `/otk`, `/admin` (EJS) |
 | `catalog.routes.ts` | `/api/catalog` | `GET /`, `GET /:code`, `GET /tree/units` (вложенное дерево номенклатуры) |
 | `equipment.routes.ts` | `/api/equipment` | `GET /`, `POST /`, `DELETE /:id` |
 | `launches.routes.ts` | `/api/launches` | `GET /`, `GET /pa/occupied`, `POST /`, `PUT /:id`, `DELETE /:id` |
@@ -57,7 +57,8 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 | `shifts.routes.ts` | `/api/shifts` | `GET /active-operators`, `GET /my`, `POST /open`, `POST /close/:id` |
 | `transitions.routes.ts` | `/api/transitions` | `GET /`, `POST /`, `POST /complete`, `POST /check` |
 | `otk.routes.ts` | `/api/otk` | `GET /queue`, `GET /naryad/:number`, `POST /close`, `POST /rework`, `GET /closing-info/:number` |
-| `employees.routes.ts` | `/api/employees` | `GET /` |
+| `employees.routes.ts` | `/api/employees` | `GET /` (только активные `isActive=true`) |
+| `admin.routes.ts` | `/api/admin` | `GET/POST /employees`, `PUT/PATCH /employees/:login` (`requireAuth('admin')`) |
 | `analytics.routes.ts` | `/api/analytics` | `GET /dashboard` (master; сводка + номенклатура с метриками + отчёты за период) |
 | `notifications.routes.ts` | `/api/notifications` | `GET /my`, `POST /:id/read`, `POST /read-all` |
 | `push.routes.ts` | `/api/push` | `GET /vapid-key`, `POST /subscribe`, `POST /unsubscribe` |
@@ -65,15 +66,23 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 
 ## Точки входа и авторизация
 
-- `GET /login` — страница входа (EJS). `POST /api/login` — bcrypt-сверка по
-  `Employees`, выдаёт `accessToken` (12ч, в памяти JS) + кука `nd_refresh`
-  (refreshToken 7д, `httpOnly` + `SameSite=Strict`, `Secure` при
+- `GET /login` — страница входа и **регистрации** (EJS). `POST /api/login` —
+  bcrypt-сверка по `Employees`, выдаёт `accessToken` (12ч, в памяти JS) + кука
+  `nd_refresh` (refreshToken 7д, `httpOnly` + `SameSite=Strict`, `Secure` при
   `COOKIE_SECURE=true`; при «Запомнить меня» maxAge 7д, иначе session-кука) +
-  `user`. `GET /api/session` — восстановление сессии по refresh-куке.
-- Страницы `/master|/shift|/operator|/otk` рендерятся сервером (EJS), фактический
-  доступ — на клиенте: `initSession()` (`public/api.js`) сверится с
-  `/api/session`, редирект на `/login` при отсутствии сессии. Данные — только
-  через авторизованные API (`requireAuth(...roles)`).
+  `user`. **`POST /api/register`** — самозапись **только оператором** (роль
+  фиксирует сервер), после создания — авто-вход тем же механизмом. Общий
+  помощник `startSession` в `auth.routes.ts`. `GET /api/session` —
+  восстановление сессии по refresh-куке; деактивированные (`isActive=false`)
+  не проходят вход/сессию.
+- **Роли:** `admin` — superuser (проходит любой `requireAuth(...roles)` и
+  открывает все страницы; домашняя — `/admin`); `master/shift/operator/otk`
+  создаются администратором в UI `/admin` (роль `admin` в форме создания
+  недоступна). Страницы `/master|/shift|/operator|/otk|/admin` рендерятся
+  сервером (EJS), фактический доступ — на клиенте: `initSession()`
+  (`public/api.js`) сверится с `/api/session`, редирект на `/login` при
+  отсутствии сессии; guard ролей принимает `admin`. Данные — только через
+  авторизованные API (`requireAuth(...roles)`).
 - JWT-содержимое: `{ login, fullName, role }`; refresh — `{ login, persist }`.
   Роль в подписанном токене — спуфинг через URL невозможен.
 - Защита входа: `express-rate-limit` (120 запросов/15 мин на `/login`+`/refresh`),

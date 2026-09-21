@@ -22,6 +22,7 @@ def _cred(role):
 
 
 CREDS = {
+    "admin": _cred("admin") or {"login": "admin", "password": "123", "name": "Администратор"},
     "operator": _cred("operator") or {"login": "operator", "password": "123", "name": "Иванов И. И."},
     "otk": _cred("otk") or {"login": "otk", "password": "123", "name": "Сидоров С. С."},
     "master": _cred("master") or {"login": "master", "password": "123", "name": "Качурин И. К."},
@@ -30,6 +31,7 @@ CREDS = {
 
 # Expected post-login page per role (JWT-based client redirect in EJS views).
 LANDING = {
+    "admin": "/admin",
     "operator": "/operator",
     "otk": "/otk",
     "master": "/master",

@@ -53,18 +53,23 @@ GAS-артефакты обратно в `main` без явного решени
 до полной готовности партии.
 
 ### Роли и страницы
+- **admin** (суперпользователь, только из сида): создание/смена роли/деактивация
+  сотрудников; проходит все страницы — `/admin`.
 - **master** (нач. цеха): дерево номенклатуры, запуски на ПА, сводки, печать — `/master`.
 - **shift** (нач. смены): выдача нарядов операторам из запусков (станок, кол-во) — `/shift`.
 - **operator**: открывает смену на станке, принимает наряды, вводит тех. переходы — `/operator`.
 - **otk**: приёмка/брак/закрытие нарядов, возврат на доработку — `/otk`.
+- Выдача ролей: оператор — самозапись на `/login` (таб «Регистрация», роль
+  фиксирует сервер); master/shift/otk — создаёт админ в `/admin`; admin — не
+  создаётся через UI, только сидом/скриптом.
 
 ### Данные и модули
-- **10 моделей Prisma** (`server/prisma/schema.prisma`): `Catalog`, `Launches`,
+- **12 моделей Prisma** (`server/prisma/schema.prisma`): `Catalog`, `Launches`,
   `WorkOrders`, `Transitions`, `ClosedOrders`, `Shifts`, `PrintQueue`, `Employees`,
-  `Equipment`, `Queue`.
+  `Equipment`, `Queue`, `Notification`, `PushSubscription`.
 - **REST-модули** в `server/src/routes/`: `auth`, `catalog`, `equipment`,
-  `launches`, `workorders`, `shifts`, `transitions`, `otk`, `employees`, `vba`,
-  плюс `page` (рендер EJS-страниц).
+  `launches`, `workorders`, `shifts`, `transitions`, `otk`, `employees`, `admin`,
+  `analytics`, `notifications`, `push`, `vba`, плюс `page` (рендер EJS-страниц).
 - **Вью** — EJS: `login`, `master-app`, `shift-app`, `operator`, `otk-app`.
 
 ### Жизненный цикл наряда / статусы

@@ -22,28 +22,93 @@
         <% if (error) { %>
           <div class="alert alert--error"><%= error %></div>
         <% } %>
-        <form id="loginForm" class="auth-form">
-          <div class="form-group">
-            <label for="login">Логин</label>
-            <input type="text" id="login" name="login" required autocomplete="username" autofocus>
-          </div>
-          <div class="form-group">
-            <label for="password">Пароль</label>
-            <input type="password" id="password" name="password" required autocomplete="current-password">
-          </div>
-          <div class="form-group form-group--inline">
-            <label for="remember" class="checkbox-label">
-              <input type="checkbox" id="remember" checked>
-              Запомнить меня
-            </label>
-          </div>
-          <button type="submit" class="btn btn--primary btn--full">Войти</button>
-        </form>
+        <div class="auth-tabs">
+          <button type="button" id="tabLogin" class="auth-tab active">Вход</button>
+          <button type="button" id="tabRegister" class="auth-tab">Регистрация</button>
+        </div>
+        <div id="loginPane" class="auth-pane">
+          <form id="loginForm" class="auth-form">
+            <div class="form-group">
+              <label for="login">Логин</label>
+              <input type="text" id="login" name="login" required autocomplete="username" autofocus>
+            </div>
+            <div class="form-group">
+              <label for="password">Пароль</label>
+              <input type="password" id="password" name="password" required autocomplete="current-password">
+            </div>
+            <div class="form-group form-group--inline">
+              <label for="remember" class="checkbox-label">
+                <input type="checkbox" id="remember" checked>
+                Запомнить меня
+              </label>
+            </div>
+            <button type="submit" class="btn btn--primary btn--full">Войти</button>
+          </form>
+        </div>
+        <div id="registerPane" class="auth-pane" style="display:none">
+          <form id="registerForm" class="auth-form">
+            <div class="form-group">
+              <label for="regFullName">ФИО</label>
+              <input type="text" id="regFullName" required autocomplete="off" placeholder="Иванов И. И.">
+            </div>
+            <div class="form-group">
+              <label for="regLogin">Логин</label>
+              <input type="text" id="regLogin" required autocomplete="username">
+            </div>
+            <div class="form-group">
+              <label for="regPassword">Пароль</label>
+              <input type="password" id="regPassword" required autocomplete="new-password" placeholder="минимум 6 символов">
+            </div>
+            <div class="form-group">
+              <label for="regConfirm">Повторите пароль</label>
+              <input type="password" id="regConfirm" required autocomplete="new-password">
+            </div>
+            <div class="form-group form-group--inline">
+              <label for="regRemember" class="checkbox-label">
+                <input type="checkbox" id="regRemember" checked>
+                Запомнить меня
+              </label>
+            </div>
+            <button type="submit" class="btn btn--primary btn--full">Зарегистрироваться</button>
+            <p class="muted" style="margin-top:0.75rem">Регистрация доступна операторам. Остальные роли создаёт администратор.</p>
+          </form>
+        </div>
       </div>
     </div>
   </main>
   <script src="/api.js"></script>
   <script>
+    function switchTab(name) {
+      var isLogin = name === 'login';
+      document.getElementById('tabLogin').classList.toggle('active', isLogin);
+      document.getElementById('tabRegister').classList.toggle('active', !isLogin);
+      document.getElementById('loginPane').style.display = isLogin ? '' : 'none';
+      document.getElementById('registerPane').style.display = isLogin ? 'none' : '';
+    }
+    document.getElementById('tabLogin').addEventListener('click', function() { switchTab('login'); });
+    document.getElementById('tabRegister').addEventListener('click', function() { switchTab('register'); });
+
+    function redirectByRole(user) {
+      if (user.role === 'admin') location.href = '/admin';
+      else if (user.role === 'master') location.href = '/master';
+      else if (user.role === 'shift') location.href = '/shift';
+      else if (user.role === 'operator') location.href = '/operator';
+      else if (user.role === 'otk') location.href = '/otk';
+      else location.href = '/';
+    }
+
+    function showAuthError(message) {
+      var errDiv = document.querySelector('.alert--error');
+      if (errDiv) errDiv.textContent = message;
+      else {
+        var d = document.createElement('div');
+        d.className = 'alert alert--error';
+        d.textContent = message;
+        var card = document.querySelector('.auth-card');
+        card.insertBefore(d, card.querySelector('.auth-tabs'));
+      }
+    }
+
     document.getElementById('loginForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       var form = document.getElementById('loginForm');
@@ -64,21 +129,46 @@
         var data = await res.json();
         if (res.ok) {
           setSession(data.user, data.accessToken);
-          var role = data.user.role;
-          if (role === 'master') location.href = '/master';
-          else if (role === 'shift') location.href = '/shift';
-          else if (role === 'operator') location.href = '/operator';
-          else if (role === 'otk') location.href = '/otk';
-          else location.href = '/';
+          redirectByRole(data.user);
         } else {
-          var errDiv = document.querySelector('.alert--error');
-          if (errDiv) errDiv.textContent = data.error || 'Ошибка авторизации';
-          else {
-            var d = document.createElement('div');
-            d.className = 'alert alert--error';
-            d.textContent = data.error || 'Ошибка авторизации';
-            document.querySelector('.auth-form').prepend(d);
-          }
+          showAuthError(data.error || 'Ошибка авторизации');
+        }
+      } catch {
+        alert('Сервер недоступен');
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    document.getElementById('registerForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var form = document.getElementById('registerForm');
+      var submitBtn = form.querySelector('button[type="submit"]');
+      var password = document.getElementById('regPassword').value;
+      var confirm = document.getElementById('regConfirm').value;
+      if (password !== confirm) {
+        showAuthError('Пароли не совпадают');
+        return;
+      }
+      submitBtn.disabled = true;
+      try {
+        var res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fullName: document.getElementById('regFullName').value,
+            login: document.getElementById('regLogin').value,
+            password: password,
+            confirmPassword: confirm,
+            remember: document.getElementById('regRemember').checked
+          })
+        });
+        var data = await res.json();
+        if (res.ok) {
+          setSession(data.user, data.accessToken);
+          redirectByRole(data.user);
+        } else {
+          showAuthError(data.error || 'Ошибка регистрации');
         }
       } catch {
         alert('Сервер недоступен');

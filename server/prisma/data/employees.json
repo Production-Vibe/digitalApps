@@ -1,5 +1,11 @@
 [
   {
+    "login": "admin",
+    "password": "123",
+    "fullName": "Администратор",
+    "role": "admin"
+  },
+  {
     "login": "operator",
     "password": "123",
     "fullName": "Иванов И. И.",

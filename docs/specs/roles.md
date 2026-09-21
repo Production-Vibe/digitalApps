@@ -7,6 +7,7 @@
 
 | role | Интерфейс | Страница | Вью |
 |---|---|---|---|
+| `admin` | Администратор: аккаунты сотрудников (создание, роль, пароль, деактивация); superuser | `/admin` | `admin.ejs` |
 | `master` | Начальник цеха: сводка, дерево номенклатуры, запуски на ПА, отчёты (вкладки) | `/master` | `master-app.ejs` |
 | `shift` | Начальник смены: выдача нарядов операторам из запусков | `/shift` | `shift-app.ejs` |
 | `operator` | Оператор: смены, наряды, тех. переходы | `/operator` | `operator.ejs` |
@@ -14,6 +15,16 @@
 
 Роли — enum `EmployeeRole` в Prisma-схеме и `EMPLOYEE_ROLE` в
 `server/src/lib/naryad-status.ts`.
+
+### Выдача ролей
+
+- **Оператор** — самозапись через `POST /api/register` (форма «Регистрация» на
+  `/login`): роль `operator` проставляет сервер, выбор роли в форме отсутствует;
+  после создания — авто-вход (`startSession` в `auth.routes.ts`).
+- **master / shift / otk** — создаются администратором в UI `/admin`
+  (`/api/admin/employees`), роль `admin` там недоступна.
+- **admin** — создаётся только сидом/скриптом (`server/prisma/data/employees.json`),
+  через UI второго админа не завести.
 
 ## Хранилище ролей
 
@@ -24,29 +35,33 @@
 | `login` | `String @id` | Идентификатор входа |
 | `password` | `String` | **bcrypt-хэш** (не открытый текст) |
 | `fullName` | `String` | Отображаемое имя |
-| `role` | `EmployeeRole` | `master` / `shift` / `operator` / `otk` |
+| `role` | `EmployeeRole` | `admin` / `master` / `shift` / `operator` / `otk` |
+| `isActive` | `Boolean @default(true)` | Деактивация: `false` блокирует вход (`403`) и скрывает из списков операторов |
 
 ## Авторизация
 
-- `POST /api/auth/login` (`server/src/routes/auth.routes.ts`) — bcrypt-сверка,
-  возвращает `{ accessToken, refreshToken, user }`.
-- `accessToken` (12ч) — JWT с payload `{ login, fullName, role }`.
-- `refreshToken` (7д) — `{ login }`; обновляется на 401-ответе автоматически.
+- `POST /api/login` (`server/src/routes/auth.routes.ts`) — bcrypt-сверка,
+  возвращает `{ accessToken, user }` + куку `nd_refresh`; `POST /api/register` —
+  самозапись оператора. Общий помощник `startSession`.
+- `accessToken` (12ч) — JWT с payload `{ login, fullName, role }`; refresh (7д) —
+  httpOnly-кука.
 - `requireAuth(...roles)` (`server/src/middleware/auth.ts`) проверяет
   `Authorization: Bearer <token>` и роль **из подписанного токена** — спуфинг
-  роли через URL невозможен.
+  роли через URL невозможен. Роль `admin` проходит любой ролевой фильтр
+  (superuser).
 - Клиент: `server/src/public/api.js` — `api()` добавляет Bearer, на 401 делает
-  refresh и повторяет запрос; `localStorage` хранит `token`/`refreshToken`/`user`.
+  refresh и повторяет запрос; access-токен в памяти JS, refresh — в куке.
 
 ## Роутинг страниц (`server/src/routes/page.routes.ts`)
 
 | Путь | Вью | Доступ |
 |---|---|---|
 | `/login` | `login.ejs` | публичная |
-| `/master` | `master-app.ejs` | client-side (JWT, роль `master`) |
-| `/shift` | `shift-app.ejs` | client-side (JWT, роль `shift`) |
-| `/operator` | `operator.ejs` | client-side (JWT, роль `operator`) |
-| `/otk` | `otk-app.ejs` | client-side (JWT, роль `otk`) |
+| `/admin` | `admin.ejs` | client-side (JWT, роль `admin`) |
+| `/master` | `master-app.ejs` | client-side (JWT, роль `master`; `admin` проходит) |
+| `/shift` | `shift-app.ejs` | client-side (JWT, роль `shift`; `admin` проходит) |
+| `/operator` | `operator.ejs` | client-side (JWT, роль `operator`; `admin` проходит) |
+| `/otk` | `otk-app.ejs` | client-side (JWT, роль `otk`; `admin` проходит) |
 | `/` | редирект на `/login` | — |
 | `/health` | JSON `{status, db}` | — |
 

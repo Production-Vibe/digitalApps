@@ -22,4 +22,8 @@ router.get('/otk', (_req, res) => {
   res.render('otk-app');
 });
 
+router.get('/admin', (_req, res) => {
+  res.render('admin');
+});
+
 export default router;

@@ -25,7 +25,7 @@ export function requireAuth(...roles: EmployeeRole[]) {
       const payload = jwt.verify(header.slice(7), config.jwtSecret) as AuthUser;
       req.user = payload;
 
-      if (roles.length > 0 && !roles.includes(payload.role)) {
+      if (roles.length > 0 && payload.role !== 'admin' && !roles.includes(payload.role)) {
         res.status(403).json({ error: 'Недостаточно прав' });
         return;
       }

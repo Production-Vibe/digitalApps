@@ -50,7 +50,7 @@
     (async function() {
       var u = await initSession();
       if (!u) return;
-      if (u.role !== 'otk') { location.href = '/'; return; }
+      if (u.role !== 'otk' && u.role !== 'admin') { location.href = '/'; return; }
       var nameEl = document.querySelector('.user-full-name');
       if (nameEl) nameEl.textContent = u.fullName;
       initNotifications();

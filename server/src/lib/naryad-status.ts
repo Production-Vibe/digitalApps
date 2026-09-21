@@ -28,5 +28,13 @@ export type TransitionStatus = (typeof TRANSITION_STATUS)[number];
 export const PRINT_JOB_STATUS = ['pending', 'printed'] as const;
 export type PrintJobStatus = (typeof PRINT_JOB_STATUS)[number];
 
-export const EMPLOYEE_ROLE = ['master', 'shift', 'operator', 'otk'] as const;
+export const EMPLOYEE_ROLE = ['admin', 'master', 'shift', 'operator', 'otk'] as const;
 export type EmployeeRole = (typeof EMPLOYEE_ROLE)[number];
+
+export const EMPLOYEE_ROLE_LABELS: Record<EmployeeRole, string> = {
+  admin: 'Администратор',
+  master: 'Начальник цеха',
+  shift: 'Начальник смены',
+  operator: 'Оператор',
+  otk: 'ОТК',
+};

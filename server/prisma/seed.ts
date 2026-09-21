@@ -38,7 +38,7 @@ interface EmployeeRow {
   login: string;
   password: string;
   fullName: string;
-  role: 'master' | 'shift' | 'operator' | 'otk';
+  role: 'admin' | 'master' | 'shift' | 'operator' | 'otk';
 }
 
 interface EquipmentRow {
