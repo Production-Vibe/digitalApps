@@ -8,8 +8,8 @@ self.addEventListener('push', function (event) {
   var url = data.url || '/';
   var options = {
     body: message,
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
+    icon: '/icons/icon-192-v2.png',
+    badge: '/icons/icon-192-v2.png',
     data: { url: url }
   };
   event.waitUntil(self.registration.showNotification(title, options));
