@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import bcrypt from 'bcrypt';
 import { prisma } from '../src/lib/prisma';
 
@@ -7,7 +8,7 @@ async function main() {
     console.error('Использование: npm run passwords -- <новый пароль (мин 8 символов)>');
     process.exit(1);
   }
-  const logins = ['master', 'shift', 'operator', 'otk'];
+  const logins = ['admin', 'master', 'shift', 'operator', 'otk'];
   for (const login of logins) {
     const emp = await prisma.employees.findUnique({ where: { login } });
     if (!emp) {

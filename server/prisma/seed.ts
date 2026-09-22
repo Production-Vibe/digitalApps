@@ -102,7 +102,7 @@ async function seedEmployees(rows: EmployeeRow[]) {
     const hash = await bcrypt.hash(r.password, 10);
     await prisma.employees.upsert({
       where: { login: r.login },
-      update: { password: hash },
+      update: {},
       create: {
         login: r.login,
         password: hash,
