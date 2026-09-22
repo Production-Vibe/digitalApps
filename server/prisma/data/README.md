@@ -5,7 +5,7 @@ Place JSON files here to seed the database. Format: arrays of objects with Latin
 ## Files
 
 - `catalog.json` — full nomenclature (Latin fields: `code`, `name`, `designation`, `designation2`, `parentQty`, `blankType`, `material`, `materialGrade`, `blankSize`, `wallThickness`, `cutLength`, `ppb`, `blankWeight`, `partWeight`, operations as booleans, `priority`)
-- `employees.json` — `[{ "login": "...", "password": "...", "fullName": "...", "role": "master|shift|operator|otk" }]`
+- `employees.json` — `[{ "login": "...", "password": "...", "fullName": "...", "role": "admin|master|shift|operator|otk" }]`
 - `equipment.json` — `[{ "name": "Т1-1" }, ...]`
 
 ## How to export from Google Sheets
@@ -25,4 +25,7 @@ In Apps Script editor run `exportAllSheets()` and save the JSON body to `_export
 - Employees: `Логин` → `login`, `Пароль` → `password`, `ФИО` → `fullName`, `Роль` → `role`
 - Equipment: `Станок` → `name`
 
-Passwords are hashed with bcrypt during seed (plaintext in the JSON is fine).
+Passwords are hashed with bcrypt during seed. **Seed applies a password only on
+account creation (create); existing logins are never touched** (their password/role/
+fullName are managed via `/admin` or `npm run passwords` in `server/`). Plaintext
+in the JSON is fine — it is only used for new accounts.

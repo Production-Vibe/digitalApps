@@ -17,13 +17,16 @@ npm ci
 Copy-Item .env.example .env   # затем проставить реальные значения
 # .env: DATABASE_URL=postgresql://production_user:…@localhost:5432/MOSD
 npm run db:migrate            # prisma migrate dev (применит миграции)
-npm run db:seed               # tsx prisma/seed.ts (каталог + 4 роли + станки)
+npm run db:seed               # tsx prisma/seed.ts (каталог + 5 ролей + станки)
 npm run dev                   # tsx watch src/app.ts на :3000
 ```
 
 Smoke: `GET http://localhost:3000/health` → `{status:'ok', db:'connected'}`.
 
-Начальные учётные данные (сид, пароль `123`): `master`, `shift`, `operator`, `otk`.
+Начальные учётные данные (сид, пароль `123`): `admin`, `master`, `shift`,
+`operator`, `otk`. **Seed задаёт пароль только при создании аккаунта** —
+существующих логинов не трогает (смена роли/пароля — через `/admin`, пароль
+всех ролей сразу — `npm run passwords -- <новый пароль>`).
 
 ## Docker: prod-контур
 

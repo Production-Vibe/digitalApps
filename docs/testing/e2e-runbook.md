@@ -4,10 +4,11 @@
 деплоя (Docker) и при жалобах «пишет Загрузка…/пустая страница».
 
 > Статус: харнесс `tests/e2e/` адаптирован под новый стек (JWT-логин через
-> `/login`, full-page E2E без Google-сессии/фреймов). Прогон ролей — 26/26 PASS
-> (master дополнительно проверяет вкладки Сводка/Планирование/Номенклатура/Отчёты).
-> Полный бизнес-цикл — `test_bizcycle.py` 51/51 PASS. Исторический GAS-харнесс
-> (против `/exec`) живёт в ветке `google-apps`.
+> `/login`, full-page E2E без Google-сессии/фреймов). Прогон ролей — **31/31 PASS**
+> (admin 5, operator 6, otk 4, master 12, shift 4; master проверяет вкладки
+> Сводка/Создать запуск/Номенклатура/Период). Полный бизнес-цикл —
+> `test_bizcycle.py` 51/51 PASS. Исторический GAS-харнесс (против `/exec`) живёт
+> в ветке `google-apps`.
 
 ## Почему новый алгоритм (коротко)
 
@@ -28,7 +29,8 @@ Google-шлюз и sandboxed-iframe остались в прошлом:
   (env-переопределяемые `ND_LOGIN_*`, `ND_PASSWORD_*`, `ND_NAME_*`), карта лендингов.
 - `helpers.py` — вход по форме `/login`, скриншоты, ожидания.
 - `runner.py` — общий прогон роли в чистом контексте + сводка PASS/FAIL.
-- `test_operator.py`, `test_otk.py`, `test_master.py`, `test_shift.py` — ролевые сценарии.
+- `test_admin.py`, `test_operator.py`, `test_otk.py`, `test_master.py`,
+  `test_shift.py` — ролевые сценарии.
 - `screenshots/`, `.secrets/` — артефакты, **в git не идут** (`.gitignore`).
 
 GAS-специфика (Google-сессия, фреймы, `session_setup.py`, `flows.py`, seed-хелперы)
@@ -54,6 +56,7 @@ top-frame) → **F5 не возвращает форму входа** → (оп�
 
 ```powershell
 cd <корень проекта>
+python tests/e2e/test_admin.py
 python tests/e2e/test_operator.py
 python tests/e2e/test_otk.py
 python tests/e2e/test_master.py
@@ -63,8 +66,8 @@ python tests/e2e/test_shift.py
 Каждый тест выводит `[PASS]/[FAIL]` и сводку; код выхода `0` — все прошли,
 `1` — есть падения. Скриншоты плюс лог консоли — в `screenshots/`.
 
-Ожидаемые результаты: operator **6/6**, otk **4/4**, master **12/12** (вход,
-рендер, refresh, 4 вкладки×2), shift **4/4** (эталон 26/26).
+Ожидаемые результаты: admin **5/5**, operator **6/6**, otk **4/4**, master
+**12/12** (вход, рендер, refresh, 4 вкладки×2), shift **4/4** (эталон 31/31).
 
 ## Шаг 2.1. Полный бизнес-цикл (роли together)
 
@@ -123,10 +126,19 @@ python tests/e2e/test_bizcycle.py
 ## Шаг 3. Переопределение данных при необходимости
 
 - URL: `$env:ND_APP_URL="http://localhost:3000"`.
-- Учётные данные роли (fallback — сид: логины `master`/`operator`/`otk`/`shift`,
-  пароль `123`):
-  `$env:ND_LOGIN_OPERATOR`, `$env:ND_PASSWORD_OPERATOR`, `$env:ND_NAME_OPERATOR`
-  (аналогично `_OTK/_MASTER/_SHIFT`).
+- Учётные данные роли: `tests/e2e/.secrets/e2e-env.ps1` (gitignored) — боёвые
+  логины/пароли/ФИО всех ролей (`ND_LOGIN_*`, `ND_PASSWORD_*`, `ND_NAME_*`, вкл.
+  `_ADMIN`). Загрузка перед прогоном:
+
+  ```powershell
+  . tests/e2e/.secrets/e2e-env.ps1
+  ```
+
+  > **Важно:** `config.py._cred()` срабатывает только когда заданы **и**
+  > `ND_LOGIN_<ROLE>`, **и** `ND_PASSWORD_<ROLE>` вместе (пары login+password).
+  > Если задать только пароль — fallback на сидовый `123` (неверен на боевом
+  > стенде → «Неверный логин или пароль»). Пример файла — в `e2e-env.ps1`.
+  > Fallback `123` в коде остаётся только для пустого/дев-стенда.
 
 ## Когда прогонять
 
