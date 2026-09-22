@@ -7,8 +7,9 @@
 > `/login`, full-page E2E без Google-сессии/фреймов). Прогон ролей — **31/31 PASS**
 > (admin 5, operator 6, otk 4, master 12, shift 4; master проверяет вкладки
 > Сводка/Создать запуск/Номенклатура/Период). Полный бизнес-цикл —
-> `test_bizcycle.py` 51/51 PASS. Исторический GAS-харнесс (против `/exec`) живёт
-> в ветке `google-apps`.
+> `test_bizcycle.py` 51/51 PASS; авторизация/регистрация/защита/деактивация —
+> `test_auth_flow.py` 33/33 PASS. Исторический GAS-харнесс (против `/exec`)
+> живёт в ветке `google-apps`.
 
 ## Почему новый алгоритм (коротко)
 
@@ -31,6 +32,8 @@ Google-шлюз и sandboxed-iframe остались в прошлом:
 - `runner.py` — общий прогон роли в чистом контексте + сводка PASS/FAIL.
 - `test_admin.py`, `test_operator.py`, `test_otk.py`, `test_master.py`,
   `test_shift.py` — ролевые сценарии.
+- `test_auth_flow.py` — авторизация/регистрация/защита входа/деактивация
+  (API через Playwright `APIRequestContext` + UI-таб «Регистрация»).
 - `screenshots/`, `.secrets/` — артефакты, **в git не идут** (`.gitignore`).
 
 GAS-специфика (Google-сессия, фреймы, `session_setup.py`, `flows.py`, seed-хелперы)
@@ -122,6 +125,34 @@ python tests/e2e/test_bizcycle.py
   «Наряды в работе»/«Смены» появляется с задержкой ~0.2 с. Проверки входа должны
   использовать `wait_text()`/`wait_selector()`, а не мгновенный
   `page.inner_text('body')` (иначе false-negative «вход (rework)»).
+
+## Шаг 2.2. Авторизация / регистрация / защита входа / деактивация
+
+`tests/e2e/test_auth_flow.py` — проверка цепочки auth после смены боевых паролей
+(API через Playwright `APIRequestContext` + один UI-кейс формы регистрации):
+
+```
+АВТОРИЗАЦИЯ: вход 5 боевых ролей новым паролем (200+токен), кука nd_refresh,
+  123 → 401, refresh/session/logout (401 после logout), /me (bearer).
+РЕГИСТРАЦИЯ: role в теле игнорируется → operator, авто-вход, дубль 409,
+  валидации 400 (пустой/длинный логин, ФИО одним словом, пароль <6, mismatch);
+  UI: таб «Регистрация» → /operator → «Выйти» → /login.
+ЗАЩИТА ВХОДА: 5 неудач на тестовом логине → 401, 6-я попытка → 429 (блок 15 мин).
+ДЕАКТИВАЦИЯ: admin выключает тестового оператора → вход 403, session/refresh 401,
+  скрыт из /api/employees, реактивация → 200, сам-отключение admin → 400.
+CLEANUP: тестовые операторы удаляются SQL-ом (docker exec).
+```
+
+```powershell
+. tests/e2e/.secrets/e2e-env.ps1
+python tests/e2e/test_auth_flow.py
+```
+
+Эталон — **33/33 PASS**. Примечания: throttle-блок ложится только на
+синтетический логин `nobody-probe` (in-memory, истекает за 15 мин) и не задевает
+боевые роли; тестовые логины `op_probe_*`/`op_ui_*` снабжаются случайным
+суффиксом (повторные прогоны в ту же минуту безопасны) и удаляются в cleanup.
+`APIRequestContext` — `request.fetch(url, method=…)` (никак не `request.request`).
 
 ## Шаг 3. Переопределение данных при необходимости
 
