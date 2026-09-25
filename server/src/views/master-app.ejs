@@ -112,6 +112,7 @@
 
   <script src="/api.js"></script>
   <script src="/ui.js"></script>
+  <script src="/catalog-manager.js"></script>
   <script src="/vendor/chart.umd.min.js"></script>
   <script src="/push-init.js"></script>
   <script>
@@ -279,33 +280,12 @@
 
     function renderTree(d) {
       var el = document.getElementById('treeSection');
-      var units = d.nomenclature.units;
-      if (!units || units.length === 0) {
-        el.innerHTML = '<div class="panel"><h3>Номенклатура</h3>' + emptyBlock('Каталог пуст') + '</div>';
-        return;
+      var units = (d.nomenclature && d.nomenclature.units) || [];
+      if (!window.__catalogManagerMounted) {
+        CatalogManager.mount(el, { showMetrics: true, onChanged: loadDashboard });
+        window.__catalogManagerMounted = true;
       }
-
-      function leafLabel(node) {
-        var ref = node.item || node;
-        if (ref.designation) return ref.designation + ' — ' + (ref.name || node.code);
-        return ref.name || node.code;
-      }
-
-      function metrics(node) {
-        return '<span class="muted">(в запуске: ' + fmtNum(node.totals.activeLaunches) + ', в работе: ' + fmtNum(node.totals.inWork) + ', закрыто: ' + fmtNum(node.totals.closed) + ')</span>';
-      }
-
-      function subtree(node) {
-        var kids = node.children || [];
-        if (kids.length === 0) {
-          return '<div class="tree-leaf"><span class="tree-label">' + escHtml(leafLabel(node)) + '</span> ' + metrics(node) + '</div>';
-        }
-        var rows = kids.map(subtree).join('');
-        return '<details class="tree-node"><summary><span class="tree-label">' + escHtml(leafLabel(node)) + '</span> ' + metrics(node) + '</summary>' + rows + '</details>';
-      }
-
-      var html = '<div class="panel"><h3>Номенклатура</h3><div class="tree">' + units.map(subtree).join('') + '</div></div>';
-      el.innerHTML = html;
+      CatalogManager.setTree(units);
     }
 
     function renderReports(d) {
