@@ -648,6 +648,15 @@ details summary strong { color: var(--ink-2); }
 .tree-label { font-weight: 600; color: var(--ink-2); }
 .tree-leaf .tree-label { font-weight: 500; color: var(--ink-1); }
 
+.catalog-toolbar { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin: .25rem 0 .75rem; }
+.catalog-toolbar .input { flex: 1 1 240px; }
+.tree-actions { margin-left: .5rem; font-size: .8rem; white-space: nowrap; opacity: .3; }
+.tree-leaf:hover .tree-actions, .tree-node > summary:hover .tree-actions { opacity: 1; }
+.tree-actions a { cursor: pointer; padding: 0 .2rem; color: var(--ink-2); text-decoration: none; }
+.tree-actions a:hover { color: var(--accent); }
+.cm-flags { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .35rem .75rem; margin-top: .5rem; }
+.cm-flags .checkbox-label { font-weight: 400; }
+
 /* в”Ђв”Ђ РњРѕР±РёР»СЊРЅС‹Р№ (С‚РµР»РµС„РѕРЅ/РїР»Р°РЅС€РµС‚ С‡РµСЂРµР· Funnel) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
 
 @media (max-width: 640px) {

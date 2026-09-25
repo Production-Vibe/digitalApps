@@ -17,7 +17,8 @@
   <header class="top-bar">
     <div class="top-bar__brand">ЦифровойНаряд</div>
     <nav class="top-bar__nav">
-      <a href="/admin" class="active">Сотрудники</a>
+      <button class="tab-btn active" data-panel="employees" type="button" onclick="switchPanel('employees')">Сотрудники</button>
+      <button class="tab-btn" data-panel="catalog" type="button" onclick="switchPanel('catalog')">Номенклатура</button>
     </nav>
     <div class="top-bar__user">
       <span class="user-full-name"></span> (admin)
@@ -25,49 +26,60 @@
     </div>
   </header>
   <main class="container">
-    <div class="page-header">
-      <h1>Администрирование сотрудников</h1>
-      <button onclick="loadEmployees()" class="btn btn--primary">Обновить</button>
-    </div>
+    <section id="panel-employees">
+      <div class="page-header">
+        <h1>Администрирование сотрудников</h1>
+        <button onclick="loadEmployees()" class="btn btn--primary">Обновить</button>
+      </div>
 
-    <section class="panel">
-      <h2>Новый сотрудник</h2>
-      <form id="createForm" class="form-grid">
-        <div class="form-group">
-          <label for="newFullName">ФИО</label>
-          <input type="text" id="newFullName" required placeholder="Иванов И. И.">
-        </div>
-        <div class="form-group">
-          <label for="newLogin">Логин</label>
-          <input type="text" id="newLogin" required autocomplete="off">
-        </div>
-        <div class="form-group">
-          <label for="newRole">Роль</label>
-          <select id="newRole" class="input">
-            <option value="operator">Оператор</option>
-            <option value="shift">Начальник смены</option>
-            <option value="otk">ОТК</option>
-            <option value="master">Начальник цеха</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="newPassword">Пароль</label>
-          <input type="text" id="newPassword" required autocomplete="off" placeholder="минимум 6 символов">
-        </div>
-        <div class="form-group form-group--inline">
-          <button type="submit" class="btn btn--primary">Добавить сотрудника</button>
-        </div>
-      </form>
+      <section class="panel">
+        <h2>Новый сотрудник</h2>
+        <form id="createForm" class="form-grid">
+          <div class="form-group">
+            <label for="newFullName">ФИО</label>
+            <input type="text" id="newFullName" required placeholder="Иванов И. И.">
+          </div>
+          <div class="form-group">
+            <label for="newLogin">Логин</label>
+            <input type="text" id="newLogin" required autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label for="newRole">Роль</label>
+            <select id="newRole" class="input">
+              <option value="operator">Оператор</option>
+              <option value="shift">Начальник смены</option>
+              <option value="otk">ОТК</option>
+              <option value="master">Начальник цеха</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="newPassword">Пароль</label>
+            <input type="text" id="newPassword" required autocomplete="off" placeholder="минимум 6 символов">
+          </div>
+          <div class="form-group form-group--inline">
+            <button type="submit" class="btn btn--primary">Добавить сотрудника</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Сотрудники</h2>
+        <div id="employeesSection"><p class="muted">Загрузка...</p></div>
+      </section>
     </section>
 
-    <section class="panel">
-      <h2>Сотрудники</h2>
-      <div id="employeesSection"><p class="muted">Загрузка...</p></div>
+    <section id="panel-catalog" hidden>
+      <div class="page-header">
+        <h1>Номенклатура</h1>
+        <button onclick="window.__CM_RELOAD && window.__CM_RELOAD()" class="btn btn--primary">Обновить</button>
+      </div>
+      <div id="adminCatalogManager"></div>
     </section>
   </main>
 
   <script src="/api.js"></script>
   <script src="/ui.js"></script>
+  <script src="/catalog-manager.js"></script>
   <script>
     (async function() {
       var u = await initSession();
@@ -79,6 +91,28 @@
     })();
 
     var ROLE_LABELS = { admin: 'Администратор', master: 'Начальник цеха', shift: 'Начальник смены', operator: 'Оператор', otk: 'ОТК' };
+
+    function switchPanel(name) {
+      document.querySelectorAll('.top-bar__nav .tab-btn').forEach(function (b) {
+        b.classList.toggle('active', b.getAttribute('data-panel') === name);
+      });
+      var emp = document.getElementById('panel-employees');
+      var cat = document.getElementById('panel-catalog');
+      if (emp) emp.hidden = name !== 'employees';
+      if (cat) cat.hidden = name !== 'catalog';
+      if (name === 'catalog' && !window.__catalogManagerAdminMounted) {
+        CatalogManager.mount(document.getElementById('adminCatalogManager'), { showMetrics: false });
+        window.__catalogManagerAdminMounted = true;
+      }
+    }
+    window.__CM_RELOAD = function () {
+      var el = document.getElementById('adminCatalogManager');
+      if (!el) return;
+      el.innerHTML = '';
+      window.__catalogManagerAdminMounted = false;
+      CatalogManager.mount(el, { showMetrics: false });
+      window.__catalogManagerAdminMounted = true;
+    };
 
     document.getElementById('createForm').addEventListener('submit', async function(e) {
       e.preventDefault();
