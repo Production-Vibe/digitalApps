@@ -4,6 +4,8 @@ import { config } from '../config';
 import { generateTransitionNumber } from '../lib/id';
 import { updateNaryadStatus } from '../lib/transition-logic';
 import { roundSmart } from '../lib/round';
+import { resolveOrCreate } from '../lib/dict';
+import { DICT_TYPES, normalizeDictValue, type DictType } from '../lib/dict';
 
 const router = Router();
 
@@ -27,6 +29,38 @@ async function handleUploadCatalog(payload: Record<string, unknown>) {
   if (!Array.isArray(rows) || rows.length === 0) {
     throw new Error('rows обязателен (массив объектов)');
   }
+
+  const KEY: Record<DictType, string> = {
+    blankType: 'Тип заготовки',
+    material: 'Материал',
+    materialGrade: 'Марка материала',
+    blankSize: 'Размер заготовки',
+    priority: 'Приоритет',
+  };
+  const distinct = new Map<DictType, Set<string>>();
+  for (const type of DICT_TYPES) {
+    const values = new Set<string>();
+    for (const r of rows) {
+      const value = normalizeDictValue(r[KEY[type]]);
+      if (value) values.add(value);
+    }
+    distinct.set(type, values);
+  }
+
+  const canonByType = new Map<DictType, Map<string, string>>();
+  let dictAdded = 0;
+  for (const type of DICT_TYPES) {
+    const canon = new Map<string, string>();
+    for (const raw of distinct.get(type) ?? []) {
+      const resolved = await resolveOrCreate(type, raw);
+      if (resolved.created) dictAdded++;
+      canon.set(raw, resolved.value);
+    }
+    canonByType.set(type, canon);
+  }
+  const canon = (type: DictType, raw: unknown): string =>
+    canonByType.get(type)?.get(normalizeDictValue(raw)) ?? '';
+
   let count = 0;
   for (const r of rows) {
     await prisma.catalog.upsert({
@@ -38,10 +72,10 @@ async function handleUploadCatalog(payload: Record<string, unknown>) {
         designation: String(r['Обозначение'] || ''),
         designation2: String(r['Обозначение 2'] || ''),
         parentQty: Number(r['Кол-во на родителя'] || 0),
-        blankType: String(r['Тип заготовки'] || ''),
-        material: String(r['Материал'] || ''),
-        materialGrade: String(r['Марка материала'] || ''),
-        blankSize: String(r['Размер заготовки'] || ''),
+        blankType: canon('blankType', r['Тип заготовки']),
+        material: canon('material', r['Материал']),
+        materialGrade: canon('materialGrade', r['Марка материала']),
+        blankSize: canon('blankSize', r['Размер заготовки']),
         wallThickness: Number(r['Толщина стенки'] || 0),
         cutLength: Number(r['Длина резки'] || 0),
         ppb: String(r['ППБ'] || ''),
@@ -56,12 +90,12 @@ async function handleUploadCatalog(payload: Record<string, unknown>) {
         fitting: toBool(r['Слесарная']),
         bending: toBool(r['Гибка']),
         coating: toBool(r['Покрытие']),
-        priority: String(r['Приоритет'] || ''),
+        priority: canon('priority', r['Приоритет']),
       },
     });
     count++;
   }
-  return { ok: true, inserted: count };
+  return { ok: true, inserted: count, dictAdded };
 }
 
 async function handleCreateTransition(payload: Record<string, unknown>) {

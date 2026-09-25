@@ -1,9 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { DICT_TYPES, normalizeDictValue, resolveOrCreate } from '../src/lib/dict';
+import { prisma } from '../src/lib/prisma';
 
 function inflateRaw(buf: Buffer): Buffer {
   return zlib.inflateRawSync(buf);
@@ -145,6 +144,16 @@ interface ImportRow {
   coating: boolean;
 }
 
+type ImportDictType = Exclude<(typeof DICT_TYPES)[number], 'priority'>;
+
+const IMPORT_DICT_TYPES = DICT_TYPES.filter(
+  (type): type is ImportDictType => type !== 'priority',
+);
+
+function canon(map: ReadonlyMap<string, string> | undefined, r: string): string {
+  return map?.get(normalizeDictValue(r)) ?? '';
+}
+
 function cellOf(cells: RawCell[], col: number): string | undefined {
   const c = cells.find((x) => x.col === col);
   return c ? c.val : undefined;
@@ -233,6 +242,29 @@ async function main() {
   const parsed = parseRows(rows);
   console.log(`Кодов в листе «Продукция»: ${parsed.size}`);
 
+  const distinct = new Map<ImportDictType, Set<string>>();
+  for (const type of IMPORT_DICT_TYPES) {
+    const values = new Set<string>();
+    for (const r of parsed.values()) {
+      const value = normalizeDictValue(r[type]);
+      if (value) values.add(value);
+    }
+    distinct.set(type, values);
+  }
+
+  const dictCanons = new Map<ImportDictType, Map<string, string>>();
+  let dictAdded = 0;
+  for (const type of IMPORT_DICT_TYPES) {
+    const map = new Map<string, string>();
+    for (const raw of distinct.get(type) ?? []) {
+      const resolved = await resolveOrCreate(type, raw);
+      if (resolved.created) dictAdded++;
+      map.set(raw, resolved.value);
+    }
+    dictCanons.set(type, map);
+  }
+  console.log(`  Словари: добавлено значений: ${dictAdded}`);
+
   const existing = await prisma.catalog.findMany({ select: { code: true } });
   const oldCodes = new Set(existing.map((x) => x.code));
   const orphanCodes = [...oldCodes].filter((c) => !parsed.has(c));
@@ -241,6 +273,10 @@ async function main() {
   const rowsArr = [...parsed.values()];
   const catalogRows = rowsArr.map((r) => ({
     ...r,
+    blankType: canon(dictCanons.get('blankType'), r.blankType),
+    material: canon(dictCanons.get('material'), r.material),
+    materialGrade: canon(dictCanons.get('materialGrade'), r.materialGrade),
+    blankSize: canon(dictCanons.get('blankSize'), r.blankSize),
     ppb: '',
     cutting: false,
     plasma: false,
