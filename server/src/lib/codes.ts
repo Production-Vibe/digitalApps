@@ -27,7 +27,7 @@ export function missingPathRows(rootCode: string, codes: string[]): string[] {
   const segs = splitCode(rootCode);
   const allowed = new Set(codes.map((c) => norm(c)));
   const missing: string[] = [];
-  for (let i = 1; i <= segs.length; i++) {
+  for (let i = 1; i < segs.length; i++) {
     const p = segs.slice(0, i).join('/');
     if (!allowed.has(p)) missing.push(p);
   }
@@ -35,5 +35,9 @@ export function missingPathRows(rootCode: string, codes: string[]): string[] {
 }
 
 export function isPrefix(parent: string, codes: string[]): boolean {
-  return codes.some((c) => c === parent || c.startsWith(parent + '/'));
+  const key = norm(parent);
+  return codes.some((c) => {
+    const k = norm(c);
+    return k === key || k.startsWith(key + '/');
+  });
 }

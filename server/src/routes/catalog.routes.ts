@@ -123,7 +123,6 @@ router.post('/', requireAuth('master'), async (req: AuthRequest, res) => {
       return;
     }
     for (const m of missingPathRows(data.code, codes)) {
-      if (m === data.code) continue;
       await prisma.catalog.upsert({
         where: { code: m },
         update: {},
