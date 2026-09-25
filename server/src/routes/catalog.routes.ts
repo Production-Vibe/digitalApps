@@ -1,10 +1,40 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { buildCatalogTree } from '../lib/catalog-tree';
 import { requireAuth } from '../middleware/auth';
 import { param, queryStr } from '../lib/request';
+import { roundSmart } from '../lib/round';
 
 const router = Router();
+
+const FLAG_FIELDS = ['cutting', 'heatTreatment', 'plasma', 'turning', 'milling', 'drilling', 'fitting', 'bending', 'coating'] as const;
+const NUM_FIELDS = ['parentQty', 'wallThickness', 'cutLength', 'blankWeight', 'partWeight'] as const;
+const STR_FIELDS = ['code', 'name', 'designation', 'designation2', 'blankType', 'material', 'materialGrade', 'blankSize', 'ppb', 'priority'] as const;
+
+function toBool(v: unknown): boolean {
+  if (typeof v === 'boolean') return v;
+  return ['+', '1', 'да'].includes(String(v).trim().toLowerCase());
+}
+
+function normalizeBody(body: unknown): Prisma.CatalogUncheckedCreateInput {
+  const raw = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+  const data: Record<string, unknown> = {};
+  for (const f of STR_FIELDS) {
+    const val = raw[f];
+    data[f] = typeof val === 'string' ? val.trim() : String(val ?? '').trim();
+  }
+  for (const f of NUM_FIELDS) {
+    const n = Number(raw[f] ?? 0);
+    data[f] = roundSmart(Number.isFinite(n) ? n : 0);
+  }
+  for (const f of FLAG_FIELDS) data[f] = toBool(raw[f]);
+  return data as Prisma.CatalogUncheckedCreateInput;
+}
+
+function isP2002(e: unknown): boolean {
+  return !!e && typeof e === 'object' && (e as { code?: string }).code === 'P2002';
+}
 
 router.get('/', requireAuth('master', 'shift'), async (req, res) => {
   const search = queryStr(req, 'search');
@@ -26,6 +56,67 @@ router.get('/', requireAuth('master', 'shift'), async (req, res) => {
     ...(search || priority ? { take: 500 } : {}),
   });
   res.json(items);
+});
+
+router.post('/', requireAuth('master'), async (req, res) => {
+  const data = normalizeBody(req.body);
+  if (!data.code) { res.status(400).json({ error: 'Код обязателен' }); return; }
+  const existing = await prisma.catalog.findUnique({ where: { code: data.code } });
+  if (existing) { res.status(409).json({ error: 'Код уже существует' }); return; }
+  try {
+    const created = await prisma.catalog.create({ data });
+    res.status(201).json(created);
+  } catch (e) {
+    if (isP2002(e)) { res.status(409).json({ error: 'Код уже существует' }); return; }
+    throw e;
+  }
+});
+
+router.put('/:code', requireAuth('master'), async (req, res) => {
+  const oldCode = param(req, 'code');
+  const existing = await prisma.catalog.findUnique({ where: { code: oldCode } });
+  if (!existing) { res.status(404).json({ error: 'Не найдено' }); return; }
+  const data = normalizeBody(req.body);
+  const newCode = data.code || oldCode;
+  if (newCode !== oldCode) {
+    const taken = await prisma.catalog.findUnique({ where: { code: newCode } });
+    if (taken) { res.status(409).json({ error: 'Код уже существует' }); return; }
+    const moved = await prisma.$transaction(async (tx) => {
+      await tx.catalog.create({ data: { ...data, code: newCode } });
+      const l = await tx.launches.updateMany({ where: { partCode: oldCode }, data: { partCode: newCode } });
+      const w = await tx.workOrders.updateMany({ where: { partCode: oldCode }, data: { partCode: newCode } });
+      const p = await tx.printQueue.updateMany({ where: { partCode: oldCode }, data: { partCode: newCode } });
+      const q = await tx.queue.updateMany({ where: { code: oldCode }, data: { code: newCode } });
+      await tx.catalog.delete({ where: { code: oldCode } });
+      return { launches: l.count, workOrders: w.count, printQueue: p.count, queue: q.count };
+    });
+    const fresh = await prisma.catalog.findUnique({ where: { code: newCode } });
+    res.json({ ...fresh, codeChanged: true, moved });
+    return;
+  }
+  const updated = await prisma.catalog.update({
+    where: { code: oldCode },
+    data: data as Prisma.CatalogUncheckedUpdateInput,
+  });
+  res.json(updated);
+});
+
+router.delete('/:code', requireAuth('master'), async (req, res) => {
+  const code = param(req, 'code');
+  const existing = await prisma.catalog.findUnique({ where: { code } });
+  if (!existing) { res.status(404).json({ error: 'Не найдено' }); return; }
+  const [launches, workOrders, printQueue, queue] = await Promise.all([
+    prisma.launches.count({ where: { partCode: code } }),
+    prisma.workOrders.count({ where: { partCode: code } }),
+    prisma.printQueue.count({ where: { partCode: code } }),
+    prisma.queue.count({ where: { code } }),
+  ]);
+  if (launches + workOrders + printQueue + queue > 0) {
+    res.status(409).json({ error: 'Код используется', refs: { launches, workOrders, printQueue, queue } });
+    return;
+  }
+  await prisma.catalog.delete({ where: { code } });
+  res.json({ ok: true });
 });
 
 router.get('/:code', requireAuth('master', 'shift'), async (req, res) => {
