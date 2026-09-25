@@ -1,0 +1,11 @@
+{
+  "priority": [
+    { "value": "высокий" },
+    { "value": "средний" },
+    { "value": "низкий" }
+  ],
+  "blankType": [],
+  "material": [],
+  "materialGrade": [],
+  "blankSize": []
+}

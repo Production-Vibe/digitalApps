@@ -124,6 +124,22 @@ async function seedEquipment(rows: EquipmentRow[]) {
   }
 }
 
+async function seedDictionaryValues(rows: Record<string, { value: string }[]>) {
+  const count = Object.values(rows).reduce((n, arr) => n + arr.length, 0);
+  console.log(`Seeding dictionary values: ${count} rows`);
+  for (const type of Object.keys(rows)) {
+    for (const r of rows[type]) {
+      const v = toStr(r.value).trim();
+      if (!v) continue;
+      await prisma.dictionaryValue.upsert({
+        where: { type_value: { type, value: v } },
+        update: {},
+        create: { type, value: v, synonyms: [] },
+      });
+    }
+  }
+}
+
 function loadJson<T>(filename: string): T[] {
   const fp = path.join(SEED_DIR, filename);
   if (!fs.existsSync(fp)) {
@@ -137,6 +153,10 @@ async function main() {
   console.log('=== Seed start ===');
 
   const catalog = loadJson<CatalogRow>('catalog.json');
+  const dictFile = path.join(SEED_DIR, 'dictionaries.json');
+  const dictRows: Record<string, { value: string }[]> = fs.existsSync(dictFile) ? JSON.parse(fs.readFileSync(dictFile, 'utf-8')) : {};
+  if (Object.keys(dictRows).length > 0) await seedDictionaryValues(dictRows);
+
   const catalogCount = await prisma.catalog.count();
   if (catalog.length > 0 && catalogCount === 0) {
     await seedCatalog(catalog);

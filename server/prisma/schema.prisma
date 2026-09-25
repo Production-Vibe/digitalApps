@@ -246,3 +246,15 @@ model PushSubscription {
 
   @@index([login])
 }
+
+model DictionaryValue {
+  id       Int      @id @default(autoincrement())
+  type     String
+  value    String
+  synonyms String[]
+  isActive Boolean  @default(true)
+  sort     Int      @default(0)
+
+  @@unique([type, value])
+  @@index([type])
+}
