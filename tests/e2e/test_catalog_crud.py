@@ -160,7 +160,6 @@ def main():
             helpers.open_app(page)
             helpers.do_login(page, config.CREDS["master"])
             page.wait_for_url("**/master", timeout=15000)
-            page.wait_for_selector("#tab-nomenclatura", timeout=15000)
             page.click('button[data-tab="nomenclatura"]')
             page.wait_for_selector("#cmAdd", timeout=15000)
             ok = page.is_visible("#cmAdd")
