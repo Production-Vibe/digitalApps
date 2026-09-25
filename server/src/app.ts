@@ -8,6 +8,7 @@ import { wrapRouter } from './lib/async-wrap';
 import authRoutes from './routes/auth.routes';
 import pageRoutes from './routes/page.routes';
 import catalogRoutes from './routes/catalog.routes';
+import dictionariesRoutes from './routes/dictionaries.routes';
 import equipmentRoutes from './routes/equipment.routes';
 import launchesRoutes from './routes/launches.routes';
 import workordersRoutes from './routes/workorders.routes';
@@ -55,6 +56,7 @@ interface PrismaError {
 
 app.use('/api', wrapRouter(authRoutes));
 app.use('/api/catalog', wrapRouter(catalogRoutes));
+app.use('/api/dictionaries', wrapRouter(dictionariesRoutes));
 app.use('/api/equipment', wrapRouter(equipmentRoutes));
 app.use('/api/launches', wrapRouter(launchesRoutes));
 app.use('/api/work-orders', wrapRouter(workordersRoutes));
