@@ -662,6 +662,9 @@ details summary strong { color: var(--ink-2); }
 .dict-wrap { display: flex; gap: .25rem; align-items: center; }
 .dict-wrap .input { flex: 1; min-width: 0; }
 .dict-wrap .btn { padding: .15rem .5rem; }
+.dict-toolbar { display: flex; gap: .5rem; align-items: center; margin-bottom: .75rem; }
+.dict-add { display: flex; gap: .5rem; align-items: center; }
+.row-inactive { opacity: .5; }
 
 /* в”Ђв”Ђ РњРѕР±РёР»СЊРЅС‹Р№ (С‚РµР»РµС„РѕРЅ/РїР»Р°РЅС€РµС‚ С‡РµСЂРµР· Funnel) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
 

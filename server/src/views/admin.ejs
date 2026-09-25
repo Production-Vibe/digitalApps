@@ -19,6 +19,7 @@
     <nav class="top-bar__nav">
       <button class="tab-btn active" data-panel="employees" type="button" onclick="switchPanel('employees')">Сотрудники</button>
       <button class="tab-btn" data-panel="catalog" type="button" onclick="switchPanel('catalog')">Номенклатура</button>
+      <button class="tab-btn" data-panel="dicts" type="button" onclick="switchPanel('dicts')">Справочники</button>
     </nav>
     <div class="top-bar__user">
       <span class="user-full-name"></span> (admin)
@@ -75,11 +76,20 @@
       </div>
       <div id="adminCatalogManager"></div>
     </section>
+
+    <section id="panel-dicts" hidden>
+      <div class="page-header">
+        <h1>Справочники</h1>
+        <button onclick="window.__DICT_RELOAD && window.__DICT_RELOAD()" class="btn btn--primary">Обновить</button>
+      </div>
+      <div id="adminDictManager"></div>
+    </section>
   </main>
 
   <script src="/api.js"></script>
   <script src="/ui.js"></script>
   <script src="/catalog-manager.js"></script>
+  <script src="/dict-manager.js"></script>
   <script>
     (async function() {
       var u = await initSession();
@@ -98,13 +108,23 @@
       });
       var emp = document.getElementById('panel-employees');
       var cat = document.getElementById('panel-catalog');
+      var dicts = document.getElementById('panel-dicts');
       if (emp) emp.hidden = name !== 'employees';
       if (cat) cat.hidden = name !== 'catalog';
+      if (dicts) dicts.hidden = name !== 'dicts';
       if (name === 'catalog' && !window.__catalogManagerAdminMounted) {
         CatalogManager.mount(document.getElementById('adminCatalogManager'), { showMetrics: false });
         window.__catalogManagerAdminMounted = true;
       }
+      if (name === 'dicts' && !window.__dictManagerMounted) {
+        DictManager.mount(document.getElementById('adminDictManager'));
+        window.__dictManagerMounted = true;
+      }
     }
+    window.__DICT_RELOAD = function () {
+      var dm = document.getElementById('adminDictManager');
+      if (dm && window.DictManager && window.DictManager.reload) window.DictManager.reload();
+    };
     window.__CM_RELOAD = function () {
       var el = document.getElementById('adminCatalogManager');
       if (!el) return;
