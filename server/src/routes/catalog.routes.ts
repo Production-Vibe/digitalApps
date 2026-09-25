@@ -2,9 +2,11 @@ import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { buildCatalogTree } from '../lib/catalog-tree';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, AuthRequest } from '../middleware/auth';
 import { param, queryStr } from '../lib/request';
 import { roundSmart } from '../lib/round';
+import { computeNext, isPrefix, missingPathRows, topLevelNext } from '../lib/codes';
+import { DICT_LABELS, isDictField, toCanonical } from '../lib/dict';
 
 const router = Router();
 
@@ -36,6 +38,31 @@ function isP2002(e: unknown): boolean {
   return !!e && typeof e === 'object' && (e as { code?: string }).code === 'P2002';
 }
 
+async function validateDictFields(data: Record<string, unknown>): Promise<string | null> {
+  for (const f of STR_FIELDS) {
+    if (!isDictField(f)) continue;
+    const raw = data[f];
+    if (!raw || String(raw).trim() === '') continue;
+    const canon = await toCanonical(f, raw);
+    if (canon === null) return f;
+    if (canon) data[f] = canon;
+  }
+  return null;
+}
+
+function dictErrorBody(data: Record<string, unknown>, field: string): { error: string; field: string } | null {
+  if (!isDictField(field)) return null;
+  return {
+    error: 'Значение «' + String(data[field] ?? '') + '» не в пределах ' + DICT_LABELS[field],
+    field,
+  };
+}
+
+async function allCodes(): Promise<string[]> {
+  const rows = await prisma.catalog.findMany({ select: { code: true } });
+  return rows.map((r) => r.code);
+}
+
 router.get('/', requireAuth('master', 'shift'), async (req, res) => {
   const search = queryStr(req, 'search');
   const priority = queryStr(req, 'priority');
@@ -58,27 +85,105 @@ router.get('/', requireAuth('master', 'shift'), async (req, res) => {
   res.json(items);
 });
 
-router.post('/', requireAuth('master'), async (req, res) => {
+router.post('/next-code', requireAuth('master'), async (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const parent = String(body.parent ?? '').trim();
+  const codes = await allCodes();
+  if (parent) {
+    if (!isPrefix(parent, codes)) {
+      res.status(400).json({ error: 'Родитель «' + parent + '» отсутствует в дереве' });
+      return;
+    }
+    const next = computeNext(parent, codes);
+    res.json({ code: next, wouldMaterialize: missingPathRows(next, codes) });
+    return;
+  }
+  res.json({ code: topLevelNext(codes), wouldMaterialize: [] });
+});
+
+router.post('/', requireAuth('master'), async (req: AuthRequest, res) => {
   const data = normalizeBody(req.body);
+  const dictField = await validateDictFields(data as unknown as Record<string, unknown>);
+  const dictErr = dictField ? dictErrorBody(data as unknown as Record<string, unknown>, dictField) : null;
+  if (dictErr) { res.status(400).json(dictErr); return; }
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const parent = (body.parent || '').toString().trim();
+  const role = req.user?.role ?? '';
+  const materialized: string[] = [];
+  if (role !== 'admin') {
+    const codes = await allCodes();
+    if (!parent) { res.status(400).json({ error: 'Укажите родителя либо создавайте в корне' }); return; }
+    if (!isPrefix(parent, codes)) {
+      res.status(400).json({ error: 'Родитель «' + parent + '» отсутствует в дереве' });
+      return;
+    }
+    const expected = computeNext(parent, codes);
+    if (data.code !== expected) {
+      res.status(400).json({ error: 'Код позиции формируется автоматически', code: expected });
+      return;
+    }
+    for (const m of missingPathRows(data.code, codes)) {
+      if (m === data.code) continue;
+      await prisma.catalog.upsert({
+        where: { code: m },
+        update: {},
+        create: {
+          code: m,
+          name: '',
+          designation: '',
+          designation2: '',
+          parentQty: 0,
+          blankType: '',
+          material: '',
+          materialGrade: '',
+          blankSize: '',
+          wallThickness: 0,
+          cutLength: 0,
+          ppb: '',
+          blankWeight: 0,
+          partWeight: 0,
+          cutting: false,
+          heatTreatment: false,
+          plasma: false,
+          turning: false,
+          milling: false,
+          drilling: false,
+          fitting: false,
+          bending: false,
+          coating: false,
+          priority: '',
+        },
+      });
+      materialized.push(m);
+    }
+  }
   if (!data.code) { res.status(400).json({ error: 'Код обязателен' }); return; }
   const existing = await prisma.catalog.findUnique({ where: { code: data.code } });
   if (existing) { res.status(409).json({ error: 'Код уже существует' }); return; }
   try {
     const created = await prisma.catalog.create({ data });
-    res.status(201).json(created);
+    res.status(201).json(materialized.length ? { ...created, materialized } : created);
   } catch (e) {
     if (isP2002(e)) { res.status(409).json({ error: 'Код уже существует' }); return; }
     throw e;
   }
 });
 
-router.put('/:code', requireAuth('master'), async (req, res) => {
+router.put('/:code', requireAuth('master'), async (req: AuthRequest, res) => {
   const oldCode = param(req, 'code');
   const existing = await prisma.catalog.findUnique({ where: { code: oldCode } });
   if (!existing) { res.status(404).json({ error: 'Не найдено' }); return; }
   const data = normalizeBody(req.body);
+  const dictField = await validateDictFields(data as unknown as Record<string, unknown>);
+  const dictErr = dictField ? dictErrorBody(data as unknown as Record<string, unknown>, dictField) : null;
+  if (dictErr) { res.status(400).json(dictErr); return; }
   const newCode = data.code || oldCode;
   if (newCode !== oldCode) {
+    const role = req.user?.role ?? '';
+    if (role !== 'admin') {
+      res.status(400).json({ error: 'Код позиции формируется автоматически' });
+      return;
+    }
     const taken = await prisma.catalog.findUnique({ where: { code: newCode } });
     if (taken) { res.status(409).json({ error: 'Код уже существует' }); return; }
     const moved = await prisma.$transaction(async (tx) => {
