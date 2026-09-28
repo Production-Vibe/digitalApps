@@ -75,13 +75,13 @@ def main():
             r = login(req, cred["login"], cred["password"])
             tokens[role] = r.json().get("accessToken")
 
-        # 1. create
-        r = api(req, "POST", "/api/catalog", {"code": CODE_A, "name": "Тест-позиция", "designation": "TST-OB"}, token=tokens["master"])
+        # 1. create (hand code allowed for admin only after auto-code contract)
+        r = api(req, "POST", "/api/catalog", {"code": CODE_A, "name": "Тест-позиция", "designation": "TST-OB"}, token=tokens["admin"])
         ok = r.status == 201 and r.json().get("code") == CODE_A
-        runner.check("каталог: create (master) -> 201", ok, "status " + str(r.status))
+        runner.check("каталог: create (admin) -> 201", ok, "status " + str(r.status))
 
         # 2. duplicate
-        r = api(req, "POST", "/api/catalog", {"code": CODE_A, "name": "Дубль"}, token=tokens["master"])
+        r = api(req, "POST", "/api/catalog", {"code": CODE_A, "name": "Дубль"}, token=tokens["admin"])
         runner.check("каталог: дубль кода -> 409", r.status == 409, str(r.status))
 
         # 3. blank code
@@ -93,7 +93,7 @@ def main():
         runner.check("каталог: create (shift) -> 403", r.status == 403, str(r.status))
 
         # 5. edit without code change
-        r = api(req, "PUT", "/api/catalog/" + CODE_A, {"code": CODE_A, "name": "Тест-позиция v2", "designation": "TST-OB"}, token=tokens["master"])
+        r = api(req, "PUT", "/api/catalog/" + CODE_A, {"code": CODE_A, "name": "Тест-позиция v2", "designation": "TST-OB"}, token=tokens["admin"])
         ok = r.status == 200 and r.json().get("name") == "Тест-позиция v2" and "codeChanged" not in r.json()
         runner.check("каталог: PUT без смены кода -> 200", ok, "status " + str(r.status))
 
@@ -103,7 +103,7 @@ def main():
         runner.check("каталог: создан тестовый запуск на CODE_A", launch_ok, "status " + str(r.status))
         launch_id = r.json().get("id")
 
-        r = api(req, "PUT", "/api/catalog/" + CODE_A, {"code": CODE_B, "name": "Тест-позиция v2", "designation": "TST-OB"}, token=tokens["master"])
+        r = api(req, "PUT", "/api/catalog/" + CODE_A, {"code": CODE_B, "name": "Тест-позиция v2", "designation": "TST-OB"}, token=tokens["admin"])
         body = r.json()
         ok = (
             r.status == 200
