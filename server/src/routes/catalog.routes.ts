@@ -112,15 +112,22 @@ router.post('/', requireAuth('master'), async (req: AuthRequest, res) => {
   const materialized: string[] = [];
   if (role !== 'admin') {
     const codes = await allCodes();
-    if (!parent) { res.status(400).json({ error: 'Укажите родителя либо создавайте в корне' }); return; }
-    if (!isPrefix(parent, codes)) {
-      res.status(400).json({ error: 'Родитель «' + parent + '» отсутствует в дереве' });
-      return;
-    }
-    const expected = computeNext(parent, codes);
-    if (data.code !== expected) {
-      res.status(400).json({ error: 'Код позиции формируется автоматически', code: expected });
-      return;
+    if (!parent) {
+      const expected = topLevelNext(codes);
+      if (data.code !== expected) {
+        res.status(400).json({ error: 'Код позиции формируется автоматически', code: expected });
+        return;
+      }
+    } else {
+      if (!isPrefix(parent, codes)) {
+        res.status(400).json({ error: 'Родитель «' + parent + '» отсутствует в дереве' });
+        return;
+      }
+      const expected = computeNext(parent, codes);
+      if (data.code !== expected) {
+        res.status(400).json({ error: 'Код позиции формируется автоматически', code: expected });
+        return;
+      }
     }
     for (const m of missingPathRows(data.code, codes)) {
       await prisma.catalog.upsert({
