@@ -240,6 +240,8 @@ body {
 .cm-dict-select option { color: var(--text); }
 .cm-dict-select option[value=""] { color: var(--muted); }
 
+.modal .form-group input::placeholder { color: var(--muted); opacity: 1; }
+
 .filter-bar {
   display: flex;
   gap: 0.75rem;

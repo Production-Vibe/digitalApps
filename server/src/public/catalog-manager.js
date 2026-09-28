@@ -162,7 +162,8 @@
     }
     return '<div class="form-group"><label for="cm-' + f.key + '">' + escHtml(f.label) + '</label>' +
       '<input type="' + (f.type === 'number' ? 'number' : 'text') + '" step="any" id="cm-' + f.key + '" class="input"' +
-      (f.required ? ' required' : '') + ' value="' + escHtml(v) + '"></div>';
+      (f.key === 'code' ? '' : ' placeholder="Не задано"') + (f.required ? ' required' : '') +
+      ' value="' + escHtml(v) + '"></div>';
   }
 
   function setSelectValue(el, val) {
@@ -556,7 +557,7 @@
       var value = item[f.key] === null || item[f.key] === undefined ? '' : item[f.key];
       if (!el) return;
       if (DICT_TYPES.indexOf(f.key) !== -1) setSelectValue(el, value);
-      else el.value = value;
+      else el.value = (f.type === 'number' && (!value || Number(value) === 0)) ? '' : value;
     });
     FLAGS.forEach(function (f) { document.getElementById('cm-' + f.key).checked = !!item[f.key]; });
     showModal();
