@@ -141,6 +141,27 @@
 `qty`, `priority`, `customer`, `sp`, `program`, `operator`, `issueMachine`,
 `issue` (bool), `status`. **Зарезервирована** — не питается ни одним route.
 
+### DictionaryValue — словари каталога (ADR-009)
+
+Справочники 5 строковых полей `Catalog` (`blankType/material/materialGrade/
+blankSize/priority`). Поля `Catalog` **остаются String** (без FK) — минимально
+инвазивно; валидация через `lib/dict.ts`. Создаётся сидом, `dict:migrate`,
+quick-add (`POST /api/dictionaries/:type`) и автоматически импортом
+(VBA/Excel, `resolveOrCreate`). Полное описание — `dictionaries-catalog.md`.
+
+| Поле | Тип |
+|---|---|
+| `id` | `Int @id @default(autoincrement())` |
+| `type` | `String` (`DICT_TYPES`: `blankType\|material\|materialGrade\|blankSize\|priority`) |
+| `value` | `String` (канон; `@@unique([type, value])`) |
+| `synonyms` | `String[]` (варианты импорта/миграции) |
+| `isActive` | `Boolean @default(true)` |
+| `sort` | `Int @default(0)` (порядок в списках; 0 = алфавитный) |
+
+Правила: «не задано» в `Catalog` = пустая строка; деактивированные значения не
+предлагаются и не принимаются; сид — `server/prisma/data/dictionaries.json`
+(priority: высокий/средний/низкий).
+
 ## Статусы жизненного цикла
 
 Общий словарь статусов — единый перечень (ADR-005); машиночитаемая копия —

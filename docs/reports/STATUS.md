@@ -19,9 +19,49 @@
 - **`google-apps`** — легаси Google Apps Script (модули, GAS-скиллы, GAS-доки,
   E2E против `/exec`, манифест деплоя). В `main` не переносить без явного решения.
 - Код-модули: `server/src/**`; схема БД (канон) — `server/prisma/schema.prisma`
-  (12 моделей, 6 enum).
+  (13 моделей, 6 enum).
 
 ## Последний завершённый этап
+
+- **25.09.2026 — Этап 17: справочники каталога + автогенерация кода (ADR-009).**
+  Запись номенклатуры стала управляемой: 5 полей каталога
+  (`blankType/material/materialGrade/blankSize/priority`) переведены в словари с
+  серверной валидацией, код новой позиции формирует система.
+  **БД (13-я модель):** `DictionaryValue` (`type/value/synonyms/isActive/sort`,
+  `@@unique([type,value])`), миграция `20260925094825_add_dictionary_values`,
+  сид `dictionaries.json` (priority: высокий/средний/низкий);
+  `lib/dict.ts` — `DICT_TYPES/DICT_LABELS`, `normalizeDictValue`,
+  `toCanonical` (→ канон/400), `resolveOrCreate` (импорт:синонимы →
+  канон, новое → create).
+  **`dict:migrate`** (`scripts/normalize-catalog-dicts.ts`, `--dry`): мусор
+  `#N/A/0/—/числа` → '', синонимы → канон; `Catalog.code` **не изменяется**.
+  **Автокод** (`lib/codes.ts`): `computeNext` (max прямых детей+1), `topLevelNext`
+  (22→23), `missingPathRows` (материализация контейнеров), `isPrefix`;
+  `POST /api/catalog/next-code` → `{code, wouldMaterialize}`; `POST /` для
+  не-admin: code обязан = `next-code` (иначе 400), материализация контейнеров
+  (`materialized` в ответе); `PUT` — смена кода только admin; **корневое
+  создание master по `topLevelNext`** (фикс `dc1176e`). **Словари-API** —
+  `routes/dictionaries.routes.ts`: `GET /:type` (master, admin `?all=1`),
+  `POST quick-add` (дубль 409, реактивация 201), `PUT`/`deactivate` (admin).
+  **UI:** модалка `catalog-manager.js` — родитель (комбобокс), строка
+  «Код: <next-code> (сгенерирован)», ручной ввод только admin, 5 dict-селектов +
+  «+» quick-add, подсветка 400 `{field}`; новый таб `/admin` «Справочники»
+  (`dict-manager.js`: список значений/синонимы chips/сортировка/деактивация).
+  **Импорт** VBA/Excel — `resolveOrCreate` (лояльно), `dictAdded`. Деплой
+  `docker compose up -d --build`, `/health` ok; `dict:migrate` LIVE на оба
+  контура (стенд `digital_narad` + локальный `MOSD`). **Проверки:** `npm run
+  build` + `npm run check` PASS; E2E `test_dict_catalog.py` **34/34 PASS**
+  (next-code top/родителя 23 и `/1`→`/2`, POST корня по next-code 201, без/чужой
+  code 400, валидные словари 201, `#N/A` → 400 `field`, quick-add 201/409/GET,
+  PUT синонимов+sort, deactivate → скрыт + каталог 400 + реактивация 201,
+  **материализация** — `86/TST` 400, глубокий код → виртуальный родитель →
+  `next-code` `wouldMaterialize` → POST `materialized:['22/TST-…']`, UI `/admin`
+  таб «Справочники», cleanup 0); регресс `test_catalog_crud.py` **15/15**
+  (создание/смена кода переведены на admin — автокод-контракт master),
+  `test_admin.py` **5/5**, `test_master.py` **12/12**. Стенд чист: Catalog
+  **2208** (TST=0), `DictionaryValue`=167 (blankSize 93, materialGrade 60,
+  blankType 7, material 4, priority 3), `#N/A` в materialGrade 0 (было 105),
+  Launches 3, WorkOrders 1 — живые данные не тронуты.
 
 - **23.09.2026 — Этап 16: справочник номенклатуры в UI (CRUD каталога).**
   Каталог (2208 позиций) стал редактируемым из приложения — master и admin
@@ -551,12 +591,15 @@
 
 ## Следующий шаг
 
-0. ✅ **Справочник номенклатуры в UI (Этап 16)**: CRUD каталога из приложения —
-   master/admin создают/правят/удаляют позиции, смена кода каскаднно обновляет
-   ссылки, удаление занятого кода запрещено (409). Проверки: E2E `test_catalog_crud.py`
-   **15/15**, регресс admin 5/5 + master 12/12. **Далее (по желанию):** фаза
-   «автозаполнение» (выбранное «ещё кое что») — сначала обсудить сценарий, затем
-   план; (опц.) Excel-импорт как merge (Excel = резерв, БД+UI = источник правды).
+0. ✅ **Справочники каталога + автогенерация кода (Этап 17)**: 5 словарных полей
+   каталога + модель `DictionaryValue` (ADR-009), автокод из дерева с
+   материализацией контейнеров, `next-code`, строгий UI-ввод / лояльный импорт,
+   `dict:migrate` (чистка `#N/A` и мусора, коды не меняются). Проверки: E2E
+   `test_dict_catalog.py` **34/34**, регресс catalog_crud 15/15 + admin 5/5 +
+   master 12/12. **Далее (по желанию):** фаза «автозаполнение» (выбранное «ещё
+   кое что») — сначала обсудить сценарий, затем план; (опц.) Excel-импорт как
+   merge (Excel = резерв, БД+UI = источник правды); (опц.) пересмотр старых
+   пустых словарных значений мастером через редактор.
 1. ✅ **Смена боевых паролей ролей** (Этап 15): один пароль на
    `admin/master/shift/operator/otk`, задан на обоих контурах; seed больше не
    сбрасывает пароли при деплое (`update: {}`). Проверки: E2E 31/31, bizcycle 51/51.
@@ -590,6 +633,7 @@
 
 - Архитектура/роли/данные: `docs/specs/architecture.md`, `docs/specs/roles.md`,
   `docs/specs/data-model.md`.
+- Словари каталога + автокод: `docs/specs/dictionaries-catalog.md`, ADR-009.
 - E2E-алгоритм запуска: `docs/testing/e2e-runbook.md` (актуален: 26/26 PASS
   против `localhost:3000`).
 - VBA REST-интеграция: `server/docs/vba-integration.md`.

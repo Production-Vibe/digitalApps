@@ -25,11 +25,11 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 
 ## Модель данных
 
-Канон — `server/prisma/schema.prisma` (11 моделей):
+Канон — `server/prisma/schema.prisma` (13 моделей):
 
 | Модель | Назначение | Заполняется |
 |---|---|---|
-| `Catalog` | Полная номенклатура (2208 позиций из Excel) | импорт-скрипт / VBA / seed |
+| `Catalog` | Полная номенклатура (2208 позиций из Excel) | импорт-скрипт / VBA / seed / UI (master, admin) |
 | `Launches` | Запуски на конкретные ПА | master (`POST /api/launches`) |
 | `WorkOrders` | Цифровые наряды операторов (канон наряда) | shift (`POST /api/work-orders/issue`) |
 | `Transitions` | Технологические переходы наряда (FK по `orderNumber`) | оператор / VBA |
@@ -41,6 +41,7 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 | `Queue` | Очередь назначений операторам | зарезервирована (не питается routes) |
 | `Notification` | Уведомления ролей (бейдж/тост внутри приложения) | хуки событий (`lib/notify.ts`) |
 | `PushSubscription` | Web Push-подписки (login, endpoint, VAPID-keys) | `POST /api/push/subscribe` (`public/push-init.js`) |
+| `DictionaryValue` | Словари полей каталога (ADR-009) | сид / `dict:migrate` / master quick-add / импорт |
 
 ## REST-модули
 
@@ -50,7 +51,7 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 |---|---|---|
 | `auth.routes.ts` | `/api` | `login`, **`register`** (самозапись operator), `refresh`, `session`, `logout`, `me` |
 | `page.routes.ts` | `/` | `GET /login`, `/master`, `/shift`, `/operator`, `/otk`, `/admin` (EJS) |
-| `catalog.routes.ts` | `/api/catalog` | `GET /`, `GET /:code`, `GET /tree/units` (вложенное дерево номенклатуры) |
+| `catalog.routes.ts` | `/api/catalog` | `GET /`, `GET /:code`, `GET /tree/units` (вложенное дерево номенклатуры), `POST /next-code` (автокод), `POST /` (валидация словарей + материализация), `PUT /:code`, `DELETE /:code` |
 | `equipment.routes.ts` | `/api/equipment` | `GET /`, `POST /`, `DELETE /:id` |
 | `launches.routes.ts` | `/api/launches` | `GET /`, `GET /pa/occupied`, `POST /`, `PUT /:id`, `DELETE /:id` |
 | `workorders.routes.ts` | `/api/work-orders` | `GET /`, `POST /issue`, `GET /my/list`, `GET /my/closed`, `PUT /:number/status` |
@@ -61,6 +62,7 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 | `admin.routes.ts` | `/api/admin` | `GET/POST /employees`, `PUT/PATCH /employees/:login` (`requireAuth('admin')`) |
 | `analytics.routes.ts` | `/api/analytics` | `GET /dashboard` (master; сводка + номенклатура с метриками + отчёты за период) |
 | `notifications.routes.ts` | `/api/notifications` | `GET /my`, `POST /:id/read`, `POST /read-all` |
+| `dictionaries.routes.ts` | `/api/dictionaries` | `GET /:type`, `POST /:type` (quick-add), `PUT /:type/:id`, `POST /:type/:id/deactivate` |
 | `push.routes.ts` | `/api/push` | `GET /vapid-key`, `POST /subscribe`, `POST /unsubscribe` |
 | `vba.routes.ts` | `/api/vba` | `POST /ingest` (X-VBA-Secret) |
 
@@ -146,6 +148,15 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 - Коды номенклатуры: разделители `.` и `/` (`21.1/9`, `1.1.1`) считаются
   взаимозаменяемыми по сегментам; дерево строится нормализованным ключом
   (`splitCode` в `catalog-tree.ts`), исходный код позиции сохраняется в `byNorm`.
+- Автокод номенклатуры (ADR-009): код новой позиции формирует сервер
+  (`lib/codes.ts`) — `max(прямые дети)+1`, top `max+1` (22→23); разделитель
+  `/`; удалённые номера не переиспользуются. Ручной ввод/смена кода — только
+  admin; master обязан слать код из `POST /api/catalog/next-code`. Отсутствующие
+  строки-контейнеры по пути создаются автоматически («материализация»,
+  `materialized`/`wouldMaterialize`). 5 полей каталога (`blankType/material/
+  materialGrade/blankSize/priority`) валидируются словарём `DictionaryValue`
+  (без FK): в UI — строго (`toCanonical` → 400), в импорте VBA/Excel — лояльно
+  (`resolveOrCreate`, авто-добавление значений).
 - Статусы — единые константы `server/src/lib/naryad-status.ts` (+ по enum в
   Prisma-схеме).
 - Дата в UI: `dd.MM.yyyy HH:mm` (`fmtDate` в `api.js`).
