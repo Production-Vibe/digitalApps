@@ -128,7 +128,7 @@
 
   function dictOptionsHtml(f, val) {
     var v = val === null || val === undefined ? '' : String(val);
-    var html = '<option value=""' + (v ? '' : ' selected') + '>—</option>';
+    var html = '<option value=""' + (v ? '' : ' selected') + '>Не задано</option>';
     var found = !v;
     (dictOptions[f.key] || []).forEach(function (row) {
       var optionValue = dictValue(row);
@@ -156,7 +156,7 @@
     }
     if (DICT_TYPES.indexOf(f.key) !== -1 || f.type === 'select') {
       return '<div class="form-group"><label for="cm-' + f.key + '">' + escHtml(f.label) + '</label>' +
-        '<div class="dict-wrap"><select id="cm-' + f.key + '" class="input">' + dictOptionsHtml(f, v) + '</select>' +
+        '<div class="dict-wrap"><select id="cm-' + f.key + '" class="input cm-dict-select" required>' + dictOptionsHtml(f, v) + '</select>' +
         '<button id="cmAddDict-' + f.key + '" type="button" class="btn btn--sm" title="Добавить значение">+</button>' +
         '</div></div>';
     }

@@ -236,6 +236,10 @@ body {
 .checkbox-label { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; }
 .checkbox-label input { width: auto; }
 
+.cm-dict-select:invalid { color: var(--muted); }
+.cm-dict-select option { color: var(--text); }
+.cm-dict-select option[value=""] { color: var(--muted); }
+
 .filter-bar {
   display: flex;
   gap: 0.75rem;
