@@ -252,21 +252,153 @@
     }
   }
 
+  function nodeCode(node) {
+    return node && node.code ? String(node.code) : '';
+  }
+
+  function findNodeByCode(code) {
+    if (!code) return null;
+    var needle = normalizedCode(code);
+    var stack = treeData.slice();
+    while (stack.length) {
+      var node = stack.shift();
+      if (normalizedCode(nodeCode(node)) === needle) return node;
+      if (node.children) stack = stack.concat(node.children);
+    }
+    return null;
+  }
+
+  function parentPathCodes(code) {
+    var parts = String(code || '').split(/[./]/).map(function (part) { return part.trim(); }).filter(Boolean);
+    var out = [];
+    var acc = '';
+    for (var i = 0; i < parts.length; i++) {
+      acc = acc ? acc + '/' + parts[i] : parts[i];
+      out.push(acc);
+    }
+    return out;
+  }
+
+  function parentSubtree(node, selectedCode, pathSet) {
+    var kids = Array.isArray(node.children) ? node.children : [];
+    var code = nodeCode(node);
+    var norm = normalizedCode(code);
+    var label = code + ' — ' + escHtml(node.name || node.designation || '…');
+    var isSel = norm === normalizedCode(selectedCode);
+    var cls = isSel ? 'tree-leaf selected' : 'tree-leaf';
+    var row = '<div class="' + cls + '" data-code="' + escHtml(code) + '" title="' + escHtml(label) + '">' +
+      '<span class="tree-label">' + label + '</span></div>';
+    if (kids.length === 0) return row;
+    var open = isSel || (pathSet && pathSet[norm]);
+    var rows = kids.map(function (k) { return parentSubtree(k, selectedCode, pathSet); }).join('');
+    var selCls = isSel ? ' selected' : '';
+    return '<details class="tree-node"' + (open ? ' open' : '') + '>' +
+      '<summary data-code="' + escHtml(code) + '" class="' + selCls + '">' + label + '</summary>' + rows + '</details>';
+  }
+
+  function parentPickerHtml(selected) {
+    var sel = selected || '';
+    var rootCls = 'tree-parent-root' + (sel ? '' : ' selected');
+    var pathSet = {};
+    parentPathCodes(sel).forEach(function (p) { pathSet[p] = true; });
+    var html = '<div class="' + rootCls + '" data-code="">— Корень —</div>';
+    return html + treeData.map(function (n) { return parentSubtree(n, sel, pathSet); }).join('');
+  }
+
+  function setParentValue(value, label) {
+    var hidden = document.getElementById('cmParent');
+    if (!hidden) return;
+    hidden.value = value || '';
+    var valueEl = document.getElementById('cmParentValue');
+    if (valueEl) valueEl.textContent = label || (value ? value : '— Корень —');
+  }
+
+  function selectParent(value, keepOpen) {
+    var code = (value || '').trim();
+    var node = findNodeByCode(code);
+    var label = node ? nodeCode(node) + ' — ' + (node.name || node.designation || '…') : (code || '');
+    setParentValue(code, label);
+    var tree = document.getElementById('cmParentTree');
+    if (tree) tree.innerHTML = parentPickerHtml(code);
+    if (!keepOpen) {
+      var picker = document.getElementById('cmParentPicker');
+      if (picker) picker.style.display = 'none';
+    }
+    if (currentRole !== 'admin' && !editingCode) loadNextCode(code);
+  }
+
+  function renderParentTree(selected) {
+    var tree = document.getElementById('cmParentTree');
+    if (!tree) return;
+    tree.innerHTML = parentPickerHtml(selected);
+  }
+
   function populateParentSelect(selected) {
-    var parent = document.getElementById('cmParent');
-    if (!parent) return;
     var value = selected || '';
-    var found = !value;
-    var html = '<option value="">— Корень —</option>';
-    flattenNodes(treeData, []).forEach(function (node) {
-      var optionValue = String(node.code);
-      if (optionValue === value || normalizedCode(optionValue) === normalizedCode(value)) found = true;
-      var label = optionValue + ' — ' + (node.name || node.designation || '…');
-      html += '<option value="' + escHtml(optionValue) + '">' + escHtml(label) + '</option>';
+    var node = findNodeByCode(value);
+    setParentValue(value, node ? nodeCode(node) + ' — ' + (node.name || node.designation || '…') : (value || ''));
+    renderParentTree(value);
+  }
+
+  function searchParent(q) {
+    var tree = document.getElementById('cmParentTree');
+    if (!tree) return;
+    var needle = (q || '').trim().toLowerCase();
+    if (needle.length < 2) {
+      renderParentTree(getSelectedParent());
+      return;
+    }
+    var matches = flattenNodes(treeData, []).filter(function (n) {
+      return [n.code, n.name, n.designation].filter(Boolean).some(function (s) {
+        return String(s).toLowerCase().indexOf(needle) !== -1;
+      });
     });
-    if (value && !found) html += '<option value="' + escHtml(value) + '">' + escHtml(value) + '</option>';
-    parent.innerHTML = html;
-    parent.value = value;
+    if (!matches.length) {
+      tree.innerHTML = '<div class="muted" style="padding:0.5rem">Ничего не найдено</div>';
+      return;
+    }
+    tree.innerHTML = matches.map(function (n) {
+      var code = nodeCode(n);
+      var label = code + ' — ' + escHtml(n.name || n.designation || '…');
+      var isSel = normalizedCode(code) === normalizedCode(getSelectedParent());
+      return '<div class="tree-leaf' + (isSel ? ' selected' : '') + '" data-code="' + escHtml(code) + '" title="' + escHtml(label) + '">' +
+        '<span class="tree-label">' + label + '</span></div>';
+    }).join('');
+  }
+
+  function getSelectedParent() {
+    var hidden = document.getElementById('cmParent');
+    return hidden ? hidden.value : '';
+  }
+
+  function onParentTreeClick(e) {
+    var row = e.target.closest('[data-code]');
+    if (!row) return;
+    var code = row.getAttribute('data-code') || '';
+    var isFolder = e.target.closest('summary');
+    if (isFolder) {
+      selectParent(code, true);
+      return;
+    }
+    selectParent(code, false);
+  }
+
+  function onParentSearchInput() {
+    var input = document.getElementById('cmParentSearch');
+    if (!input) return;
+    searchParent(input.value);
+  }
+
+  function toggleParentPicker() {
+    var picker = document.getElementById('cmParentPicker');
+    if (!picker) return;
+    var willShow = picker.style.display !== 'flex';
+    picker.style.display = willShow ? 'flex' : 'none';
+    if (willShow) {
+      var input = document.getElementById('cmParentSearch');
+      if (input) input.value = '';
+      renderParentTree(getSelectedParent());
+    }
   }
 
   function dictFieldFromError(e) {
@@ -339,7 +471,15 @@
       '<div class="modal-content modal-content--wide">' +
       '<h3 id="cmTitle">Позиция</h3>' +
       '<p id="cmCodeWarn" class="alert alert--error" style="display:none">Код будет изменён — ссылки запусков/нарядов будут обновлены</p>' +
-      '<div class="form-group"><label for="cmParent">Родитель</label><div class="cm-parent-wrap"><select id="cmParent" class="input"></select></div></div>' +
+      '<div class="form-group"><label for="cmParent">Родитель</label>' +
+      '<div class="cm-parent-wrap">' +
+      '<span id="cmParentValue" class="cm-parent-value">— Корень —</span>' +
+      '<button id="cmParentPick" type="button" class="btn btn--sm">Выбрать</button>' +
+      '<input type="hidden" id="cmParent" value=""></div>' +
+      '<div id="cmParentPicker" class="cm-parent-picker" style="display:none">' +
+      '<input id="cmParentSearch" class="input cm-parent-search" placeholder="Поиск узла по коду, наименованию, обозначению...">' +
+      '<div id="cmParentTree" class="cm-parent-tree"></div>' +
+      '</div></div>' +
       '<div class="form-grid">' +
       FIELDS.map(function (f) { return fieldHtml(f, ''); }).join('') +
       '</div>' +
@@ -354,9 +494,12 @@
     modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
     document.getElementById('cmCancel').addEventListener('click', closeModal);
     document.getElementById('cmSave').addEventListener('click', save);
-    document.getElementById('cmParent').addEventListener('change', function (e) {
-      if (currentRole !== 'admin' && !editingCode) loadNextCode(e.target.value);
-    });
+    var pickBtn = document.getElementById('cmParentPick');
+    if (pickBtn) pickBtn.addEventListener('click', toggleParentPicker);
+    var parentTree = document.getElementById('cmParentTree');
+    if (parentTree) parentTree.addEventListener('click', onParentTreeClick);
+    var parentSearch = document.getElementById('cmParentSearch');
+    if (parentSearch) parentSearch.addEventListener('input', onParentSearchInput);
     DICT_TYPES.forEach(function (type) {
       var button = document.getElementById('cmAddDict-' + type);
       if (button) button.addEventListener('click', function () { addDictionaryValue(type); });

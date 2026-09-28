@@ -657,6 +657,50 @@ details summary strong { color: var(--ink-2); }
 .cm-flags { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .35rem .75rem; margin-top: .5rem; }
 .cm-flags .checkbox-label { font-weight: 400; }
 .cm-parent-wrap { display: flex; gap: .5rem; align-items: center; }
+.cm-parent-value { font-family: var(--mono); color: var(--ink-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cm-parent-picker {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  margin-top: .4rem;
+  padding: .5rem;
+  border: 1px solid var(--border, #d5d9e0);
+  border-radius: var(--radius-sm);
+  background: var(--surface, #fff);
+  max-height: 240px;
+}
+.cm-parent-search { flex: 0 0 auto; }
+.cm-parent-tree { overflow-y: auto; min-height: 0; }
+.cm-parent-tree .tree-leaf,
+.cm-parent-tree > summary,
+.cm-parent-tree .tree-node > summary {
+  cursor: pointer;
+  user-select: none;
+}
+.cm-parent-tree .tree-leaf:hover,
+.cm-parent-tree .tree-node > summary:hover {
+  background: var(--info-bg);
+}
+.cm-parent-tree .tree-leaf.selected,
+.cm-parent-tree .tree-node > summary.selected {
+  background: var(--accent);
+  color: #fff;
+}
+.cm-parent-tree .tree-leaf.selected .tree-label,
+.cm-parent-tree .tree-node > summary.selected .tree-label {
+  color: #fff;
+}
+.tree-parent-root {
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 0.15rem;
+}
+.tree-parent-root:hover { background: var(--info-bg); }
+.tree-parent-root.selected { background: var(--accent); color: #fff; }
 .cm-code-line { color: var(--muted); font-family: var(--mono); }
 .input-error { border-color: var(--error) !important; }
 .dict-wrap { display: flex; gap: .25rem; align-items: center; }
