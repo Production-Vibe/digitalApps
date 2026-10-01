@@ -608,6 +608,13 @@
   один боевой пароль на оба контура, seed больше не сбрасывает пароли
   (`scripts/set-passwords.ts` включает `admin` и грузит `.env`; `seed.ts` —
   пароль только при create).
+- [ ] **Локальная утечка секретов в git-объектном хранилище** (`refs/stash`, не
+  опубликовано): `git log --all --full-history -- "tests/e2e/.secrets/*"` находит
+  `4b6a289` (`index on google-apps`) с файлами `.secrets/pgpass` и
+  `.secrets/e2e-env.ps1` (в последнем — боевые пароли ролей приложения). Проверено:
+  в `origin/main`/`origin/future` этих блобов **нет** (`rev-list … --objects` пуст,
+  `branch -a --contains` пуст) — публичной утечки нет. Очистка требует
+  `git stash drop` (необратимо) — решение за пользователем.
 - [ ] HTTPS-терминирование: внешний контур — Tailscale Funnel (уже https), но
   локальный `http://localhost:3000` остаётся http; экранирующий reverse-proxy
   для прода решить отдельно.
@@ -704,6 +711,12 @@
 ## Активный URL
 
 - Локальный dev: `http://localhost:3000` (`GET /health` — `{status:'ok', db:'ok'}`).
+- Локальная БД для MCP: `postgresql://production_user@localhost:5432/MOSD` —
+  Windows-PostgreSQL 18 (служба `postgresql-x64-18`), пароль в
+  `tests/e2e/.secrets/pgpass` (**только пароль, без `host:port:db:user:` и без
+  перевода строки** — иначе `{file:…}` в `opencode.json` ломает URL). Тот же пароль
+  лежит в `server/.env` (`DATABASE_URL`) — это источник правды при восстановлении.
+  Проверка: `opencode mcp list` → `✓ postgres connected`.
 - **Глобальный (Tailscale Funnel):** `https://el-konstr04.tail13402b.ts.net`
   (проброс на `127.0.0.1:3000`, без установки чего-либо на клиенте). Проверен
   через интернет: `/health` 200, `/login` рендерится.
