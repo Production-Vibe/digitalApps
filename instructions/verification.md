@@ -21,9 +21,16 @@
 ## E2E (Playwright)
 - Прогоны ролей по `docs/testing/e2e-runbook.md`: operator/otk/master/shift
   против `localhost:3000` (JWT-логин через `/login`, `localStorage`).
-- Эталон: operator 6/6, otk 4/4, master 4/4, shift 4/4 — итого 18/18 PASS.
+- Эталон (01.10.2026, полный набор 9 файлов — **164 PASS / 0 FAIL**):
+  ролевые 31 (operator 6, otk 4, admin 5, shift 4, master 12),
+  `test_catalog_crud.py` 15, `test_dict_catalog.py` 34, `test_auth_flow.py` 33,
+  `test_bizcycle.py` 51.
+- Учётные данные — `tests/e2e/.secrets/e2e-env.ps1` (gitignored) + dot-source
+  перед прогоном; сейчас единый демо-пароль `121212`.
 - Подтверждением отрисовки служит текст из страниц (не только скриншоты).
 - Google-сессия больше не нужна: E2E проходит через JWT-авторизацию нового стека.
+- Логин может вернуть **429**, если на логин набралось 5 неудач (блок 15 мин,
+  состояние в памяти процесса) — лечится `docker compose restart app`.
 
 ## Сообщения коммитов (стандарт)
 - Сообщения — **на русском**, формат Conventional-ish: `<тип>: <что> (<зачем>)`.

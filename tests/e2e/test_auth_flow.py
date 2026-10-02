@@ -1,9 +1,9 @@
 """E2E probe: auth, registration, login protection, deactivation (new stack).
 
-Drives the live stand (localhost:3000) after Этап 15 (боевые пароли):
+Drives the live stand (localhost:3000) with the shared demo password:
 
-  Авторизация — login of all 5 seeded roles with the new password -> 200 + token;
-                old password `123` -> 401; session/refresh/logout lifecycle; /me.
+  Авторизация — login of all 5 seeded roles -> 200 + token; wrong password -> 401;
+                session/refresh/logout lifecycle; /me.
   Регистрация  — API: role in body is forced to operator, auto-login, duplicate
                 login -> 409, validation 400s; UI: tab «Регистрация» -> /operator.
   Защита входа — 5 failed logins on a TEST login -> 6th attempt blocked (429).
@@ -88,9 +88,9 @@ def main():
         has_refresh = any(c.get("name") == "nd_refresh" for c in cu)
         runner.check("авторизация: кука nd_refresh установлена", has_refresh, str(len(cu)) + " cookies")
 
-        # Старый сидовый пароль больше не работает
-        r = login(auth_req, config.CREDS["admin"]["login"], "123")
-        runner.check("авторизация: пароль 123 отклонён (401)", r.status == 401, str(r.status))
+        # Неверный пароль отклоняется даже для существующего логина
+        r = login(auth_req, config.CREDS["admin"]["login"], "wrong-pass-000")
+        runner.check("авторизация: неверный пароль отклонён (401)", r.status == 401, str(r.status))
 
         # refresh / session / logout lifecycle (кука текущей сессии в контексте)
         r = api(auth_req, "POST", "/api/refresh")
