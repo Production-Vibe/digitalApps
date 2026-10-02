@@ -15,6 +15,7 @@
     "push:keys": "web-push generate-vapid-keys",
     "passwords": "tsx scripts/set-passwords.ts",
     "dict:migrate": "tsx scripts/normalize-catalog-dicts.ts",
+    "docs:import": "tsx scripts/import-product-docs.ts",
     "check": "node --check dist/app.js"
   },
   "dependencies": {

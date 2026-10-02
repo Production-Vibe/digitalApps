@@ -13,6 +13,7 @@
   var currentRole = null;
   var dictOptions = {};
   var nextCodeRequest = 0;
+  var docCounts = {};
 
   var DICT_TYPES = ['blankType', 'material', 'materialGrade', 'blankSize', 'priority'];
   var DICT_LABELS = {
@@ -62,20 +63,41 @@
     return '<span class="muted">(в запуске: ' + fmtNum(node.totals.activeLaunches) + ', в работе: ' + fmtNum(node.totals.inWork) + ', закрыто: ' + fmtNum(node.totals.closed) + ')</span>';
   }
 
-  function actionsHtml(code) {
-    return '<span class="tree-actions">' +
-      '<a data-action="edit" data-code="' + escHtml(code) + '" href="#" onclick="return false;" title="Редактировать">&#9998;</a> ' +
-      '<a data-action="delete" data-code="' + escHtml(code) + '" href="#" onclick="return false;" title="Удалить">&#128465;</a></span>';
+  function docsBadge(code) {
+    var n = docCounts[code] || 0;
+    if (!n) return '';
+    return '<span class="tree-docs" title="Документов: ' + n + '">КД: ' + n + '</span>';
+  }
+
+  function actionsHtml(code, isVirtual, hasChildren) {
+    if (typeof isVirtual === 'undefined') isVirtual = false;
+    if (typeof hasChildren === 'undefined') hasChildren = false;
+    var n = docCounts[code] || 0;
+    var html = '<span class="tree-actions">' +
+      '<a data-action="docs" data-code="' + escHtml(code) + '" href="#" onclick="return false;" title="Документы (' + n + ')">&#128196;</a> ';
+    if (!isVirtual) {
+      html += '<a data-action="edit" data-code="' + escHtml(code) + '" href="#" onclick="return false;" title="Редактировать">&#9998;</a> ';
+    }
+    if (hasChildren) {
+      html += '<a data-action="delete-group" data-code="' + escHtml(code) + '" href="#" onclick="return false;" title="Удалить всю группу">&#128465;</a> ';
+    }
+    if (!isVirtual && !hasChildren) {
+      html += '<a data-action="delete" data-code="' + escHtml(code) + '" href="#" onclick="return false;" title="Удалить">&#128465;</a>';
+    }
+    html += '</span>';
+    return html;
   }
 
   function subtree(node) {
     var kids = node.children || [];
-    var label = '<span class="tree-label">' + escHtml(leafLabel(node)) + '</span> ' + metricsText(node);
+    var label = '<span class="tree-label">' + escHtml(leafLabel(node)) + '</span> ' + docsBadge(node.code) + metricsText(node);
+    var isVirtual = !node.item; // виртуальная группа (нет строки в Catalog)
+    var hasChildren = kids.length > 0;
     if (kids.length === 0) {
-      return '<div class="tree-leaf">' + label + actionsHtml(node.code) + '</div>';
+      return '<div class="tree-leaf">' + label + actionsHtml(node.code, isVirtual, false) + '</div>';
     }
     var rows = kids.map(subtree).join('');
-    return '<details class="tree-node"><summary>' + label + actionsHtml(node.code) + '</summary>' + rows + '</details>';
+    return '<details class="tree-node"><summary>' + label + actionsHtml(node.code, isVirtual, true) + '</summary>' + rows + '</details>';
   }
 
   function renderTree() {
@@ -100,12 +122,27 @@
       matchesEl.innerHTML = emptyBlock('Ничего не найдено');
       return;
     }
+    var findNode = function (code) {
+      var found = null;
+      var walk = function (list) {
+        for (var i = 0; i < list.length; i++) {
+          if (list[i].code === code) { found = list[i]; return true; }
+          if (list[i].children && walk(list[i].children)) return true;
+        }
+        return false;
+      };
+      walk(treeData || []);
+      return found;
+    };
     matchesEl.innerHTML = '<div class="tablewrap"><table class="table"><thead><tr>' +
-      '<th>Код</th><th>Обозначение</th><th>Наименование</th><th>Кол-во</th><th></th></tr></thead><tbody>' +
+      '<th>Код</th><th>Обозначение</th><th>Наименование</th><th>Кол-во</th><th>КД</th><th></th></tr></thead><tbody>' +
       items.map(function (it) {
+        var node = findNode(it.code);
+        var hasKids = !!(node && node.children && node.children.length > 0);
         return '<tr><td class="mono">' + escHtml(it.code) + '</td><td>' + escHtml(it.designation || '') +
           '</td><td>' + escHtml(it.name || '') + '</td><td class="num">' + fmtNum(it.parentQty) + '</td><td>' +
-          actionsHtml(it.code) + '</td></tr>';
+          docsBadge(it.code) + '</td><td>' +
+          actionsHtml(it.code, false, hasKids) + '</td></tr>';
       }).join('') + '</tbody></table></div>';
   }
 
@@ -623,7 +660,31 @@
       if (typeof opts.onChanged === 'function') { opts.onChanged(); applyQuery(); }
       else refresh();
     } catch (e) {
-      showToast(e.message, true);
+      var msg = e && e.message ? e.message : 'Ошибка запроса';
+      if (/не найдено|не существует|not found/i.test(msg) || (e && e.status === 404)) {
+        if (typeof opts.onChanged === 'function') { opts.onChanged(); applyQuery(); }
+        else refresh();
+        return;
+      }
+      showToast(msg, true);
+    }
+  }
+
+  async function removeGroup(code) {
+    if (!confirm('Удалить всю группу «' + code + '» и все вложенные позиции? Это действие необратимо.')) return;
+    try {
+      const r = await api('/api/catalog/prefix/' + encodeURIComponent(code), { method: 'DELETE' });
+      showToast('Группа удалена' + (r && r.deleted ? ' (' + r.deleted + ')' : ''));
+      if (typeof opts.onChanged === 'function') { opts.onChanged(); applyQuery(); }
+      else refresh();
+    } catch (e) {
+      var msg = e && e.message ? e.message : 'Ошибка запроса';
+      if (/не найдено|не существует|not found/i.test(msg) || (e && e.status === 404) || (e && e.status === 204)) {
+        if (typeof opts.onChanged === 'function') { opts.onChanged(); applyQuery(); }
+        else refresh();
+        return;
+      }
+      showToast(msg, true);
     }
   }
 
@@ -631,11 +692,84 @@
     try {
       treeData = await api('/api/catalog/tree/units');
       treeLoaded = true;
+      await loadDocCounts();
       renderTree();
       applyQuery();
     } catch (e) {
       showToast(e.message, true);
     }
+  }
+
+  async function loadDocCounts() {
+    try {
+      docCounts = await api('/api/product-docs/counts') || {};
+    } catch (e) {
+      docCounts = {};
+    }
+  }
+
+  function ensureDocsModal() {
+    if (document.getElementById('cmDocsModal')) return document.getElementById('cmDocsModal');
+    var el = document.createElement('div');
+    el.id = 'cmDocsModal';
+    el.className = 'modal';
+    el.style.display = 'none';
+    el.innerHTML = '<div class="modal-content modal-content--wide">' +
+      '<h3 id="cmDocsTitle">Документы</h3>' +
+      '<div id="cmDocsBody"></div>' +
+      '<div class="modal-actions"><button id="cmDocsClose" type="button" class="btn btn--sm">Закрыть</button></div>' +
+      '</div>';
+    document.body.appendChild(el);
+    el.addEventListener('click', function (e) { if (e.target === el) el.style.display = 'none'; });
+    document.getElementById('cmDocsClose').addEventListener('click', function () { el.style.display = 'none'; });
+    return el;
+  }
+
+  function docItemHtml(doc) {
+    var others = (doc.parts || []).filter(function (p) { return p.code !== doc.partCode; });
+    var shared = '';
+    if (others.length) {
+      shared = '<div class="cm-doc-shared">Также у: ' + others.map(function (p) {
+        return '<span class="mono">' + escHtml(p.code) + '</span> ' + escHtml(p.designation || p.name || '');
+      }).join('; ') + '</div>';
+    }
+    return '<li class="cm-doc-item">' +
+      '<div class="cm-doc-file">' + escHtml(doc.file) + '</div>' +
+      '<div class="cm-doc-path mono">' + escHtml(doc.path) + '</div>' +
+      shared +
+      '</li>';
+  }
+
+  async function openDocs(code) {
+    var el = ensureDocsModal();
+    var body = document.getElementById('cmDocsBody');
+    el.style.display = 'flex';
+    document.getElementById('cmDocsTitle').textContent = 'Документы: ' + code;
+    body.innerHTML = emptyBlock('Загрузка…');
+    var data;
+    try {
+      data = await api('/api/product-docs?partCode=' + encodeURIComponent(code));
+    } catch (e) {
+      body.innerHTML = emptyBlock(e.message);
+      return;
+    }
+    if (!data || !data.groups || data.groups.length === 0) {
+      body.innerHTML = emptyBlock('Документы не привязаны');
+      return;
+    }
+    var title = data.part ? (data.part.designation || data.part.name || data.part.code) : code;
+    var html = '<p class="muted">' + escHtml(title) +
+      (data.part && data.part.name && data.part.designation ? ' — ' + escHtml(data.part.name) : '') +
+      ' · всего ' + data.total + '</p>';
+    html += data.groups.map(function (group) {
+      return '<h4 class="cm-doc-group">' + escHtml(group.type) + ' <span class="muted">(' + group.docs.length + ')</span></h4>' +
+        '<ul class="cm-doc-list">' + group.docs.map(function (doc) {
+          var item = doc;
+          item.partCode = data.partCode;
+          return docItemHtml(item);
+        }).join('') + '</ul>';
+    }).join('');
+    body.innerHTML = html;
   }
 
   function showModal() { modal.style.display = 'flex'; }
@@ -649,7 +783,10 @@
     if (!btn) return;
     var code = btn.getAttribute('data-code');
     if (!code) return;
-    if (btn.getAttribute('data-action') === 'edit') openEdit(code);
+    var action = btn.getAttribute('data-action');
+    if (action === 'edit') openEdit(code);
+    else if (action === 'docs') openDocs(code);
+    else if (action === 'delete-group') removeGroup(code);
     else remove(code);
   }
 
@@ -686,6 +823,7 @@
     treeData = units || [];
     treeLoaded = true;
     if (!host) return;
+    loadDocCounts().then(function () { renderTree(); });
     renderTree();
     applyQuery();
     var parent = document.getElementById('cmParent');

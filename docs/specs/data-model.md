@@ -13,7 +13,11 @@
 `uploadCatalog`), сидом (`server/prisma/data/catalog.json`, только при пустой
 таблице) и из UI — **справочник номенклатуры** (master/admin, CRUD через
 `POST/PUT/DELETE /api/catalog`; смена кода обновляет ссылки
-`Launches/WorkOrders/PrintQueue/Queue`, удаление занятого кода запрещено).
+`Launches/WorkOrders/PrintQueue/Queue`). Удаление: `DELETE /:code` и
+`DELETE /prefix/:prefix` (удаление всей группы по префиксу кода одним
+действием) — 409 с `refs` при боевых ссылках
+`Launches/WorkOrders/PrintQueue/Queue`, но каскадно снимают `ProductDocLink`
+(связи документов — не боевые данные); строки `ProductDoc` (файлы) остаются.
 Ключ — `code` (текст).
 
 | Поле | Тип |

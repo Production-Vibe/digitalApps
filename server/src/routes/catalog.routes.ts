@@ -198,8 +198,9 @@ router.put('/:code', requireAuth('master'), async (req: AuthRequest, res) => {
       const w = await tx.workOrders.updateMany({ where: { partCode: oldCode }, data: { partCode: newCode } });
       const p = await tx.printQueue.updateMany({ where: { partCode: oldCode }, data: { partCode: newCode } });
       const q = await tx.queue.updateMany({ where: { code: oldCode }, data: { code: newCode } });
+      const d = await tx.productDocLink.updateMany({ where: { partCode: oldCode }, data: { partCode: newCode } });
       await tx.catalog.delete({ where: { code: oldCode } });
-      return { launches: l.count, workOrders: w.count, printQueue: p.count, queue: q.count };
+      return { launches: l.count, workOrders: w.count, printQueue: p.count, queue: q.count, docLinks: d.count };
     });
     const fresh = await prisma.catalog.findUnique({ where: { code: newCode } });
     res.json({ ...fresh, codeChanged: true, moved });
@@ -223,11 +224,75 @@ router.delete('/:code', requireAuth('master'), async (req, res) => {
     prisma.queue.count({ where: { code } }),
   ]);
   if (launches + workOrders + printQueue + queue > 0) {
-    res.status(409).json({ error: 'Код используется', refs: { launches, workOrders, printQueue, queue } });
+    const parts: string[] = [];
+    if (launches) parts.push('запуски: ' + launches);
+    if (workOrders) parts.push('наряды: ' + workOrders);
+    if (printQueue) parts.push('очередь печати: ' + printQueue);
+    if (queue) parts.push('очередь: ' + queue);
+    res.status(409).json({ error: 'Код используется (' + parts.join(', ') + ')', refs: { launches, workOrders, printQueue, queue } });
     return;
   }
-  await prisma.catalog.delete({ where: { code } });
+  try {
+    await prisma.$transaction([
+      prisma.productDocLink.deleteMany({ where: { partCode: code } }),
+      prisma.catalog.delete({ where: { code } }),
+    ]);
+  } catch (e: any) {
+    if (e && e.code === 'P2025') {
+      res.status(204).end();
+      return;
+    }
+    throw e;
+  }
   res.json({ ok: true });
+});
+
+router.delete('/prefix/:prefix', requireAuth('master'), async (req, res) => {
+  const prefix = String(req.params.prefix ?? '').trim();
+  if (!prefix) {
+    res.status(400).json({ error: 'Префикс не указан' });
+    return;
+  }
+  const all = await prisma.catalog.findMany({
+    where: {
+      OR: [
+        { code: prefix },
+        { code: { startsWith: prefix + '/' } },
+        { code: { startsWith: prefix + '.' } },
+      ],
+    },
+    select: { code: true },
+  });
+  const codes = all.map((r) => r.code);
+  if (codes.length === 0) {
+    res.status(204).end();
+    return;
+  }
+  const [l, w, p, q] = await Promise.all([
+    prisma.launches.count({ where: { partCode: { in: codes } } }),
+    prisma.workOrders.count({ where: { partCode: { in: codes } } }),
+    prisma.printQueue.count({ where: { partCode: { in: codes } } }),
+    prisma.queue.count({ where: { code: { in: codes } } }),
+  ]);
+  const refsTotal = l + w + p + q;
+  if (refsTotal > 0) {
+    const parts: string[] = [];
+    if (l) parts.push('запуски: ' + l);
+    if (w) parts.push('наряды: ' + w);
+    if (p) parts.push('очередь печати: ' + p);
+    if (q) parts.push('очередь: ' + q);
+    res.status(409).json({
+      error: 'Группа используется (' + parts.join(', ') + ')',
+      refs: { launches: l, workOrders: w, printQueue: p, queue: q },
+      count: codes.length,
+    });
+    return;
+  }
+  const del = await prisma.$transaction(async (tx) => {
+    await tx.productDocLink.deleteMany({ where: { partCode: { in: codes } } });
+    return tx.catalog.deleteMany({ where: { code: { in: codes } } });
+  });
+  res.json({ ok: true, deleted: del.count });
 });
 
 router.get('/:code', requireAuth('master', 'shift'), async (req, res) => {

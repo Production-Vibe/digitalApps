@@ -81,6 +81,7 @@ model Catalog {
   workOrders   WorkOrders[]
   printJobs    PrintQueue[]
   queueItems   Queue[]
+  docLinks     ProductDocLink[]
 }
 
 model Launches {
@@ -257,4 +258,27 @@ model DictionaryValue {
 
   @@unique([type, value])
   @@index([type])
+}
+
+model ProductDoc {
+  id     String  @id @default(cuid())
+  type   String
+  file   String
+  path   String
+  status String  @default("new")
+
+  links ProductDocLink[]
+
+  @@unique([type, file, path])
+  @@index([type])
+}
+
+model ProductDocLink {
+  doc      ProductDoc @relation(fields: [docId], references: [id])
+  docId    String
+  partCode String
+  part     Catalog    @relation(fields: [partCode], references: [code])
+
+  @@id([docId, partCode])
+  @@index([partCode])
 }

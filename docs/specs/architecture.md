@@ -20,12 +20,12 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
   (`uploadCatalog`) в таблицу `Catalog`; полный импорт файла — скриптом
   `server/scripts/import-excel.ts` (`npm run import:excel`, атомарная замена +
   удаление orphan-ссылок на старые коды).
-- PostgreSQL — единственное хранилище (11 таблиц-моделей).
+- PostgreSQL — единственное хранилище (15 таблиц-моделей).
 - Node.js — серверная логика + веб-интерфейсы ролей (EJS-страницы, JWT-авторизация).
 
 ## Модель данных
 
-Канон — `server/prisma/schema.prisma` (13 моделей):
+Канон — `server/prisma/schema.prisma` (15 моделей):
 
 | Модель | Назначение | Заполняется |
 |---|---|---|
@@ -42,6 +42,8 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 | `Notification` | Уведомления ролей (бейдж/тост внутри приложения) | хуки событий (`lib/notify.ts`) |
 | `PushSubscription` | Web Push-подписки (login, endpoint, VAPID-keys) | `POST /api/push/subscribe` (`public/push-init.js`) |
 | `DictionaryValue` | Словари полей каталога (ADR-009) | сид / `dict:migrate` / master quick-add / импорт |
+| `ProductDoc` | Документы изделия (тип, файл, путь-источник, статус); уникален по `(type, file, path)` | `npm run docs:import` (`scripts/import-product-docs.ts`, флаг `--dry`) |
+| `ProductDocLink` | Связь документ↔позиция каталога; одна деталь в нескольких сборках ⇒ много связей | там же |
 
 ## REST-модули
 
@@ -51,8 +53,9 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 |---|---|---|
 | `auth.routes.ts` | `/api` | `login`, **`register`** (самозапись operator), `refresh`, `session`, `logout`, `me` |
 | `page.routes.ts` | `/` | `GET /login`, `/master`, `/shift`, `/operator`, `/otk`, `/admin` (EJS) |
-| `catalog.routes.ts` | `/api/catalog` | `GET /`, `GET /:code`, `GET /tree/units` (вложенное дерево номенклатуры), `POST /next-code` (автокод), `POST /` (валидация словарей + материализация), `PUT /:code`, `DELETE /:code` |
+| `catalog.routes.ts` | `/api/catalog` | `GET /`, `GET /:code`, `GET /tree/units` (вложенное дерево номенклатуры), `POST /next-code` (автокод), `POST /` (валидация словарей + материализация), `PUT /:code`, `DELETE /:code` (каскад `ProductDocLink`), `DELETE /prefix/:prefix` (удаление группы по коду одним действием; каскад `ProductDocLink`, 409 по боевым ссылкам) |
 | `equipment.routes.ts` | `/api/equipment` | `GET /`, `POST /`, `DELETE /:id` |
+| `product-docs.routes.ts` | `/api/product-docs` | `GET /` (документы позиции по `partCode`, сгруппированы по типу + все позиции документа), `GET /counts` (счётчики по кодам для дерева) |
 | `launches.routes.ts` | `/api/launches` | `GET /`, `GET /pa/occupied`, `POST /`, `PUT /:id`, `DELETE /:id` |
 | `workorders.routes.ts` | `/api/work-orders` | `GET /`, `POST /issue`, `GET /my/list`, `GET /my/closed`, `PUT /:number/status` |
 | `shifts.routes.ts` | `/api/shifts` | `GET /active-operators`, `GET /my`, `POST /open`, `POST /close/:id` |
@@ -157,6 +160,13 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
   materialGrade/blankSize/priority`) валидируются словарём `DictionaryValue`
   (без FK): в UI — строго (`toCanonical` → 400), в импорте VBA/Excel — лояльно
   (`resolveOrCreate`, авто-добавление значений).
+- Удаление номенклатуры (master/admin): `DELETE /:code` и `DELETE /prefix/:prefix`
+  (группа по префиксу кода) блокируются только боевыми ссылками
+  (`Launches/WorkOrders/PrintQueue/Queue` → 409 с `refs`); `ProductDocLink`
+  снимается каскадно в одной транзакции (связи документов не считаются боевыми
+  данными), `ProductDoc` не удаляются. Повторное удаление идемпотентно (204).
+  В дереве у контейнера — кнопка «Удалить всю группу» (с подтверждением), у
+  виртуальных узлов правка скрыта.
 - Статусы — единые константы `server/src/lib/naryad-status.ts` (+ по enum в
   Prisma-схеме).
 - Дата в UI: `dd.MM.yyyy HH:mm` (`fmtDate` в `api.js`).

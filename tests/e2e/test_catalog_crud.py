@@ -116,7 +116,7 @@ def main():
         # 7. delete of a referenced code -> 409
         r = api(req, "DELETE", "/api/catalog/" + CODE_B, token=tokens["master"])
         body = r.json()
-        ok = r.status == 409 and body.get("error") == "Код используется" and body.get("refs", {}).get("launches") >= 1
+        ok = r.status == 409 and str(body.get("error", "")).startswith("Код используется") and body.get("refs", {}).get("launches") >= 1
         runner.check("каталог: delete занятого кода -> 409", ok, "status " + str(r.status))
 
         # 8. launch removed, 9. code removed

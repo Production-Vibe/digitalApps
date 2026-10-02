@@ -131,7 +131,7 @@ def cleanup(request, master_token, leaf_codes, materialized_codes, top_code):
         + sql_literal("22/TST-" + TS + "%")
         + ";"
     )
-    if top_code and top_code != "22":
+    if top_code:
         run_sql("DELETE FROM \"Catalog\" WHERE \"code\" = " + sql_literal(top_code) + ";")
     run_sql("DELETE FROM \"DictionaryValue\" WHERE \"value\" LIKE 'TST-%';")
 
@@ -190,6 +190,7 @@ def main():
             top_levels = [top_number(code) for code in tree_codes]
             top_levels = sorted({value for value in top_levels if value is not None})
             has_top_22 = 22 in top_levels
+            expected_top = (max(top_levels) + 1) if top_levels else None
 
             # 1. next-code верхнего уровня.
             if not top_levels:
@@ -201,12 +202,12 @@ def main():
                     numeric_code = int(str(code))
                 except (TypeError, ValueError):
                     numeric_code = None
-                detail = "status " + str(response.status) + " code=" + str(code)
+                detail = "status " + str(response.status) + " code=" + str(code) + " expected=" + str(expected_top)
                 if "wouldMaterialize" in body:
                     detail += " wouldMaterialize=" + str(body.get("wouldMaterialize"))
                 runner.check(
                     "1. next-code: верхний уровень",
-                    response.status == 200 and bool(code) and numeric_code is not None and numeric_code > 22,
+                    response.status == 200 and bool(code) and numeric_code == expected_top,
                     detail,
                 )
 
