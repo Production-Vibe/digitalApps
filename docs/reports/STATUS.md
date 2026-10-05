@@ -23,6 +23,37 @@
 
 ## Последний завершённый этап
 
+- **05.10.2026 — Этап 22: набор скиллов opencode перестроен под проект.**
+  Скиллы перестали быть складом мета-мусора и стали рабочим инструментом под
+  этот репозиторий. **Удалены** `brainstorming` (требовал запуска собственного
+  веб-сервера через `.sh`), `writing-plans` и `systematic-debugging` (в нём были
+  мета-тесты `test-academic.md`, `test-pressure-1..3.md` — артефакты чужой
+  разработки, а не инструкции) — 23 файла. **Добавлены и адаптированы под
+  OpenCode** (`diagnosing-bugs`, `domain-modeling`, `codebase-design`,
+  `writing-for-agents`, `code-review`, `grilling`) — 13 файлов. Итог: **11
+  скиллов** в `.opencode/skills/`. Ключевые адаптации: OpenCode не знает
+  `disable-model-invocation` (ручные точки входа вынесены в
+  `.opencode/commands/`), ADR лежат в `docs/specs/adr/` (не `docs/adr/`),
+  проект — npm (не pnpm), Windows/PowerShell 5.1 (вместо bash) — добавлен
+  `scripts/hitl-loop.template.ps1`, все примеры переведены на русский домен.
+  Issue-tracker-зависимые навыки **не переносились** осознанно: трекера в
+  проекте нет, состояние живёт в этом файле. **`codebase-design`** прямо
+  сообщает, что unit-раннера нет (`server/package.json` = `build` + `check`),
+  поэтому seam проверяется через E2E/API — выдумывать несуществующую
+  тест-инфраструктуру нечего. **Новые артефакты:** `GLOSSARY.md` (домен:
+  наряд, запуск, техпереход, смена, ОТК, ПА, КД — источники
+  `naryad-status.ts` и `schema.prisma`), `docs/specs/skills-layout.md`
+  (состав набора + обоснование исключений). Синхронизированы `AGENTS.md`
+  (таблица «Скиллы — обязательный триггер по фазе») и
+  `instructions/verification.md`. **Проверки:** `opencode debug skill` — 11
+  проектных скиллов, старых нет (3 глобальных `agent-browser`,
+  `customize-opencode`, `simplify` — не наши); `opencode debug config` —
+  обе команды (`grill-with-docs`, `code-review`) резолвятся с
+  `agent: build`, оба MCP (`postgres`, `playwright`) `enabled: true`; grep по
+  мёртвым ссылкам (`superpowers`, `docs/adr/`, `CLAUDE.md`, `Skill tool`,
+  `.scratch/`, `pnpm`) — чисто; `npm run build` + `npm run check` в
+  `server/` — PASS. Коммит `7dee273`.
+
 - **02.10.2026 — Этап 21: удобное удаление группы номенклатуры + каскад КД.**
   Удаление «последней группы» больше не залипает: группа удаляется одним
   действием целиком. Причина бага: одиночное `DELETE /:code` сносило только
@@ -815,6 +846,19 @@
 
 ## Следующий шаг
 
+0. ✅ **Набор скиллов opencode перестроен под проект (Этап 22)**: удалены
+   `brainstorming`/`writing-plans`/`systematic-debugging` (23 файла, включая
+   мета-тесты `test-academic.md`/`test-pressure-*.md` — чужая разработка);
+   добавлены и адаптированы под OpenCode `diagnosing-bugs`, `domain-modeling`,
+   `codebase-design`, `writing-for-agents`, `code-review`, `grilling` (13
+   файлов). Ручные точки входа — `/grill-with-docs`, `/code-review`;
+   ADR в `docs/specs/adr/`; PowerShell-шаблон HITL для Windows; `tdd` и
+   issue-tracker-зависимые навыки не переносились осознанно (unit-раннера и
+   трекера в проекте нет). Новые артефакты: `GLOSSARY.md`,
+   `docs/specs/skills-layout.md`. Проверки: `opencode debug skill` — 11
+   проектных скиллов (старых нет), `opencode debug config` — обе команды и
+   оба MCP `enabled: true`, grep по мёртвым ссылкам чисто, build+check PASS.
+   Коммит `7dee273`.
 0. ✅ **Справочник документов изделия (КД) в БД и UI (Этап 19)**: модели
    `ProductDoc`/`ProductDocLink` (связь many-to-many из-за неуникального
    `Catalog.designation`), миграция `20261001061410`, массовый импорт
