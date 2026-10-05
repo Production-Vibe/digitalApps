@@ -162,21 +162,30 @@ docker compose up --build   # поднимет db + app (migrate + seed + node)
 
 | Фаза задачи | Обязательный скилл (загрузить первым) |
 |---|---|
-| **Планирование / уточнение задачи** | `brainstorming`, затем `writing-plans` |
-| **Отладка / расследование бага** | `systematic-debugging` (root cause → гипотеза → тест) |
+| **Уточнение задачи / решение неочевидное** | `grilling` (интервью по кругам → `docs/specs/`) |
+| **Отладка / расследование бага** | `diagnosing-bugs` (красный цикл → гипотезы → фикс) |
 | **Изменение визуального UI** | `web-design` (усечённо) или `frontend-design` |
-| **Написание/изменение логики кода** | профильный скилл по домену; `writing-plans`, если задача многошаговая |
+| **Написание/изменение логики кода** | профильный скилл по домену; `codebase-design`, если проектируется интерфейс модуля |
+| **Термины домена / решение «навсегда»** | `domain-modeling` (`GLOSSARY.md`, `docs/specs/adr/`) |
 | **Проверка / завершение этапа** | `verification-before-completion`; при E2E — `webapp-testing` |
+| **Ревью чужих/моих изменений** | `code-review` (оси Standards + Spec) |
 | **Отчёт / docs** | `doc-coauthoring` |
 
 Каждая завершённая работа проходит `verification-before-completion`: доказательства,
 а не «предположительно всё ок».
 
+Команды пользователя в `.opencode/commands/` (вызываются вручную, скиллы — нет):
+`/grill-with-docs`, `/code-review`. Состав и обоснование набора — в
+`docs/specs/skills-layout.md`.
+
 ## Control plane и проектные subagents
 
 - **`opencode.json`** подключает в каждую сессию ключевые инструкции: `AGENTS.md`,
   `docs/reports/STATUS.md` (живое состояние), `docs/specs/architecture.md`,
-  `instructions/safety.md`, `instructions/verification.md`.
+  `instructions/safety.md`, `instructions/verification.md`. Домен — в `GLOSSARY.md`
+  (подключён по требованию, не в `instructions`: платим за него только когда нужно).
+- **Скиллы** — `.opencode/skills/` (загружаются инструментом `skill` по требованию);
+  **команды** — `.opencode/commands/` (только вручную, слэшем).
 - **Проектные subagents** (в `.opencode/agents/`):
   - `e2e` — Playwright-прогоны ролей (обёртка `docs/testing/e2e-runbook.md`).
 - Бизнес-роли (master/shift/operator/otk) — это роли приложения, а не engineering
