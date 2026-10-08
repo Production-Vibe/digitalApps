@@ -1,0 +1,87 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "NDA: связка (T1 + T2)",
+            "dependsOrder": "parallel",
+            "dependsOn": [
+                "NDA: T1 — архитектор",
+                "NDA: T2 — лог оркестратора"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "NDA: T1 — архитектор",
+            "type": "process",
+            "command": "powershell",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "${workspaceFolder}\\nda-run.ps1",
+                "-Mode",
+                "architect"
+            ],
+            "presentation": {
+                "panel": "dedicated",
+                "group": "nda",
+                "focus": true,
+                "reveal": "always",
+                "echo": true,
+                "showReuseMessage": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "NDA: T2 — лог оркестратора",
+            "type": "process",
+            "command": "powershell",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "${workspaceFolder}\\nda-run.ps1",
+                "-Mode",
+                "watch"
+            ],
+            "presentation": {
+                "panel": "dedicated",
+                "group": "nda",
+                "focus": false,
+                "reveal": "always",
+                "echo": true,
+                "showReuseMessage": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "NDA: T2 — оркестратор (интерактив)",
+            "type": "process",
+            "command": "powershell",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "${workspaceFolder}\\nda-run.ps1",
+                "-Mode",
+                "orchestrator"
+            ],
+            "presentation": {
+                "panel": "dedicated",
+                "group": "nda",
+                "focus": true,
+                "reveal": "always",
+                "echo": true,
+                "showReuseMessage": false
+            },
+            "problemMatcher": []
+        }
+    ]
+}
