@@ -202,9 +202,10 @@
 
     function roleOptions(current) {
       var allowed = ['operator', 'shift', 'otk', 'master'];
+      if (current && allowed.indexOf(current) === -1) allowed = allowed.concat([current]);
       return allowed.map(function(r) {
         var sel = r === current ? ' selected' : '';
-        return '<option value="' + r + '"' + sel + '>' + escHtml(ROLE_LABELS[r]) + '</option>';
+        return '<option value="' + r + '"' + sel + '>' + escHtml(ROLE_LABELS[r] || r) + '</option>';
       }).join('');
     }
 
