@@ -18,13 +18,6 @@
       "command": ["npx", "-y", "@playwright/mcp", "--headless"],
       "enabled": true
     },
-    "orchestrator": {
-      "type": "local",
-      "command": ["node", "tools/mcp-orchestrator/index.mjs"],
-      "cwd": ".",
-      "enabled": true,
-      "timeout": 900000
-    }
   },
   "permission": {
     "skill": {

@@ -353,3 +353,16 @@ stderr 0); `git status -uall` вЂ” С‚РѕР»СЊРєРѕ РѕР¶РёРґР°РµРјС‹Рµ РёР·РјРµРЅРµРЅ
   РІРµСЂРёС„РёРєР°С†РёРё (FAIL РёСЃС…РѕРґРЅРѕРіРѕ СЃРѕСЃС‚РѕСЏРЅРёСЏ + С„РёРєСЃ Рё РїРѕРІС‚РѕСЂРЅС‹Р№ РїСЂРѕРіРѕРЅ).
 - `opencode.json` вЂ” Р±Р»РѕРє `mcp.orchestrator`.
 - `docs/reports/STATUS.md` вЂ” Р¶РёРІРѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ Рё residual-РїСѓРЅРєС‚С‹.
+
+## Модель делегирования (новая): очередь + polling
+
+Переведено на **Pull-модель** (Rooroo-подход):
+- Архитектор (T1) при делегировании создаёт .opencode/tasks/<TASK_ID>/context.md и добавляет запись pending в .opencode/queue.jsonl. Он **не ждёт** ответа.
+- Оркестратор (T2) запускается **один раз** интерактивно (opencode --agent nda-orchestrator) и каждые 3–5 секунд опрашивает очередь (polling), забирает первую pending (FIFO), выполняет, помечает done|failed и пишет .opencode/tasks/<TASK_ID>/result.md.
+- Мостовая MCP-реализация (	ools/mcp-orchestrator/) вынесена в ветку rchive/mcp-orchestrator.
+
+Структура очереди:
+- .opencode/queue.jsonl — JSON Lines (FIFO)
+- .opencode/tasks/<TASK_ID>/context.md — брифинг
+- .opencode/tasks/<TASK_ID>/result.md — итог
+- .opencode/logs/activity.jsonl — события (append-only)
