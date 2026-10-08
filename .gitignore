@@ -1,6 +1,9 @@
 # Playwright MCP artifacts (snapshots/console logs).
 .playwright-mcp/
 
+# Артефакты оркестрационных тулов opencode (логи падающих задач и т.п.).
+.artifacts/
+
 # Источник номенклатуры (Excel) — не трекается, путь передаётся аргументом скрипта импорта.
 Номенклатура продукции.xlsm
 
