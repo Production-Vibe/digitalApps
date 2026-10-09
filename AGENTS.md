@@ -170,13 +170,14 @@ docker compose up --build   # поднимет db + app (migrate + seed + node)
 | **Проверка / завершение этапа** | `verification-before-completion`; при E2E — `webapp-testing` |
 | **Ревью чужих/моих изменений** | `code-review` (оси Standards + Spec) |
 | **Отчёт / docs** | `doc-coauthoring` |
+| **Сессия переполняется / перенос работы** | `/handoff` — команда (не скилл): сохраняет переносимый бриф в `.opencode/handoff/` |
 
 Каждая завершённая работа проходит `verification-before-completion`: доказательства,
 а не «предположительно всё ок».
 
 Команды пользователя в `.opencode/commands/` (вызываются вручную, скиллы — нет):
-`/grill-with-docs`, `/code-review`. Состав и обоснование набора — в
-`docs/specs/skills-layout.md`.
+`/grill-with-docs`, `/code-review`, `/handoff` (переносимый бриф вместо
+lossy-compaction). Состав и обоснование набора — в `docs/specs/skills-layout.md`.
 
 ## Control plane и проектные subagents
 

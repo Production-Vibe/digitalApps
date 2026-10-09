@@ -23,6 +23,24 @@
 
 ## Последний завершённый этап
 
+- **09.10.2026 — Этап 24: команда `/handoff` (порт upstream-скилла).**
+  Легаси-требование «переносимый бриф сессии» закрыто как ручная команда — в
+  OpenCode нет user-invoked-only скиллов, поэтому точка входа в
+  `.opencode/commands/`. **`/handoff`** пишет бриф в
+  `.opencode/handoff/handoff-<yyMMdd-HHmmss>.md` (в репо, gitignore), переносит
+  «живую нить» + секцию «Рекомендуемые скиллы», ссылается на спеки/ADR/
+  `STATUS.md`/коммиты по пути (не копирует), вырезает секреты, аргумент —
+  `$ARGUMENTS` («для чего следующая сессия»). **Файлы:** новый
+  `.opencode/commands/handoff.md`; `.opencode/.gitignore` (+`handoff/`);
+  `docs/specs/skills-layout.md` (`handoff` убран из «Не перенесено», добавлен в
+  таблицу команд, «Навигатор», diff-log — статус `divergent`: скилл → команда,
+  `%TEMP%` → repo); `docs/specs/agent-delegation.md` (разграничение файлового
+  handoff T1→T2 и команды `/handoff`); `AGENTS.md` (строка в таблице фаз + список
+  команд). **Проверки:** `opencode debug config` — команда `handoff` видна;
+  acceptance-прогон — бриф `.opencode/handoff/handoff-261009-165212.md` создан,
+  `git check-ignore` подтверждает `handoff/` в `.opencode/.gitignore`;
+  `npm run build` + `npm run check` PASS. **Коммит:** по согласию.
+
 - **09.10.2026 — Этап 23: re-sync 6 mattpocock-скиллов + политика синхронизации + навигатор.**
   Read-only сверка с upstream показала, что набор уже был почти в синхроне; правок
   потребовалось две. **`.opencode/skills/grilling/SKILL.md`** — вернули строку
@@ -44,7 +62,9 @@
   `grill-with-docs`/`code-review`, MCP `postgres`/`playwright` `enabled`;
   grep `docs/adr/`, `CLAUDE.md`, `pnpm`, `.template.sh` — чисто (`CONTEXT.md`-хиты
   ложные: это `.opencode/tasks/<id>/context.md`); `npm run build` + `npm run check`
-  PASS; `git diff --stat` = 3 файла (+83 / −2). **Коммит:** по согласию.
+  PASS; `git diff --stat` = 3 файла (+83 / −2). **Коммит:** `6577a50`
+  `docs: re-sync скиллов mattpocock + политика синхронизации (Этап 23)`,
+  тег `v0.23-skills-resync`.
 
 - **08.10.2026 — Фикс отображения роли admin в администрировании сотрудников.**
   В таблице сотрудников `/admin` учётная запись `admin` показывала роль

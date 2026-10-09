@@ -42,6 +42,7 @@ OpenCode оно ничего не делает и вводит в заблужд
 |---|---|
 | `/grill-with-docs` | Загружает `grilling` + `domain-modeling`, добавляет привязку к репозиторию и правило «итог интервью — файл в `docs/specs/`». |
 | `/code-review` | Загружает `code-review`, уточняет, что спека — файл в `docs/`, и трекера задач здесь нет. |
+| `/handoff` | Сохраняет текущую сессию в портируемый markdown-бриф в `.opencode/handoff/` — качественная замена lossy-compaction и перенос работы в другую сессию/папку. Ссылается на `docs/specs/`, ADR, `STATUS.md`, коммиты по пути, а не копирует их. |
 
 ## Что не перенесено и почему
 
@@ -58,10 +59,11 @@ OpenCode оно ничего не делает и вводит в заблужд
   E2E). Навык требует цикла «красный → зелёный» и без раннера висит без опоры.
   Вернётся вместе с выбором раннера (vitest или node:test) — первым кандидатом на
   чистые функции в `server/src/lib/*`.
-- **`retro`, `handoff`, `research`, `prototype`, `wait-what`, `wizard`, `teach`,
+- **`retro`, `research`, `prototype`, `wait-what`, `wizard`, `teach`,
   `improve-codebase-architecture`, `to-questionnaire`, `pr`**: либо дублируют
   существующий цикл (отчёт этапа), либо требуют инфраструктуры, которой нет
   (GitHub PRs, bash-скрипты, сеть), либо перекрыты `explore`-субагентом.
+  (`handoff` из этого списка перенесён — см. команды ниже.)
 
 ## Адаптация под проект
 
@@ -96,6 +98,8 @@ OpenCode оно ничего не делает и вводит в заблужд
   фикс → регресс-тест).
 - «термин разъехался / решение навсегда» → `domain-modeling`.
 - «как спроектировать модуль» → `codebase-design`.
+- «сессия переполняется / перенести работу» → `/handoff` (команда: переносимый
+  бриф вместо компакции; см. `.opencode/commands/handoff.md`).
 
 **Подсистемы:**
 
@@ -108,14 +112,16 @@ OpenCode оно ничего не делает и вводит в заблужд
 
 ## Синхронизация с upstream
 
-6 навыков — производные от `github.com/mattpocock/skills` (адаптация, не копия).
-Остальные 5 к upstream отношения не имеют и в синхронизации не участвуют.
+6 навыков и команда `/handoff` — производные от `github.com/mattpocock/skills`
+(адаптация, не копия). Остальные 5 навыков к upstream отношения не имеют и в
+синхронизации не участвуют.
 
 - **Источник:** `https://github.com/mattpocock/skills` (MIT).
 - **Зафиксированная ревизия:** `main` @ `b0618bc436ad893b3c5e84e55fba86586d34a404`
   (линия CHANGELOG `1.3.x`).
 - **Производные:** `grilling`, `diagnosing-bugs`, `codebase-design`,
-  `domain-modeling`, `writing-for-agents`, `code-review`.
+  `domain-modeling`, `writing-for-agents`, `code-review`; плюс команда `/handoff`
+  (upstream `skills/productivity/handoff`).
 - **Не из upstream:** `doc-coauthoring`, `frontend-design`, `web-design`,
   `webapp-testing`, `verification-before-completion`.
 
@@ -137,6 +143,7 @@ OpenCode оно ничего не делает и вводит в заблужд
 | `writing-for-agents/SKILL.md` | adapted | `AGENTS.md`/`instructions/` вместо `CLAUDE.md`; секция «Pruning a sedimented doc» |
 | `writing-for-agents/SKILL-MECHANICS.md` | divergent | OpenCode-специфика (frontmatter, skill↔command); upstream — Claude/Codex |
 | `code-review/SKILL.md` | adapted | spec/standards sources под репозиторий (нет трекера); раздел «After the report» |
+| `handoff` (команда `.opencode/commands/handoff.md`) | divergent | upstream — скилл с `disable-model-invocation` (ручная точка входа); в OpenCode это команда. Артефакт `%TEMP%` → `.opencode/handoff/` (в репо, gitignore); русский `description`; домен-примечания (`GLOSSARY.md`, деплой) |
 
 ### Playbook синхронизации
 
