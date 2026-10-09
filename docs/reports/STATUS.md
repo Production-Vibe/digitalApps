@@ -871,7 +871,7 @@
   достигнут (211583 мс, Kill не понадобился), stderr моста 0 байт. Протокол:
   `tools/mcp-orchestrator/verification/2026-10-06-verify-v7-recursion.md` (§3).
 - [ ] **Асинхронный режим submit/poll не реализован — остаётся открытым.**
-  Вызов `orchestrator_execute_task` синхронный: архитектор ждёт ответа всё время
+  Вызов `orchestrator_execute_task` синхронный: планировщик ждёт ответа всё время
   выполнения; при превышении `ORCH_TIMEOUT_MS`/`timeoutMs` (дефолт `900000` в
   `opencode.json` и мосту) мост убивает дерево дочернего процесса и возвращает
   `success=false`. Долгие задачи декомпозировать; submit/poll (отправить задачу →
@@ -884,17 +884,17 @@
   и `bash timeout`; в протоколах применены лимиты 30000 (handshake),
   60000 (обычные команды/сборка), 120000 (V-RECURSION), 240000 (клиент V-LONG),
   300000 (V7-сессия) — бессрочных ожиданий нет (CQ1 + V7-протоколы).
-- [x] **Анти-рекурсия для оркестратора закрыта двумя слоями** (фикс после
+- [x] **Анти-рекурсия для исполнителя закрыта двумя слоями** (фикс после
   отчёта FAIL `.artifacts/verification/two-terminal-delegation.md`): permission
-  `orchestrator_execute_task: deny` в `.opencode/agents/nda-orchestrator.md`
+  `orchestrator_execute_task: deny` в `.opencode/agents/nda-executor.md`
   (тул не попадает в тулсет) **+** env-guard `ORCH_NESTED` в мосту
   (`tools/mcp-orchestrator/index.mjs`): вложенные `opencode run` получают
   `ORCH_NESTED=<глубина+1>`, мост с заданной переменной отклоняет `execute_task`
   на входе («Рекурсия запрещена…»). Проверено: пробник с `ORCH_NESTED=1` →
-  `isError:true`; прямой ран `--agent nda-orchestrator` с принуждением к вызову
+  `isError:true`; прямой ран `--agent nda-executor` с принуждением к вызову
   → 0 `tool_use`, файла нет. **Подтверждено прогоном V-RECURSION** (07.10.2026,
   протокол `tools/mcp-orchestrator/verification/2026-10-06-verify-v7-recursion.md`,
-  §2): 2 форс-попытки `run --agent nda-orchestrator` → `TOOL_USE_ANY=0`, от этих
+  §2): 2 форс-попытки `run --agent nda-executor` → `TOOL_USE_ANY=0`, от этих
   сессий в логе **0** строк `=== Задача`/`spawn:`, ответов моста («занят»/
   «Рекурсия запрещена») 0 — вызов отклонён **на уровне permission** (слой 1),
   не доходя до моста; слой 2 (env-guard `ORCH_NESTED`) подтверждён пробником
@@ -943,25 +943,25 @@
 
 ## Следующий шаг
 
-0. [x] **Схема «два терминала: архитектор → MCP-мост → оркестратор»
+0. [x] **Схема «два терминала: планировщик → MCP-мост → исполнитель»
    реализована** (инструментальная наработка, не этап приложения — бизнес-флоу
-   и `server/**` не менялись): агенты `.opencode/agents/nda-architect.md`
+   и `server/**` не менялись): агенты `.opencode/agents/nda-planner.md`
    (primary: `edit`/`task` deny, `bash` ask — см. ниже, `orchestrator_execute_task`
-   allow) и `.opencode/agents/nda-orchestrator.md` (**primary**: `orchestrator_
+   allow) и `.opencode/agents/nda-executor.md` (**primary**: `orchestrator_
    execute_task`/`task`/`question` deny — анти-рекурсия, слой 1), stdio-мост
    `tools/mcp-orchestrator/` (тул `execute_task`: вход `task` обязателен,
    мьютекс «одна задача за раз», env-guard `ORCH_NESTED` — анти-рекурсия слой 2,
    tee в `logs/orchestrator.log`, дельта `git status` → `files_changed`),
    подключение `mcp.orchestrator` в `opencode.json` (`timeout: 900000`).
    Запуск двух терминов: **T1** `cd
-   C:\Projects\digitalApps` → `opencode --agent nda-architect` (или
-   `nda-architect.cmd`); **T2**
+   C:\Projects\digitalApps` → `opencode --agent nda-planner` (или
+   `nda-planner.cmd`); **T2**
    `cd C:\Projects\digitalApps\tools\mcp-orchestrator` → `npm run watch`
    (живой лог, окно наблюдения — не чат; закрытие T2 делегацию не ломает).
    Проверено (пробник + лог): handshake `execute_task` (`required=[task]`),
    stderr моста 0 байт, живой вложенный `opencode run` с `tool_use`
    (write/read/glob/bash), мьютекс (параллельный вызов во время занятости →
-   «Оркестратор занят…», первая задача дорабатывает), git-дерево чисто (6 файлов,
+   «Исполнитель занят…», первая задача дорабатывает), git-дерево чисто (6 файлов,
    `node_modules/`/`logs` исключены). Спека —
    `docs/specs/agent-delegation.md`; верификация моста —
    `tools/mcp-orchestrator/verification/2026-10-06-t2-bridge.md`.
@@ -971,34 +971,34 @@
    **плагина argos** (`@nest4869/argos`: блоки `architect (subagent)` и
    `orchestrator (primary)` в `agent list` — конфликт имен и режимов); оба
    проектных агента — `mode: primary`, `run --agent` без `Falling back`;
-   (2) `bash: deny → ask` у архитектора: free-tier gateway даёт детерминированный
+   (2) `bash: deny → ask` у планировщика: free-tier gateway даёт детерминированный
    **403** на запросы без тула `bash` (A/B-матрица пробников), `ask` сохраняет
    тул и фактический запрет (интерактив — спрос, headless — автоотказ);
    (3) env-guard `ORCH_NESTED` в мосту; (4) `mcp.orchestrator.timeout`
    15000 → 900000 — прежние 15000 отсекали успешные длинные вызовы ошибкой
    **`-32001`** ещё до ответа моста (в конфиге `15000` больше нет, CQ1).
-   **Повторный прогон:** V7 — `run --agent nda-architect` →
+   **Повторный прогон:** V7 — `run --agent nda-planner` →
    делегация → файл `.probe/e2e.txt` = `ARCH-OK` (0 fallback, 0 ×403);
    V-RECURSION — оба слоя проверены (guard-пробник `ORCH_NESTED=1` →
-   `isError:true` «Рекурсия запрещена»; прямые раны оркестратором → 0
+   `isError:true` «Рекурсия запрещена»; прямые раны исполнителем → 0
    `tool_use`);
    `npm run build` + `npm run check` PASS; пробники удалены.
    **Финальная верификация цикла (протоколы в
    `tools/mcp-orchestrator/verification/`):**
    `2026-10-06-rename-timeout.md` (CQ1) — **4/4 PASS**: обычный режим
-   `opencode agent list` видит `nda-architect`/`nda-orchestrator` рядом с
+   `opencode agent list` видит `nda-planner`/`nda-executor` рядом с
    плагинными `architect`/`orchestrator` (имена `nda-*` — из-за конфликта с
    argos), пермишены до g3-fix зафиксированы с датированным предупреждением об
    актуальности, `mcp.orchestrator.timeout = 900000` (`15000` не найден),
    handshake моста без stderr; `2026-10-06-verify-v7-recursion.md` — **7/7
-   PASS**: V7 (актёр `nda-architect`, spawn `--agent nda-orchestrator`, файл
+   PASS**: V7 (актёр `nda-planner`, spawn `--agent nda-executor`, файл
    `.probe/v7.txt` = `V7-OK`, 0 fallback/403/`-32001`), V-RECURSION
    (анти-рекурсия подтверждена на уровне permission: 2 форс-попытки → 0
    `tool_use`, спавнов от этих сессий нет, отказы — «конфиг запрещает», а не
    «мост занят»), V-LONG (`callMs=211281` без `-32001`, клиент 211583 мс <
    240000), V2 (tee-лог 381725 → 406647 байт, stderr всех прогонов 0), V4
-   (роли после g3-fix подтверждены 5/5: архитектор primary `edit/task deny`,
-   `bash ask`; оркестратор primary `oet/task/question deny`), регресс сборки
+   (роли после g3-fix подтверждены 5/5: планировщик primary `edit/task deny`,
+   `bash ask`; исполнитель primary `oet/task/question deny`), регресс сборки
    `server` и гигиена дерева. **Причина зависания g2** — отсутствие жёстких
    внешних таймаутов у вложенных процессов; исправлено: все длинные вызовы
    идут через PowerShell `WaitForExit`+`Kill` и `bash timeout` (лимиты
@@ -1120,6 +1120,6 @@
 - E2E-алгоритм запуска: `docs/testing/e2e-runbook.md` (актуален: полный набор
   9 файлов — **164 PASS / 0 FAIL** против `localhost:3000`, 01.10.2026).
 - VBA REST-интеграция: `server/docs/vba-integration.md`.
-- Делегирование агентов (архитектор → MCP-мост → оркестратор, два терминала):
+- Делегирование агентов (планировщик → MCP-мост → исполнитель, два терминала):
   `docs/specs/agent-delegation.md`.
 - Отчёт с приоритетами паритета: `docs/reports/2026-09-10-future-architecture-review.md`.
