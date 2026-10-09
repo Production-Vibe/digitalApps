@@ -23,6 +23,29 @@
 
 ## Последний завершённый этап
 
+- **09.10.2026 — Этап 23: re-sync 6 mattpocock-скиллов + политика синхронизации + навигатор.**
+  Read-only сверка с upstream показала, что набор уже был почти в синхроне; правок
+  потребовалось две. **`.opencode/skills/grilling/SKILL.md`** — вернули строку
+  upstream «Word each question so "yes" accepts your recommended answer.»
+  **`.opencode/skills/diagnosing-bugs/SKILL.md`** — Phase 5 шаг 2: вернули «…`diff`
+  against a pristine copy to prove the mutation landed…». Upstream зафиксирован:
+  `github.com/mattpocock/skills` @ `b0618bc436ad893b3c5e84e55fba86586d34a404`
+  (`main`, линия CHANGELOG `1.3.x`). **`docs/specs/skills-layout.md`** дополнена
+  двумя разделами: «Навигатор: как выбирать» (карта поверх **наших 11** скиллов;
+  upstream `ask-matt` не портирован — маршрутизирует по ~20 отсутствующим скиллам;
+  его роль выполняют навигатор + таблица фаз в `AGENTS.md` + команды) и
+  «Синхронизация с upstream» (источник/SHA, diff-log 6 навыков × файл со статусами
+  identical/adapted/divergent, playbook). Запись про `ask-matt` в «Что не
+  перенесено» уточнена (убрана из issue-tracker-списка, вынесена отдельным
+  пунктом). **Проверки:** построчный `git diff --no-index` по 6 навыкам — целевые
+  дельты закрыты, остались только проектные адаптации; `codebase-design/DEEPENING.md`
+  и `DESIGN-IT-TWICE.md` — байт-в-байт identical; `opencode debug skill` — 11
+  проектных скиллов (старых нет); `opencode debug config` — команды
+  `grill-with-docs`/`code-review`, MCP `postgres`/`playwright` `enabled`;
+  grep `docs/adr/`, `CLAUDE.md`, `pnpm`, `.template.sh` — чисто (`CONTEXT.md`-хиты
+  ложные: это `.opencode/tasks/<id>/context.md`); `npm run build` + `npm run check`
+  PASS; `git diff --stat` = 3 файла (+83 / −2). **Коммит:** по согласию.
+
 - **08.10.2026 — Фикс отображения роли admin в администрировании сотрудников.**
   В таблице сотрудников `/admin` учётная запись `admin` показывала роль
   «Оператор»: `roleOptions()` в `server/src/views/admin.ejs` строила опции
