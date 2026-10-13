@@ -12,3 +12,11 @@
 .secrets/
 *.pgpass
 .pgpass
+
+# Runtime-состояние контура делегирования opencode (дизайн-док T1, задачи,
+# логи, файловый handoff). Контракт-витрина .opencode/queue.jsonl остаётся
+# трекаемым; .opencode/.gitignore — машинно-локальный и в git не входит.
+.opencode/design/
+.opencode/tasks/
+.opencode/logs/
+.opencode/handoff/

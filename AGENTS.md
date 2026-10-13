@@ -179,6 +179,17 @@ docker compose up --build   # поднимет db + app (migrate + seed + node)
 `/grill-with-docs`, `/code-review`, `/handoff` (переносимый бриф вместо
 lossy-compaction). Состав и обоснование набора — в `docs/specs/skills-layout.md`.
 
+**Двухконтурное делегирование (инструментальная наработка).** Для долгих работ
+планировщик `nda-planner` (T1) ведёт **живой дизайн-документ**
+`.opencode/design/<slug>.md` — durable-память вне чата (слои: застыло →
+промоутится; в работе; открытые вопросы). Чекпоинт по детерминированному прокси
+→ ручной ре-сид окна T1; новая сессия сидируется слоями (2)+(3) + `STATUS.md`.
+Запись в проект выполняет только Исполнитель `nda-executor` (T2) через
+`.opencode/queue.jsonl` (pull); бриф проходит **чеклист** (одна цель, ≥1
+acceptance-команда, ≤1 модуль, оценка размера, проверяемый критерий) — иначе
+статус `rejected`. Метод T1 — `grilling`, `domain-modeling`, `codebase-design`.
+Контракт — `docs/specs/agent-delegation.md`; инвариант писателей — ADR-010.
+
 ## Control plane и проектные subagents
 
 - **`opencode.json`** подключает в каждую сессию ключевые инструкции: `AGENTS.md`,
@@ -189,6 +200,9 @@ lossy-compaction). Состав и обоснование набора — в `d
   **команды** — `.opencode/commands/` (только вручную, слэшем).
 - **Проектные subagents** (в `.opencode/agents/`):
   - `e2e` — Playwright-прогоны ролей (обёртка `docs/testing/e2e-runbook.md`).
+  - `nda-planner` (T1) / `nda-executor` (T2) — двухконтурное делегирование
+    (pull через `.opencode/queue.jsonl`); контракт — `docs/specs/agent-delegation.md`,
+    инвариант писателей — `docs/specs/adr/ADR-010-delegation-writer-separation.md`.
 - Бизнес-роли (master/shift/operator/otk) — это роли приложения, а не engineering
   subagents; их логика в `docs/specs/*` и `server/src/routes/*`.
 
