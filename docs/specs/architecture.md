@@ -116,6 +116,103 @@ Excel (VBA)  →  Node.js (Express + EJS + Prisma)  →  PostgreSQL
 7. **Печать (VBA-этап):** при выдаче создаётся job в `PrintQueue`; печать
    комплекта приложений — VBA-слушателем.
 
+## Общая схема
+
+Обзорная визуализация: поток ролей end-to-end и связи 15 моделей данных.
+Источники правды — раздел «Жизненный цикл работы» + `server/src/lib/naryad-status.ts`
+(статусы) и `server/prisma/schema.prisma` (FK-связи).
+
+### Поток ролей
+
+```mermaid
+flowchart TD
+  master["master<br/>планирование запусков"] -->|"POST /api/launches"| launch["Launches<br/>to_launch → issued"]
+  launch --> shift["shift<br/>выдача нарядов"]
+  shift -->|"POST /api/work-orders/issue"| wo["WorkOrders<br/>created"]
+  wo --> operator["operator<br/>выполнение, техпереходы"]
+  operator -->|"POST /api/transitions<br/>in_progress → completed"| tr["Transitions"]
+  tr -->|"все переходы выполнены<br/>→ waiting_otk"| otk["otk<br/>приёмка / закрытие"]
+  otk -->|"POST /api/otk/close<br/>closed"| co["ClosedOrders"]
+  otk -->|"POST /api/otk/rework<br/>rework"| operator
+```
+
+### ER-диаграмма (15 моделей Prisma)
+
+Все FK-связи — по `server/prisma/schema.prisma`. Модели без FK
+(`Shifts`, `Employees`, `Notification`, `Equipment`, `PushSubscription`,
+`DictionaryValue`) показаны без отношений; `Launches.relatedLaunchId` —
+rework-связь запуска с самим собой (`"LaunchRework"`).
+
+```mermaid
+erDiagram
+  direction TB;
+  Catalog {
+    string code PK
+  }
+  Launches {
+    string id PK
+    string partCode FK
+  }
+  WorkOrders {
+    string number PK
+    string partCode FK
+    string launchId FK
+  }
+  Transitions {
+    string id PK
+    string orderNumber FK
+  }
+  ClosedOrders {
+    string id PK
+    string orderNumber FK
+  }
+  Shifts {
+    string id PK
+  }
+  PrintQueue {
+    datetime id PK
+    string orderNumber FK
+    string partCode FK
+  }
+  Employees {
+    string login PK
+  }
+  Notification {
+    string id PK
+  }
+  Equipment {
+    int id PK
+  }
+  Queue {
+    int id PK
+    string code FK
+  }
+  PushSubscription {
+    string id PK
+  }
+  DictionaryValue {
+    int id PK
+  }
+  ProductDoc {
+    string id PK
+  }
+  ProductDocLink {
+    string docId PK,FK
+    string partCode PK,FK
+  }
+  Catalog ||--o{ Launches : "partCode"
+  Launches |o--o{ Launches : "relatedLaunchId (rework)"
+  Catalog ||--o{ WorkOrders : "partCode"
+  Launches |o--o{ WorkOrders : "launchId"
+  WorkOrders ||--o{ Transitions : "orderNumber"
+  WorkOrders ||--o{ ClosedOrders : "orderNumber"
+  WorkOrders ||--o| PrintQueue : "orderNumber"
+  Catalog ||--o{ PrintQueue : "partCode"
+  Catalog ||--o{ Queue : "code"
+  ProductDoc ||--o{ ProductDocLink : "docId"
+  Catalog ||--o{ ProductDocLink : "partCode"
+```
+
 ## Docker-контуры
 
 - `server/docker-compose.yml`:

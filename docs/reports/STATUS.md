@@ -23,7 +23,34 @@
 
 ## Последний завершённый этап
 
+- **14.10.2026 — Этап 26: актуализация документации под argos.**
+  После решения (14.10.2026) перейти на argos-оркестратор и удалить контур
+  делегирования (`.opencode/agents/nda-planner.md`, `nda-executor.md`,
+  `.opencode/queue.jsonl`, `tools/mcp-orchestrator/` — удалены из рабочего
+  дерева; в `opencode.json` упоминаний не было) документация приводится в
+  соответствие с кодом и новой оркестрацией (ADR-011). Батч параллельных задач:
+  **t1** README (фактический состав: 15 моделей Prisma / 6 enum, роль admin,
+  полные списки routes/lib/views/public/data/specs, уведомления/push/словари/КД,
+  актуальный блок про `.opencode`), **t2** GLOSSARY (ПА, ОТК, станок,
+  уведомления, push, Queue, сотрудник, домен оркестрации), **t3**
+  `docs/specs/architecture.md` — визуальная схема (mermaid: потоки ролей + ER
+  15 моделей), **t4** аудит «возможных дыр» →
+  `docs/reports/2026-10-14-gap-audit.md`, **t5** — чистка документации от
+  контура: `AGENTS.md` (убраны абзац «Двухконтурное делегирование» и bullet
+  `nda-*`, добавлена строка про argos-оркестратор), deprecated-шапка в
+  `docs/specs/agent-delegation.md` (файл сохранён как исторический контракт),
+  Superseded-шапка в ADR-010, новый
+  `docs/specs/adr/ADR-011-transition-to-argos-orchestrator.md`, пометки в этом
+  STATUS (Этап 25 → superseded; «Следующий шаг» → argos), `.gitignore`
+  (убрано упоминание `queue.jsonl`). **`server/**` не менялся** — только
+  документация и `.opencode`. **Коммит:** см. `git log`.
+
 - **13.10.2026 — Этап 25: durable-память T1 + контракт приёмки брифа (ADR-010).**
+  **Пометка (14.10.2026): Superseded** — контур `nda-planner`/`nda-executor`,
+  `.opencode/queue.jsonl` и `tools/mcp-orchestrator/` удалены из репозитория;
+  ADR-010 помечен Superseded, контракт `agent-delegation.md` — deprecated;
+  актуальная оркестрация — argos (ADR-011). История этапа сохранена ниже как
+  есть.
   Усилен существующий контур делегирования (`nda-planner` T1 → файловая очередь
   → `nda-executor` T2): архитектура больше не живёт только в длинном чате T1, а
   бриф стал проверяемым. **Новый ADR-010**
@@ -846,12 +873,11 @@
 - [x] **E2E-прогоны разблокированы (Этап 20)** — демо-пароль `121212` задан на
   обоих контурах, файл секретов и fallback синхронизированы. Блокер «пароли не
   совпадают» снят, полный набор **164 PASS** прогнан.
-- [ ] (опц.) **Живой двухоконный смоук контура делегирования** (после Этапа 25):
-  T1 (`nda-planner`) создаёт `.opencode/design/<slug>.md` и ставит задачу; T2
-  (`nda-executor`) отклоняет заведомо плохой бриф (`rejected`) → правка того же
-  `taskId` → `done`; промоушен-задача в `docs/specs/`. Агенты — промпты,
-  проверяется ручным прогоном; контракт — `docs/specs/agent-delegation.md`,
-  инвариант писателей — ADR-010.
+- [x] **Живой двухоконный смоук контура делегирования — отменён удалением
+  контура** (14.10.2026, ADR-011): `nda-planner`/`nda-executor` и
+  `.opencode/queue.jsonl` удалены из репозитория, смок T1/T2 не выполняется и
+  не требуется. Исторический контракт — `docs/specs/agent-delegation.md`
+  (deprecated).
 - [ ] **Демо-пароль `121212` заменить на реальный перед публикацией** (сейчас
   режим — демо/тест, по решению пользователя). Затрагивает `employees.json`,
   `.secrets/e2e-env.ps1`, `config.py`, документацию; делается одним
@@ -899,19 +925,20 @@
 - [ ] (решено, но отложено) Локальный производственный контур: сервер в цехе,
   рабочие по Wi-Fi, ответственные через VPN (+ https/PWA/push, бэкап, автозапуск)
   — оформляется отдельным планом-контекстом.
-- [x] **Мост делегирования: длинная задача проверена (V-LONG).** Задача с тремя
+- [x] **(исторически) Мост делегирования: длинная задача проверена (V-LONG).**
+  Контур и мост `tools/mcp-orchestrator/` удалены (14.10.2026, ADR-011);
+  протоколы больше не в репозитории. Задача с тремя
   отдельными `Start-Sleep -Seconds 20` прошла через stdio JSON-RPC за
   `callMs=211281` мс (`durationMs=211276`, `success=true`, `exitCode=0`) **без
   ошибки `-32001`** при `timeoutMs=600000`; клиентский лимит 240000 мс не
-  достигнут (211583 мс, Kill не понадобился), stderr моста 0 байт. Протокол:
-  `tools/mcp-orchestrator/verification/2026-10-06-verify-v7-recursion.md` (§3).
-- [ ] **Асинхронный режим submit/poll не реализован — остаётся открытым.**
-  Вызов `orchestrator_execute_task` синхронный: планировщик ждёт ответа всё время
-  выполнения; при превышении `ORCH_TIMEOUT_MS`/`timeoutMs` (дефолт `900000` в
-  `opencode.json` и мосту) мост убивает дерево дочернего процесса и возвращает
-  `success=false`. Долгие задачи декомпозировать; submit/poll (отправить задачу →
-  опросить статус) — отдельная задача (см. `docs/specs/agent-delegation.md`).
-- [x] **Зависание g2 устранено — жёсткие внешние таймауты вложенных процессов.**
+  достигнут (211583 мс, Kill не понадобился), stderr моста 0 байт.
+- [x] **Асинхронный режим submit/poll — стал неактуален** (14.10.2026,
+  ADR-011): задача снимается вместе с удалением моста и контура. В argos
+  диспатч и приёмка результала встроены в тулсет
+  (`register_task_groups` / `dispatch_tasks` / `submit_task_result`).
+- [x] **(исторически) Зависание g2 устранено — жёсткие внешние таймауты
+  вложенных процессов** (контур и мост удалены 14.10.2026, ADR-011; запись
+  сохранена для истории).
   Причина зависания — отсутствие жёстких внешних таймаутов у вложенных
   процессов (бессрочное ожидание). Исправлено: все длинные вызовы обёрнуты
   внешним лимитом — PowerShell `Start-Process -PassThru → WaitForExit(ms) →
@@ -919,8 +946,9 @@
   и `bash timeout`; в протоколах применены лимиты 30000 (handshake),
   60000 (обычные команды/сборка), 120000 (V-RECURSION), 240000 (клиент V-LONG),
   300000 (V7-сессия) — бессрочных ожиданий нет (CQ1 + V7-протоколы).
-- [x] **Анти-рекурсия для исполнителя закрыта двумя слоями** (фикс после
-  отчёта FAIL `.artifacts/verification/two-terminal-delegation.md`): permission
+- [x] **(исторически) Анти-рекурсия для исполнителя закрыта двумя слоями**
+  (контур и мост удалены 14.10.2026, ADR-011; запись сохранена для истории;
+  фикс после отчёта FAIL `.artifacts/verification/two-terminal-delegation.md`): permission
   `orchestrator_execute_task: deny` в `.opencode/agents/nda-executor.md`
   (тул не попадает в тулсет) **+** env-guard `ORCH_NESTED` в мосту
   (`tools/mcp-orchestrator/index.mjs`): вложенные `opencode run` получают
@@ -934,9 +962,6 @@
   «Рекурсия запрещена») 0 — вызов отклонён **на уровне permission** (слой 1),
   не доходя до моста; слой 2 (env-guard `ORCH_NESTED`) подтверждён пробником
   выше.
-- [ ] **Инструментальная наработка моста не меняла демо-режим/секреты** —
-  ничего из Этапов 15/20 не откатывать и не менять при работе с ней; замена
-  демо-пароля `121212` на реальный — по-прежнему перед публикацией (см. выше).
 
 ## Закрытые баги (new-стек)
 
@@ -979,67 +1004,17 @@
 ## Следующий шаг
 
 0. [x] **Схема «два терминала: планировщик → MCP-мост → исполнитель»
-   реализована** (инструментальная наработка, не этап приложения — бизнес-флоу
-   и `server/**` не менялись): агенты `.opencode/agents/nda-planner.md`
-   (primary: `edit`/`task` deny, `bash` ask — см. ниже, `orchestrator_execute_task`
-   allow) и `.opencode/agents/nda-executor.md` (**primary**: `orchestrator_
-   execute_task`/`task`/`question` deny — анти-рекурсия, слой 1), stdio-мост
-   `tools/mcp-orchestrator/` (тул `execute_task`: вход `task` обязателен,
-   мьютекс «одна задача за раз», env-guard `ORCH_NESTED` — анти-рекурсия слой 2,
-   tee в `logs/orchestrator.log`, дельта `git status` → `files_changed`),
-   подключение `mcp.orchestrator` в `opencode.json` (`timeout: 900000`).
-   Запуск двух терминов: **T1** `cd
-   C:\Projects\digitalApps` → `opencode --agent nda-planner` (или
-   `nda-planner.cmd`); **T2**
-   `cd C:\Projects\digitalApps\tools\mcp-orchestrator` → `npm run watch`
-   (живой лог, окно наблюдения — не чат; закрытие T2 делегацию не ломает).
-   Проверено (пробник + лог): handshake `execute_task` (`required=[task]`),
-   stderr моста 0 байт, живой вложенный `opencode run` с `tool_use`
-   (write/read/glob/bash), мьютекс (параллельный вызов во время занятости →
-   «Исполнитель занят…», первая задача дорабатывает), git-дерево чисто (6 файлов,
-   `node_modules/`/`logs` исключены). Спека —
-   `docs/specs/agent-delegation.md`; верификация моста —
-   `tools/mcp-orchestrator/verification/2026-10-06-t2-bridge.md`.
-   **Фикс после FAIL-отчёта сквозной верификации**
-   (`.artifacts/verification/two-terminal-delegation.md`, 07.10.2026):
-   (1) префикс `nda-` снимает затенение проектных агентов одноимёнными агентами
-   **плагина argos** (`@nest4869/argos`: блоки `architect (subagent)` и
-   `orchestrator (primary)` в `agent list` — конфликт имен и режимов); оба
-   проектных агента — `mode: primary`, `run --agent` без `Falling back`;
-   (2) `bash: deny → ask` у планировщика: free-tier gateway даёт детерминированный
-   **403** на запросы без тула `bash` (A/B-матрица пробников), `ask` сохраняет
-   тул и фактический запрет (интерактив — спрос, headless — автоотказ);
-   (3) env-guard `ORCH_NESTED` в мосту; (4) `mcp.orchestrator.timeout`
-   15000 → 900000 — прежние 15000 отсекали успешные длинные вызовы ошибкой
-   **`-32001`** ещё до ответа моста (в конфиге `15000` больше нет, CQ1).
-   **Повторный прогон:** V7 — `run --agent nda-planner` →
-   делегация → файл `.probe/e2e.txt` = `ARCH-OK` (0 fallback, 0 ×403);
-   V-RECURSION — оба слоя проверены (guard-пробник `ORCH_NESTED=1` →
-   `isError:true` «Рекурсия запрещена»; прямые раны исполнителем → 0
-   `tool_use`);
-   `npm run build` + `npm run check` PASS; пробники удалены.
-   **Финальная верификация цикла (протоколы в
-   `tools/mcp-orchestrator/verification/`):**
-   `2026-10-06-rename-timeout.md` (CQ1) — **4/4 PASS**: обычный режим
-   `opencode agent list` видит `nda-planner`/`nda-executor` рядом с
-   плагинными `architect`/`orchestrator` (имена `nda-*` — из-за конфликта с
-   argos), пермишены до g3-fix зафиксированы с датированным предупреждением об
-   актуальности, `mcp.orchestrator.timeout = 900000` (`15000` не найден),
-   handshake моста без stderr; `2026-10-06-verify-v7-recursion.md` — **7/7
-   PASS**: V7 (актёр `nda-planner`, spawn `--agent nda-executor`, файл
-   `.probe/v7.txt` = `V7-OK`, 0 fallback/403/`-32001`), V-RECURSION
-   (анти-рекурсия подтверждена на уровне permission: 2 форс-попытки → 0
-   `tool_use`, спавнов от этих сессий нет, отказы — «конфиг запрещает», а не
-   «мост занят»), V-LONG (`callMs=211281` без `-32001`, клиент 211583 мс <
-   240000), V2 (tee-лог 381725 → 406647 байт, stderr всех прогонов 0), V4
-   (роли после g3-fix подтверждены 5/5: планировщик primary `edit/task deny`,
-   `bash ask`; исполнитель primary `oet/task/question deny`), регресс сборки
-   `server` и гигиена дерева. **Причина зависания g2** — отсутствие жёстких
-   внешних таймаутов у вложенных процессов; исправлено: все длинные вызовы
-   идут через PowerShell `WaitForExit`+`Kill` и `bash timeout` (лимиты
-   30000/60000/120000/240000/300000 мс по протоколам, бессрочных ожиданий
-   нет). **Открытые остатки цикла:** режим submit/poll не реализован (см.
-   «Открытые баги / TODO»); `server/**` и демо-пароли не менялись.
+   удалена** (14.10.2026, ADR-011): контур (`.opencode/agents/nda-planner.md`,
+   `nda-executor.md`, `.opencode/queue.jsonl`, `tools/mcp-orchestrator/`) убран
+   из рабочего дерева, упоминания вычищены из `AGENTS.md`/`.gitignore`;
+   `docs/specs/agent-delegation.md` помечен deprecated (сохранён как
+   исторический контракт), ADR-010 — Superseded, новый ADR-011 «Переход на
+   argos-оркестратор». **Актуальная оркестрация — argos** (плагин
+   `@nest4869/argos`; точка входа `opencode --agent orchestrator`; задачи
+   специалистам-исполнителям — через `register_task_groups`/`dispatch_tasks` →
+   `submit_task_result`; на Windows tmux-панели пропускаются, специалисты в
+   изолированных сессиях). История цикла — в записи Этапа 25 (выше) и в
+   `docs/specs/adr/ADR-010-*.md`; `server/**` и демо-пароли не менялись.
 0. ✅ **Набор скиллов opencode перестроен под проект (Этап 22)**: удалены
    `brainstorming`/`writing-plans`/`systematic-debugging` (23 файла, включая
    мета-тесты `test-academic.md`/`test-pressure-*.md` — чужая разработка);
@@ -1155,6 +1130,8 @@
 - E2E-алгоритм запуска: `docs/testing/e2e-runbook.md` (актуален: полный набор
   9 файлов — **164 PASS / 0 FAIL** против `localhost:3000`, 01.10.2026).
 - VBA REST-интеграция: `server/docs/vba-integration.md`.
-- Делегирование агентов (планировщик → MCP-мост → исполнитель, два терминала):
-  `docs/specs/agent-delegation.md`.
+- Оркестрация агентов: argos-оркестратор — ADR-011
+  (`docs/specs/adr/ADR-011-transition-to-argos-orchestrator.md`); прежний контур
+  «планировщик → MCP-мост → исполнитель, два терминала» —
+  `docs/specs/agent-delegation.md` (deprecated, исторический контракт).
 - Отчёт с приоритетами паритета: `docs/reports/2026-09-10-future-architecture-review.md`.
