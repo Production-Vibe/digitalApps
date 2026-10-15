@@ -4,6 +4,10 @@
 началом. Порядок приоритета: этот файл → `docs/specs/*.md` → код `server/src/*`.
 
 **При старте нового диалога (подхват контекста) обязательно:**
+0) проверить `.opencode/handoff/` — если там есть брифы, прочитать самый свежий
+   (`handoff-<yyMMdd-HHmmss>.md`) как «живую нить»; сверить его со `STATUS.md` и
+   `git log` (бриф локальный, gitignored, может быть устаревшим — источник правды
+   по состоянию проекта остаётся `STATUS.md`);
 1) прочитать `docs/reports/STATUS.md` — живое состояние (последний этап, открытые
    баги, следующий шаг, активный URL деплоя);
 2) при необходимости — датированный отчёт по ссылке из STATUS.md;
@@ -183,7 +187,8 @@ lossy-compaction). Состав и обоснование набора — в `d
 
 - **`opencode.json`** подключает в каждую сессию ключевые инструкции: `AGENTS.md`,
   `docs/reports/STATUS.md` (живое состояние), `docs/specs/architecture.md`,
-  `instructions/safety.md`, `instructions/verification.md`. Домен — в `GLOSSARY.md`
+  `instructions/safety.md`, `instructions/verification.md`,
+  `instructions/hygiene.md`. Домен — в `GLOSSARY.md`
   (подключён по требованию, не в `instructions`: платим за него только когда нужно).
 - **Скиллы** — `.opencode/skills/` (загружаются инструментом `skill` по требованию);
   **команды** — `.opencode/commands/` (только вручную, слэшем).
@@ -199,6 +204,8 @@ lossy-compaction). Состав и обоснование набора — в `d
 
 **Do:**
 - Отвечать на русском.
+- Держать рабочее дерево чистым: временные файлы — в `.artifacts/`/temp и
+  удалять их, чужие untracked-файлы не плодить — см. `instructions/hygiene.md`.
 - Свериться с фактическим содержимым `server/src/**` и `schema.prisma` перед
   правкой (не полагаться только на README/память).
 - Фиксировать новые архитектурные решения в `docs/specs/adr/`.

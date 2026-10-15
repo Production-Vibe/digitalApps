@@ -23,6 +23,26 @@
 
 ## Последний завершённый этап
 
+- **15.10.2026 — Этап 27: гигиена рабочего дерева для argos-агентов + авто-чтение handoff.**
+  Инструкции проекта доведены до всех argos-агентов, а ритуал старта дополнен
+  подхватом «живой нити» сессии. **Файлы:** новый `instructions/hygiene.md` —
+  6 правил чистоты рабочего дерева; **`opencode.json`** — `instructions/hygiene.md`
+  добавлен в массив `instructions`, заодно убрана «висячая» запятая после блока
+  `mcp`; **`AGENTS.md`** — указатель на `hygiene.md` (Do + Control plane) и
+  пункт 0 в ритуал старта (авто-чтение свежего handoff из `.opencode/handoff/`
+  со сверкой со `STATUS.md`/`git log`). **Почему так:** argos-промпты —
+  встроенные в кэш плагина (`@nest4869/argos` v0.1.1), править нельзя;
+  `argos.json` не поддерживает поля инструкций агентам; проектные
+  `instructions` — единственная точка, покрывающая и orchestrator, и всех
+  специалистов. **Проверки:** статика PASS
+  (`.artifacts/verification/hygiene-instructions-static-check.md`); инъекция в
+  свежем процессе PASS (`opencode run` вернул 6 файлов инструкций, включая
+  `hygiene.md`); поведенческий тест PASS; правило handoff PASS 4/4
+  (`.artifacts/verification/handoff-rule-check.md`). **Осталось:** прямое
+  доказательство инъекции в субагента — после перезапуска opencode (текущий
+  процесс держит конфиг, загруженный при старте). **`server/**` не менялся.**
+  **Коммит/тег:** `v0.28-argos-hygiene` (коммит — задача t2).
+
 - **14.10.2026 — Этап 26: актуализация документации под argos.**
   После решения (14.10.2026) перейти на argos-оркестратор и удалить контур
   делегирования (`.opencode/agents/nda-planner.md`, `nda-executor.md`,
@@ -1003,6 +1023,23 @@
 
 ## Следующий шаг
 
+0. [x] **Гигиена рабочего дерева для argos-агентов + авто-чтение handoff
+   (Этап 27)**: `instructions/hygiene.md` (6 правил чистоты рабочего дерева)
+   подключён в `opencode.json → instructions` (заодно убрана «висячая» запятая
+   после блока `mcp`); `AGENTS.md` — указатель на `hygiene.md` (Do + Control
+   plane) и пункт 0 ритуала старта (авто-чтение свежего handoff из
+   `.opencode/handoff/` со сверкой со `STATUS.md`/`git log`). Почему так:
+   argos-промпты встроены в кэш плагина (`@nest4869/argos` v0.1.1) и правке не
+   поддаются, `argos.json` полей инструкций агентам не поддерживает —
+   проектные `instructions` единственный путь доставить их и orchestrator, и
+   всем специалистам. Проверки: статика PASS
+   (`.artifacts/verification/hygiene-instructions-static-check.md`), инъекция в
+   свежем процессе PASS (`opencode run` вернул 6 файлов инструкций, включая
+   `hygiene.md`), поведенческий тест PASS, правило handoff PASS 4/4
+   (`.artifacts/verification/handoff-rule-check.md`). **Остаток:** прямое
+   доказательство инъекции в субагента — после перезапуска opencode (текущий
+   процесс держит конфиг, загруженный при старте). Тег `v0.28-argos-hygiene`
+   (коммит — задача t2); `server/**` не менялся.
 0. [x] **Схема «два терминала: планировщик → MCP-мост → исполнитель»
    удалена** (14.10.2026, ADR-011): контур (`.opencode/agents/nda-planner.md`,
    `nda-executor.md`, `.opencode/queue.jsonl`, `tools/mcp-orchestrator/`) убран
