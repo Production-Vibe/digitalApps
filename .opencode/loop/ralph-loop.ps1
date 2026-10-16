@@ -112,6 +112,7 @@ function Build-ColdPrompt([int]$Iteration) {
 Холодный старт цикла session-loop «ЦифровойНаряд». Итерация $Iteration. Режим COLD: свежего resume-брифа нет или он не согласован со state.json.
 Задача цикла: $Task
 Действия: пройди pre-approval (уточни цель и scope либо зафиксируй уже согласованный план), зафиксируй утверждённый план в docs/specs/ или .opencode/design/ — это approved_plan. Далее исполняй только утверждённый scope.
+Неинтерактивный запуск: если .opencode/session/config.json уже существует — преднастройки повторно НЕ опрашивай и вопросов не задавай, зафиксируй согласованный план/разумные дефолты и продолжай работу.
 На границе фазы, при вопросе пользователю или когда контекст достигнет порога $thrText — заверши ход командой /handoff с актуальным frontmatter: loop (continue, done или blocked), iteration, approved_plan, next_action.
 "@
     return ($text -replace '"', "'")
@@ -126,6 +127,7 @@ function Build-ResumePrompt([int]$Iteration, [string]$Plan, [string]$NextAction)
 RESUME-режим цикла session-loop «ЦифровойНаряд». Итерация $Iteration. Это продолжение по уже утверждённому плану $planRef.
 Прочитай свежий бриф: последний файл .opencode/handoff/ (frontmatter loop, iteration, approved_plan, next_action) и сверь его с docs/reports/STATUS.md и git log (пункт 0 ритуала старта в AGENTS.md).
 Правила resume-режима: pre-approval НЕ повторяй; план не пересматривай; scope не расширяй. Сразу выполни next_action: $nextAct — работай только в approved scope.
+Преднастройки сессии подтверждены (запуск драйвером): шаг подтверждения session-bootstrap ПРОПУСТИ; вопрос «подтвердить/изменить» не задавай — инструмент question в неинтерактивной сессии недоступен; сразу продолжай работу.
 Задача вне approved scope — записать handoff с loop: blocked и вопросом пользователю, ход завершить.
 При завершении фазы или когда контекст достигнет порога $thrText — записать handoff с актуальным frontmatter (loop, iteration, approved_plan, next_action) и завершить ход.
 Общая задача цикла: $Task
