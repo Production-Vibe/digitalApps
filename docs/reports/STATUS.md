@@ -23,6 +23,9 @@
 
 ## Последний завершённый этап
 
+- **16.10.2026 — Закрытие остатка Этапа 27: инъекция `instructions/hygiene.md` в субагента доказана.**
+  Утверждённая цель сессии — прямое доказательство, что субагент получает проектные инструкции. Машина — цикл session-loop (mode: driver), но живой прогон вскрыл блокер (см. ниже), поэтому проверка закрыта fallback-путём: две независимые пробы субагентов (tag general) перечислили свой системный контекст — по 8 файлов инструкций, включая `instructions/hygiene.md`; третья задача-верификация дала PASS. Артефакты: `.artifacts/verification/{subagent-instrlist-a.txt,subagent-instrlist-b.txt,hygiene-subagent-injection-verify.md}`. `server/**` не менялся.
+
 - **16.10.2026 — Этап 29: преднастройки сессии (session-bootstrap) —
   контракт, плагин первого хода, спека.**
   Первый ответ сессии оркестратора теперь — настройки, а не импровизация:
@@ -126,9 +129,12 @@
   (`.artifacts/verification/hygiene-instructions-static-check.md`); инъекция в
   свежем процессе PASS (`opencode run` вернул 6 файлов инструкций, включая
   `hygiene.md`); поведенческий тест PASS; правило handoff PASS 4/4
-  (`.artifacts/verification/handoff-rule-check.md`). **Осталось:** прямое
-  доказательство инъекции в субагента — после перезапуска opencode (текущий
-  процесс держит конфиг, загруженный при старте). **`server/**` не менялся.**
+  (`.artifacts/verification/handoff-rule-check.md`). **Остаток закрыт
+  16.10.2026:** инъекция `instructions/hygiene.md` в субагента доказана
+  напрямую — две независимые read-only пробы субагентов увидели все 8 файлов
+  инструкций, включая `hygiene.md` (артефакты
+  `.artifacts/verification/{subagent-instrlist-a.txt,subagent-instrlist-b.txt,hygiene-subagent-injection-verify.md}`).
+  **`server/**` не менялся.**
   **Коммит/тег:** `v0.28-argos-hygiene` (коммит — задача t2).
 
 - **14.10.2026 — Этап 26: актуализация документации под argos.**
@@ -978,6 +984,7 @@
 
 ## Открытые баги / TODO
 
+- [ ] **Живой прогон цикла session-loop упирается в шаг подтверждения session-bootstrap.** Драйвер `.opencode/loop/ralph-loop.ps1` запускает неинтерактивную сессию `opencode run --agent orchestrator --auto`; в ней нет инструмента `question`, а resume-ветка `instructions/session-bootstrap.md` требует «показать конфиг и спросить подтвердить/изменить» → ход завершается без брифа. Прогон 16.10: итерация 2 (RESUME) и итерация 1 (COLD) — обе без брифа, exit 3. Логи: `.opencode/loop/logs/{iter-1,iter-2}.{out,err}.log`. Нужно решение: снять шаг подтверждения в неинтерактивном драйвере (resume-промпт «конфиг подтверждён — шаг пропусти» либо авто-подтверждение в session-bootstrap).
 - [x] **E2E-прогоны разблокированы (Этап 20)** — демо-пароль `121212` задан на
   обоих контурах, файл секретов и fallback синхронизированы. Блокер «пароли не
   совпадают» снят, полный набор **164 PASS** прогнан.
@@ -1163,9 +1170,9 @@
    (`.artifacts/verification/hygiene-instructions-static-check.md`), инъекция в
    свежем процессе PASS (`opencode run` вернул 6 файлов инструкций, включая
    `hygiene.md`), поведенческий тест PASS, правило handoff PASS 4/4
-   (`.artifacts/verification/handoff-rule-check.md`). **Остаток:** прямое
-   доказательство инъекции в субагента — после перезапуска opencode (текущий
-   процесс держит конфиг, загруженный при старте). Тег `v0.28-argos-hygiene`
+   (`.artifacts/verification/handoff-rule-check.md`). **Остаток закрыт
+   16.10.2026** (пробы субагентов видят `hygiene.md`; evidence —
+   `.artifacts/verification/`). Тег `v0.28-argos-hygiene`
    (коммит — задача t2); `server/**` не менялся.
 0. [x] **Схема «два терминала: планировщик → MCP-мост → исполнитель»
    удалена** (14.10.2026, ADR-011): контур (`.opencode/agents/nda-planner.md`,
