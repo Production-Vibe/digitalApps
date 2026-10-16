@@ -20,3 +20,10 @@
 .opencode/tasks/
 .opencode/logs/
 .opencode/handoff/
+.opencode/session/
+
+# Драйвер цикла session-loop: логи, машинное состояние, песочница -Dry
+# (сам скрипт .opencode/loop/ralph-loop.ps1 трекается).
+.opencode/loop/logs/
+.opencode/loop/state.json
+.opencode/loop/dry-run/

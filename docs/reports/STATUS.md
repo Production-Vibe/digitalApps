@@ -23,6 +23,94 @@
 
 ## Последний завершённый этап
 
+- **16.10.2026 — Этап 29: преднастройки сессии (session-bootstrap) —
+  контракт, плагин первого хода, спека.**
+  Первый ответ сессии оркестратора теперь — настройки, а не импровизация:
+  один `question`-запрос (схема **A+B+C**: режим/разрешения/контекст)
+  фиксируется в `.opencode/session/config.json` (gitignored) до начала работы;
+  resume-цикл наследует конфиг вместо повторного опроса (документация этапа;
+  `server/**` не менялся). **Контракт:** новый
+  `instructions/session-bootstrap.md` — обязательное правило первого хода
+  (до ответов работа не стартует), канон JSON-схемы (дефолты: `mode:
+  interactive`, `driver` 0.58/10/30, `autonomy: approve-once`, все
+  `permissions: false`, `context.language: ru`, `agent: orchestrator`),
+  запись конфига до работы (критерий — парсится как JSON), resume-ветка
+  (конфиг есть + свежий handoff валиден → вопрос «подтвердить/изменить»),
+  только orchestrator; подключён в `opencode.json → instructions`.
+  **Wiring:** `.gitignore` — блок `.opencode/session/`; frontmatter брифа
+  получил поле `session_config` (`instructions/session-loop.md`,
+  `.opencode/commands/handoff.md` — пять ключей) + resume-бюллетень
+  «преднастройки наследуются». **Плагин:**
+  `.opencode/plugin/session-bootstrap.ts` — один хук
+  `experimental.chat.messages.transform` (автодискавери), гейт orchestrator,
+  детект первого хода (нет assistant-ответов), `stat` конфига на каждый вызов
+  → ветка напоминания («покажи унаследованный конфиг…» / «выдай преднастройки
+  через question tool»), идемпотентность по маркеру, аддитивность, ошибки
+  гасятся, экспорт только default + чистые функции в `plugin.pure`.
+  **Документация (этап):** спека `docs/specs/session-bootstrap.md` (правило
+  первого ответа, таблица ключей A+B+C, запись/резюме-ветка, связь с циклом,
+  плагин, границы контура, доказательства); `AGENTS.md` — пункт 0 ритуала
+  старта читает `session_config`-путь брифа и `.opencode/session/config.json`,
+  преднастройки в Control plane. **Проверки:** плагин — `tsc --noEmit`
+  (strict) exit 0, probe **48/48**
+  (`.artifacts/probe-session-bootstrap.log`), импорт opencode-движком доказан
+  (`opencode debug info` — плагин в `plugins:`, 0 ERROR/WARN; top-level
+  маркер), `opencode serve` 10 с без ошибок —
+  `.artifacts/verification/session-bootstrap-verification.md`. **Остаток:**
+  живое напоминание плагина на первом реальном ходе оркестратора.
+  **Коммит/тег:** коммит Этапов 28+29 — после сдачи документации (на момент
+  записи строки изменения ещё uncommitted).
+
+- **16.10.2026 — Этап 28: цикл session-loop «исполнение → handoff → restart»
+  (контракт, плагин, драйвер, спека + ADR-012).**
+  Длинная работа переведена с lossy-компакшена одной сессии на цикл свежих
+  сессий, нить — брифом на диске (документация этапа; `server/**` не менялся).
+  **Контракт:** новый `instructions/session-loop.md` (триггер handoff;
+  YAML-frontmatter `loop: continue|done|blocked`, `iteration`,
+  `approved_plan`, `next_action`; resume-режим без повторного pre-approval;
+  семантика остановки; контракт драйвера) подключён в
+  `opencode.json → instructions`. **Плагин:**
+  `.opencode/plugin/handoff-threshold.ts` — один хук
+  `experimental.chat.messages.transform` (автодискавери opencode), только
+  orchestrator: при доле контекста ≥ `ND_HANDOFF_THRESHOLD` (дефолт **0.58**)
+  идемпотентное напоминание «Сделай handoff… и заверши ход» в конец последнего
+  user-сообщения; источник — usage токенов модели (`limit.context` из
+  `provider.list`), документированный фолбэк по объёму (÷4 символа/токен,
+  знаменатель 200 000); чистые функции — в свойстве `plugin.pure` (иначе
+  opencode трактовал бы именованные экспорты как отдельные плагины);
+  аддитивно к argos, ошибки гасятся. **Драйвер:**
+  `.opencode/loop/ralph-loop.ps1` (PowerShell 5.1, UTF-8 с BOM) + лаунчер
+  `run-agent-loop.cmd` (ASCII): свежая сессия
+  `opencode run --agent orchestrator --auto "<промпт>"` на итерацию (без
+  `--continue`; `-p` в текущем CLI — это `--password`, промпт позиционный),
+  жёсткий таймаут + kill-on-hang, чтение frontmatter свежего брифа +
+  `.opencode/loop/state.json` (resume при согласованности, иначе cold),
+  стоп по `done`/`blocked`/лимиту/таймауту/итерации без брифа, коды выхода
+  0/1/2/3/4; `-Dry` — симуляция в песочнице `.opencode/loop/dry-run/`;
+  runtime (`logs/`, `state.json`, `dry-run/`) в `.gitignore`, сам скрипт
+  трекается. **Документация (этап):** спека `docs/specs/agent-loop.md`
+  (триггер, frontmatter, resume, драйвер, плагин, guardrails, ручной
+  end-to-end шаг), `docs/specs/adr/ADR-012-handoff-restart-over-lossy-compaction.md`
+  (решение + альтернативы: компакшен, `--continue`, prose-заметки без
+  контракта, только ручной перенос, диспатч argos — разведён), `AGENTS.md`
+  (пункт 0 ритуала старта читает frontmatter брифа + `state.json`; цикл и
+  `session-loop.md` в control plane). **Проверки:**
+  плагин — `tsc --noEmit` (strict) exit 0, probe **58/58**, импорт модуля
+  opencode-движком доказан (`opencode debug info` + top-level маркер),
+  `opencode serve` 10 с без ошибок
+  (`.artifacts/verification/handoff-threshold-verification.md`);
+  драйвер — парс PowerShell 0 ошибок, dry continue→done **exit 0**, лимит
+  exit 3 (через лаунчер тоже), `git check-ignore` 3/3, скан секретов 0,
+  кириллица UTF-8 байтово
+  (`.artifacts/verification/ralph-loop-dry-run.md`); более полный внешний
+  прогон 16.10 (argv-стаб: форма запуска без `--continue`, промпт позиционным
+  `message`; ветка таймаута/kill-on-hang → exit 4) —
+  `.artifacts/verification/session-loop-driver-dry-run.md`. **Остаток:** первый
+  реальный (не dry) прогон цикла и живое срабатывание порога плагина на
+  настоящем usage — только по явному согласию пользователя. **Коммит/тег:**
+  коммит этапа — после сдачи документации (на момент записи этой строки
+  изменения ещё uncommitted).
+
 - **15.10.2026 — Этап 27: гигиена рабочего дерева для argos-агентов + авто-чтение handoff.**
   Инструкции проекта доведены до всех argos-агентов, а ритуал старта дополнен
   подхватом «живой нити» сессии. **Файлы:** новый `instructions/hygiene.md` —
@@ -1023,6 +1111,45 @@
 
 ## Следующий шаг
 
+0. [x] **Преднастройки сессии (session-bootstrap, Этап 29)**: контракт
+   `instructions/session-bootstrap.md` (в `opencode.json → instructions`),
+   плагин `.opencode/plugin/session-bootstrap.ts` (первый ход, гейт
+   orchestrator, ветка `.opencode/session/config.json` через `stat`, probe
+   48/48, импорт в opencode доказан), wiring — `.gitignore` (`.opencode/session/`)
+   + поле `session_config` в frontmatter брифа (`session-loop.md`,
+   `handoff.md`), спека `docs/specs/session-bootstrap.md` (правило первого
+   ответа, схема A+B+C, resume-ветка, связь с циклом, плагин, границы,
+   доказательства) + правки `AGENTS.md` (пункт 0 ритуала читает
+   `session_config`/`config.json`; преднастройки в control plane).
+   `server/**` не менялся.
+0. [ ] **Живое напоминание плагина первого хода** — на первом реальном ходе
+   сессии оркестратора (после перезапуска opencode, чтобы движок подхватил
+   плагин): нет конфига → напоминание «выдай преднастройки через question
+   tool»; конфиг есть → «покажи унаследованный конфиг…». Поведение покрыто
+   probe на синтетических сообщениях, живого срабатывания ещё не было.
+0. [x] **Цикл session-loop «исполнение → handoff → restart» (Этап 28)**:
+   контракт `instructions/session-loop.md` (в `opencode.json → instructions`),
+   плагин `.opencode/plugin/handoff-threshold.ts` (порог `ND_HANDOFF_THRESHOLD`
+   = 0.58, только orchestrator, probe 58/58, импорт в opencode доказан),
+   драйвер `.opencode/loop/ralph-loop.ps1` + `run-agent-loop.cmd` (dry
+   continue→done exit 0, лимит exit 3 через лаунчер, runtime в `.gitignore`),
+   документация — `docs/specs/agent-loop.md` (триггер/frontmatter/resume/
+   драйвер/плагин/guardrails/ручной end-to-end шаг) + ADR-012 «handoff+restart
+   вместо lossy-компакшена» + правки `AGENTS.md` (пункт 0 ритуала читает
+   frontmatter брифа и `state.json`; цикл в control plane). Доказательства —
+   `.artifacts/verification/{handoff-threshold-verification,ralph-loop-dry-run}.md`,
+   полный прогон драйвера 16.10 (argv-стаб, ветка таймаута → exit 4) —
+   `.artifacts/verification/session-loop-driver-dry-run.md`;
+   `server/**` не менялся.
+0. [ ] **Первый реальный (не dry) прогон цикла + живое срабатывание порога
+   плагина** — только по явному согласию пользователя: сначала
+   `run-agent-loop.cmd -Dry` (см. «Ручной end-to-end шаг» в
+   `docs/specs/agent-loop.md`), затем `run-agent-loop.cmd -Task "…"
+   -MaxIterations N` (`--auto` auto-approve permission-`ask`) с наблюдением за
+   логами `.opencode/loop/logs/` и брифами; напоминание плагина проверить на
+   первом длинном ходе (порог настраивается `ND_HANDOFF_THRESHOLD`). Сейчас
+   живого смоук usage модели и реального запуска не было (ограничения
+   верификации).
 0. [x] **Гигиена рабочего дерева для argos-агентов + авто-чтение handoff
    (Этап 27)**: `instructions/hygiene.md` (6 правил чистоты рабочего дерева)
    подключён в `opencode.json → instructions` (заодно убрана «висячая» запятая
@@ -1171,4 +1298,11 @@
   (`docs/specs/adr/ADR-011-transition-to-argos-orchestrator.md`); прежний контур
   «планировщик → MCP-мост → исполнитель, два терминала» —
   `docs/specs/agent-delegation.md` (deprecated, исторический контракт).
+- Цикл длинной задачи (session-loop): `docs/specs/agent-loop.md` + ADR-012
+  (`docs/specs/adr/ADR-012-handoff-restart-over-lossy-compaction.md`);
+  контракт — `instructions/session-loop.md`.
+- Преднастройки сессии (session-bootstrap): `docs/specs/session-bootstrap.md`;
+  контракт — `instructions/session-bootstrap.md`, плагин —
+  `.opencode/plugin/session-bootstrap.ts`, конфиг —
+  `.opencode/session/config.json` (gitignored).
 - Отчёт с приоритетами паритета: `docs/reports/2026-09-10-future-architecture-review.md`.

@@ -7,7 +7,15 @@
 0) проверить `.opencode/handoff/` — если там есть брифы, прочитать самый свежий
    (`handoff-<yyMMdd-HHmmss>.md`) как «живую нить»; сверить его со `STATUS.md` и
    `git log` (бриф локальный, gitignored, может быть устаревшим — источник правды
-   по состоянию проекта остаётся `STATUS.md`);
+   по состоянию проекта остаётся `STATUS.md`); у брифа прочитать frontmatter
+   цикла (`loop`, `iteration`, `approved_plan`, `next_action`) и, если ведётся
+   цикл, `.opencode/loop/state.json` — по ним определяется resume-режим или
+   холодный старт (контракт — `instructions/session-loop.md`, спека —
+   `docs/specs/agent-loop.md`); у брифа есть frontmatter-поле
+   `session_config` — прочитать указанный им конфиг преднастроек (обычно
+   `.opencode/session/config.json`, gitignored) и сверить с resume-веткой
+   (контракт — `instructions/session-bootstrap.md`, спека —
+   `docs/specs/session-bootstrap.md`);
 1) прочитать `docs/reports/STATUS.md` — живое состояние (последний этап, открытые
    баги, следующий шаг, активный URL деплоя);
 2) при необходимости — датированный отчёт по ссылке из STATUS.md;
@@ -188,8 +196,24 @@ lossy-compaction). Состав и обоснование набора — в `d
 - **`opencode.json`** подключает в каждую сессию ключевые инструкции: `AGENTS.md`,
   `docs/reports/STATUS.md` (живое состояние), `docs/specs/architecture.md`,
   `instructions/safety.md`, `instructions/verification.md`,
-  `instructions/hygiene.md`. Домен — в `GLOSSARY.md`
+  `instructions/hygiene.md`, `instructions/session-loop.md`,
+  `instructions/session-bootstrap.md`. Домен — в `GLOSSARY.md`
   (подключён по требованию, не в `instructions`: платим за него только когда нужно).
+- **Преднастройки сессии (session-bootstrap)** — первый ответ сессии
+  оркестратора: настройки через `question` tool (схема A+B+C: режим,
+  разрешения, контекст) → `.opencode/session/config.json` (gitignored) до
+  начала работы; resume-ветка наследует конфиг вместо полного опроса;
+  напоминание дописывает плагин `.opencode/plugin/session-bootstrap.ts`
+  (только orchestrator, первый ход). Контракт —
+  `instructions/session-bootstrap.md`, спека —
+  `docs/specs/session-bootstrap.md`.
+- **Цикл длинной задачи (session-loop)** — исполнение → handoff → restart со
+  свежей сессией на итерацию: контракт `instructions/session-loop.md`,
+  плагин-напоминание о пороге контекста `.opencode/plugin/handoff-threshold.ts`,
+  драйвер `.opencode/loop/ralph-loop.ps1` + лаунчер `run-agent-loop.cmd`;
+  спека `docs/specs/agent-loop.md`, решение — ADR-012. Бриф цикла несёт
+  frontmatter-поле `session_config` — преднастройки наследуются по циклу
+  (см. пункт 0 ритуала старта).
 - **Скиллы** — `.opencode/skills/` (загружаются инструментом `skill` по требованию);
   **команды** — `.opencode/commands/` (только вручную, слэшем).
 - **Проектные subagents** (в `.opencode/agents/`):

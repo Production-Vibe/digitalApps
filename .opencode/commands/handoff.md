@@ -11,6 +11,27 @@ in the repo, not in `%TEMP%`, so it survives the session and a reboot.
 Argument (what the next session is for): `$ARGUMENTS`. When given, aim the document
 at that purpose; when empty, aim at "continue this work".
 
+Open the document with the **YAML frontmatter block** of the cycle (required by
+`instructions/session-loop.md` — all five keys are mandatory, without `loop` the
+driver treats the brief as invalid and stops):
+
+```yaml
+---
+loop: continue                      # continue | done | blocked
+iteration: <int>                    # CURRENT iteration number — see below
+approved_plan: <ref>                # approved plan: path in docs/specs/, .opencode/design/ or a stage report
+session_config: .opencode/session/config.json   # session preset config — see instructions/session-bootstrap.md
+next_action: <short>                # one concrete action for the next session
+---
+```
+
+`iteration` is the number of the **current** iteration of the cycle — take it
+from the driver prompt of this run or from `.opencode/loop/state.json` (the
+file the driver maintains). It is NOT a fresh "1" by default: the driver hands
+out resume only when `loop`/`iteration`/`approved_plan` in the brief agree with
+`state.json`, so a wrong `iteration` makes the driver **quietly fall back to a
+cold start** (full pre-approval) instead of resuming the work.
+
 Carry the **live thread**: what is in flight, why, and what the next action is.
 Add a **Suggested skills** section naming the skills the next agent should reach
 for — pick from `.opencode/skills/`, the phase table in `AGENTS.md`, and `GLOSSARY.md`.
