@@ -23,6 +23,23 @@
 
 ## Последний завершённый этап
 
+- **19.10.2026 — Этап 31: диагностика плагина session-bootstrap завершена —
+  вердикт НЕ ДЕФЕКТ.** Симптом: в сессии 16.10 живое напоминание первого хода
+  «не наблюдалось». Причина наблюдения: мутация transform-хука живёт только в
+  снапшоте текущего шага и в БД/транскрипцию **не персистится** — суждение
+  «вставки не было» по внешнему виду транскрипции невалидно; для
+  драйвер-итерации 3 отсутствие блока преднастроек — ожидаемое поведение
+  промпта Этапа 30 («пропустить шаг подтверждения, не задавать вопрос»).
+  **Доказательства:** JSONL-лог 19.10 (`.artifacts/plugin-debug.log`) —
+  `stage:module-load` → `plugin-init` → `enter(hasAssistant:false)` →
+  `done(branch:with-config, injected:true)` → последующие
+  `skip:skip-not-first-turn`; цитата модели iter-3 («инъецированное
+  напоминание…», `.opencode/handoff/handoff-261016-120450.md`); гипотезы
+  H2–H5 опровергнуты, H1/H6 — штатные объяснения
+  (`.artifacts/plugin-debug-root-cause.md`). **Откат** debug-инструментации
+  `[DEBUG-sbp]` из `.opencode/plugin/session-bootstrap.ts` (задача t1).
+  `server/**` не менялся. **Коммит/тег:** см. git log (тег `v0.31-*`).
+
 - **16.10.2026 — Этап 30: снятие блокера живого прогона цикла (неинтерактивное подтверждение session-bootstrap).** В `instructions/session-bootstrap.md` добавлено правило «неинтерактивное исполнение (драйвер) → шаг подтверждения пропускается, работа идёт сразу с `next_action`»; resume-/cold-промпт драйвера (`.opencode/loop/ralph-loop.ps1`) явно требует пропустить шаг подтверждения session-bootstrap и не задавать вопрос; синхронизированы `docs/specs/session-bootstrap.md` и `docs/specs/agent-loop.md`. **Проверки:** статика PASS 6/6 (`.artifacts/verification/driver-blocker-fix-static-check.md`); **реальный прогон драйвера — exit 0** (итерация 3 RESUME, свежая сессия записала бриф `loop: done`; маркер `.artifacts/loop-smoke/ok.txt`; лог `.opencode/loop/logs/iter-3.out.log`). Заодно закрыты два остатка Этапов 28–29: **первый реальный (не dry) прогон цикла** и **живое срабатывание порога плагина `handoff-threshold`** (напоминание «~64%» на первом ходе). `server/**` не менялся. **Коммит/тег:** `v0.30-driver-blocker`.
 
 - **16.10.2026 — Закрытие остатка Этапа 27: инъекция `instructions/hygiene.md` в субагента доказана.**
@@ -986,6 +1003,13 @@
 
 ## Открытые баги / TODO
 
+- [x] **Живое напоминание плагина первого хода — закрыто 19.10.2026
+  (Этап 31, вердикт НЕ ДЕФЕКТ).** Доказательство: JSONL-лог
+  `.artifacts/plugin-debug.log` — `hasAssistant:false` →
+  `branch:"with-config"`, `injected:true` на первом ходу +
+  `skip-not-first-turn` далее, и цитата модели iter-3 «инъецированное
+  напоминание…» (`.opencode/handoff/handoff-261016-120450.md`); root cause —
+  `.artifacts/plugin-debug-root-cause.md`.
 - [x] **Живой прогон цикла session-loop упирается в шаг подтверждения session-bootstrap.** Драйвер `.opencode/loop/ralph-loop.ps1` запускает неинтерактивную сессию `opencode run --agent orchestrator --auto`; в ней нет инструмента `question`, а resume-ветка `instructions/session-bootstrap.md` требует «показать конфиг и спросить подтвердить/изменить» → ход завершается без брифа. Прогон 16.10: итерация 2 (RESUME) и итерация 1 (COLD) — обе без брифа, exit 3. Логи: `.opencode/loop/logs/{iter-1,iter-2}.{out,err}.log`. Нужно решение: снять шаг подтверждения в неинтерактивном драйвере (resume-промпт «конфиг подтверждён — шаг пропусти» либо авто-подтверждение в session-bootstrap). **Снято 16.10.2026 (Этап 30):** шаг подтверждения пропускается в неинтерактивной сессии; реальный прогон exit 0.
 - [x] **E2E-прогоны разблокированы (Этап 20)** — демо-пароль `121212` задан на
   обоих контурах, файл секретов и fallback синхронизированы. Блокер «пароли не
@@ -1131,11 +1155,13 @@
    доказательства) + правки `AGENTS.md` (пункт 0 ритуала читает
    `session_config`/`config.json`; преднастройки в control plane).
    `server/**` не менялся.
-0. [ ] **Живое напоминание плагина первого хода** — на первом реальном ходе
-   сессии оркестратора (после перезапуска opencode, чтобы движок подхватил
-   плагин): нет конфига → напоминание «выдай преднастройки через question
-   tool»; конфиг есть → «покажи унаследованный конфиг…». Поведение покрыто
-   probe на синтетических сообщениях, живого срабатывания ещё не было.
+0. [x] **Живое напоминание плагина первого хода — закрыто 19.10.2026
+   (Этап 31, вердикт НЕ ДЕФЕКТ).** Доказательство: JSONL-лог
+   `.artifacts/plugin-debug.log` (первый ход: `hasAssistant:false` →
+   `branch:"with-config"`, `injected:true`; далее `skip-not-first-turn`) +
+   цитата модели драйвер-сессии iter-3 «инъецированное напоминание…»
+   (`.opencode/handoff/handoff-261016-120450.md`). Root cause —
+   `.artifacts/plugin-debug-root-cause.md`.
 0. [x] **Цикл session-loop «исполнение → handoff → restart» (Этап 28)**:
    контракт `instructions/session-loop.md` (в `opencode.json → instructions`),
    плагин `.opencode/plugin/handoff-threshold.ts` (порог `ND_HANDOFF_THRESHOLD`
