@@ -51,6 +51,7 @@ lossy: повторные компакшены накапливают шум и 
 | `loop` | `continue` \| `done` \| `blocked` | цикл продолжается / завершён / ход за пользователем |
 | `iteration` | целое | номер итерации (с каждой новой сессией +1) |
 | `approved_plan` | путь-ссылка | утверждённый план (`docs/specs/`, `.opencode/design/` или отчёт этапа) |
+| `session_config` | путь | путь к конфигу преднастроек сессии (обычно `.opencode/session/config.json`, `instructions/session-bootstrap.md`) |
 | `next_action` | короткая строка | одно конкретное действие для следующей сессии |
 
 Далее — человекочитаемая «живая нить» по формату `/handoff`: что в работе и
@@ -96,6 +97,11 @@ run-agent-loop.cmd [-Task "..."] [-MaxIterations N] [-TimeoutMinutes M]
 powershell -NoProfile -ExecutionPolicy Bypass -File .opencode\loop\ralph-loop.ps1 [...]
 ```
 
+Параметры: `-Task` — текст задачи итерации (дефолт — «Продолжить работу над
+«ЦифровойНаряд» по docs/reports/STATUS.md и утверждённому плану»);
+`-MaxIterations` 1–1000 (дефолт **10**), `-TimeoutMinutes` 1–240 (дефолт
+**30**), `-Threshold` 0.01–0.99 (дефолт 0.58), `-Dry`.
+
 Важно: `-Threshold` драйвера подставляется **только в текст промпта** итерации
 (промпт напоминает агенту про порог) и **не влияет на плагин**. Порог
 напоминания плагина — отдельный, независимый рычаг: env `ND_HANDOFF_THRESHOLD`
@@ -103,30 +109,56 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .opencode\loop\ralph-loop.ps
 оно по-прежнему сработает на 0.58 (или на значение `ND_HANDOFF_THRESHOLD`,
 если задано).
 
-Поведение итерации:
+Поведение итерации (правки Этапа 32 — F1/F2/F3 — отмечены явно):
 
 1. чтение свежего `handoff-*.md` (frontmatter) и `state.json`; стоп по
-   `loop: done`/`blocked` ещё до запуска;
+   `loop: done`/`blocked` ещё до запуска (→ exit 0 / 2);
 2. выбор режима: `continue` + согласованный `state.json` → **resume-промпт**
    (без pre-approval, сразу `next_action`), иначе → **cold-промпт** (пройти
    pre-approval, зафиксировать `approved_plan`);
-3. запуск **свежей сессии** `opencode run --agent orchestrator --auto
+3. **F1:** оба промпта требуют проверять `.opencode/**` (свежие брифы,
+   `session/config.json`, `state.json`) инструментами **Read либо Bash**
+   (`Test-Path`/`Get-Content`/`Get-ChildItem`), а **не Glob** — Glob opencode
+   не видит dot-папки, и его «0 совпадений» не доказывает, что файлов нет
+   (строки 116 в `Build-ColdPrompt`, 130 в `Build-ResumePrompt`);
+4. запуск **свежей сессии** `opencode run --agent orchestrator --auto
    "<промпт>"` (без `-c/--continue`; в текущем CLI `opencode` флаг `-p` — это
    `--password`, поэтому промпт идёт позиционным `message`);
-4. жёсткий таймаут на итерацию (`-TimeoutMinutes`, дефолт 30) + kill-on-hang
-   (`taskkill /T /F`); stdout/stderr/промпт каждой итерации — в
-   `.opencode/loop/logs/iter-N.{out,err}.log` / `iter-N.prompt.txt`;
-5. после итерации — повторное чтение frontmatter: нет брифа / нет валидного
-   `loop` → останов «нить потеряна» (слепое продолжение запрещено);
-6. запись `state.json` и переход к следующей итерации.
+5. **F2 (до запуска):** имя последнего брифа запоминается **до** старта
+   сессии (строки 247–251) — результатом итерации считается только файл с
+   другим (новым) именем;
+6. жёсткий таймаут на итерацию (`-TimeoutMinutes`) + kill-on-hang
+   (`taskkill /T /F`); **F3:** stdout/stderr/промпт итерации пишутся в логи
+   **со stamp-ом прогона** — `iter-<yyMMdd-HHmmss>-<N>.out.log` /
+   `.err.log` / `.prompt.txt` (строки 141, 142, 243) → логи разных прогонов
+   не перезаписывают друг друга (основной лог драйвера тоже со stamp:
+   `loop-<stamp>[-dry].log`);
+7. **F2 (после запуска):** принимается только **новый** бриф (имя ≠
+   запомненному до запуска); брифа нет или это прежний/чужой файл → стоп
+   «нить потеряна», **exit 1 без `Save-LoopState`** (строки 277–286) —
+   чужой/старый бриф не может затереть утверждённый план в `state.json`;
+8. новый бриф есть, но без валидного frontmatter (`loop`) → `state.json` с
+   `loop: error`/`phase: bad-handoff` и стоп exit 1 (слепое продолжение
+   запрещено);
+9. принятие нового брифа → `Save-LoopState` (`iteration+1`, `loop`,
+   `approved_plan`) → следующая итерация; лимит исчерпан → exit 3.
 
-Коды выхода: `0` = `done` (цикл закрыт), `1` = ошибка (нет брифа / битый
-frontmatter / неизвестный `loop`), `2` = `blocked` (ход за пользователем),
-`3` = лимит итераций (дефолт `-MaxIterations` 10), `4` = таймаут итерации.
+Коды выхода (сверены со скриптом, шапка файла — комментарий строки 4):
 
-Режим `-Dry`: opencode не запускается, брифы и `state.json` пишутся в
-песочницу `.opencode/loop/dry-run/` (реальный `.opencode/handoff/` не трогается,
-фейковые брифы не подменяют живую нить).
+| Код | Условие |
+|---|---|
+| `0` | `done` — свежий бриф с `loop: done` (останов ещё до запуска либо после итерации), цикл закрыт |
+| `1` | ошибка: **нет нового брифа** (F2, без `Save-LoopState`), битый frontmatter нового брифа, неизвестное значение `loop` |
+| `2` | `blocked` — ход за пользователем (бриф с `loop: blocked`) |
+| `3` | лимит итераций (`-MaxIterations`, дефолт 10) при последнем брифе `continue` |
+| `4` | таймаут итерации (`-TimeoutMinutes`) — kill-on-hang; `state.json` сохраняется с `loop: timeout` |
+
+Режим `-Dry`: opencode не запускается; `HandoffDir` и `state.json`
+перенаправляются в песочницу `.opencode/loop/dry-run/` (строки 26–30, при
+старте очищается), брифы симулируются самим драйвером (итерация 1 →
+`continue`, далее → `done`) — реальные `.opencode/handoff/` и `state.json`
+не трогаются, фейковые брифы не подменяют живую нить. Стандартный сценарий
+`-Dry -MaxIterations 3` заканчивается exit 0 (continue→done).
 
 Runtime цикла gitignored (корневой `.gitignore`): `.opencode/loop/logs/`,
 `.opencode/loop/state.json`, `.opencode/loop/dry-run/`; сам `ralph-loop.ps1`
@@ -167,8 +199,11 @@ Runtime цикла gitignored (корневой `.gitignore`): `.opencode/loop/l
 - **Секреты.** Брифы пишет `/handoff` с редакцией токенов/паролей/`.env`;
   логи и промпты драйвера секретов не содержат (скан при верификации — 0
   совпадений). `server/.env`, `.secrets/` и прочее — по `instructions/safety.md`.
-- **Слепое продолжение запрещено:** итерация без записанного брифа или с
-  неизвестным `loop` → стоп с кодом 1.
+- **Слепое продолжение запрещено (F2):** итерация без **нового**
+  записанного брифа (имя не изменилось относительно запуска сессии) или с
+  неизвестным `loop` → стоп с кодом 1; в ветке «нет нового брифа»
+  `state.json` **не** перезаписывается (иначе чужой старый бриф затёр бы
+  утверждённый план — дефект, закрытый в Этапе 32).
 - **Scope:** resume работает только по утверждённому плану; всё вне scope —
   `blocked` + вопрос пользователю, не «доделать на глазок».
 - **Плагин не ломает argos:** один хук, аддитивная вставка, идемпотентность,
@@ -193,7 +228,7 @@ Runtime цикла gitignored (корневой `.gitignore`): `.opencode/loop/l
    итерациям; таймаут на итерацию 30 мин).
 4. **Наблюдение:** `git status`, `docs/reports/STATUS.md` (что успела сделать
    сессия), брифы `.opencode/handoff/handoff-*.md` (frontmatter), состояние
-   `.opencode/loop/state.json`, логи `.opencode/loop/logs/iter-N.*`.
+   `.opencode/loop/state.json`, логи `.opencode/loop/logs/iter-<stamp>-<N>.*`.
 5. **Останов:** коды выхода 0/1/2/3/4 (см. «Драйвер»); `blocked` (2) — ответить
    пользователю и запустить цикл заново; `done` (0) — цикл закрыт. Прервать
    заранее — Ctrl+C; зависшую итерацию драйвер убивает по таймауту сам.
@@ -205,17 +240,42 @@ Runtime цикла gitignored (корневой `.gitignore`): `.opencode/loop/l
 - Плагин: `tsc --noEmit` (strict) exit 0; probe **58/58**
   (`.artifacts/probe-handoff-threshold.log`); импорт модуля opencode-движком
   доказан (`opencode debug info` + top-level маркер), `opencode serve` 10 с без
-  ошибок — `.artifacts/verification/handoff-threshold-verification.md`.
-- Драйвер: парс PowerShell 0 ошибок; `-Dry` continue→done exit 0; лимит exit 3
-  (и через лаунчер); `git check-ignore` 3/3; скан секретов 0; кириллица UTF-8
-  байтово — `.artifacts/verification/ralph-loop-dry-run.md`; более полный
-  внешний прогон 16.10 (argv-стаб — форма запуска без `--continue` и промпт
+  ошибок — `.artifacts/verification/handoff-threshold-verification.md`;
+  живое срабатывание порога на настоящем usage подтверждено 16.10.2026
+  (напоминание «~64%» на первом ходе — запись Этапа 30 в
+  `docs/reports/STATUS.md`).
+- Драйвер (базовые проверки): парс PowerShell 0 ошибок; `-Dry` continue→done
+  exit 0; лимит exit 3 (и через лаунчер); `git check-ignore` 3/3; скан
+  секретов 0; кириллица UTF-8 байтово —
+  `.artifacts/verification/ralph-loop-dry-run.md`; более полный внешний
+  прогон 16.10 (argv-стаб — форма запуска без `--continue` и промпт
   позиционным `message`, ветка таймаута/kill-on-hang → exit 4) —
   `.artifacts/verification/session-loop-driver-dry-run.md`.
-- Честные ограничения: **реальный (не dry) прогон цикла не выполнялся**
-  (требует согласия на `--auto`); **живое срабатывание порога на настоящем
-  usage модели не проверялось** (логика покрыта probe на синтетических
-  сообщениях) — наблюдение на первом длинном ходе.
+- **Этап 32 (правки F1+F2+F3) — PASS, код драйвера в коммите `55863ad`
+  (тег `v0.32-loop-driver-fixes`):** статика с цитатами строк (F1 — 116/130,
+  F2 — 247–251 и 277–286 без `Save-LoopState`, F3 — 141/142/243) + dry-прогон
+  `-Dry -MaxIterations 3` → **exit 0** (continue→done), SHA256 реального
+  `state.json` до/после идентичны, список брифов (16) не изменился, гигиена —
+  `.artifacts/verification/ralph-loop-fixes-verify.md`.
+- **Живой smoke — PASS 7/7**
+  (`.artifacts/verification/ralph-loop-live-smoke.md`): реальный прогон
+  `-MaxIterations 1 -TimeoutMinutes 15` → ветка **RESUME, итерация 5**,
+  **exit 3** (лимит при `loop: continue`, 421 с), дочерняя сессия exit 0;
+  свежая сессия увидела `.opencode/handoff/` через Bash-листинг и Read (Glob
+  первым вернул 0 совпадений — F1-фолбэк отработал), выполнила `next_action`
+  (маркер), записала новый бриф `iteration: 5`, драйвер принял именно его
+  (F2-ветка вживую) и обновил `state.json` веткой принятия брифа; гигиена
+  (тестовые брифы/логи удалены, `state.json` восстановлен к baseline).
+  **Первый прогон smoke провалился (exit 4)** — дефекты входных данных D1–D3
+  (сессия якорилась на бриф с `approved_plan`, не листала `.opencode/handoff/`,
+  упала в `dispatch_tasks {"todos":…}` до kill-on-hang), а не кода драйвера;
+  закрыты правкой **только входов** прогона (приоритетный блок в бриф-фикстуре,
+  пошаговый `-Task`, таймаут 15 мин) — код драйвера не менялся.
+- Честные ограничения/наблюдения: живой прогон пока **один** маркерный
+  (Этап 32) — масштабные/длительные прогоны на реальной работе не
+  проверялись; модель по привычке первым действием зовёт Glob для dot-пути
+  (`0 совпадений`) — F1-инструкция в промпте каждый раз спасает немедленным
+  Bash-листингом (наблюдение live-smoke, §10 отчёта).
 
 ## См. также
 
