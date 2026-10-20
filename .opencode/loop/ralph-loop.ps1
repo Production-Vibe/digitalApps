@@ -113,6 +113,7 @@ function Build-ColdPrompt([int]$Iteration) {
 Задача цикла: $Task
 Действия: пройди pre-approval (уточни цель и scope либо зафиксируй уже согласованный план), зафиксируй утверждённый план в docs/specs/ или .opencode/design/ — это approved_plan. Далее исполняй только утверждённый scope.
 Неинтерактивный запуск: если .opencode/session/config.json уже существует — преднастройки повторно НЕ опрашивай и вопросов не задавай, зафиксируй согласованный план/разумные дефолты и продолжай работу.
+Проверяй .opencode/** (свежие брифы .opencode/handoff/, .opencode/session/config.json, .opencode/loop/state.json) инструментами Read либо Bash (Test-Path, Get-Content, Get-ChildItem) — НЕ полагайся на Glob: он не видит dot-папки, и его «0 совпадений» не доказывает, что файлов нет.
 На границе фазы, при вопросе пользователю или когда контекст достигнет порога $thrText — заверши ход командой /handoff с актуальным frontmatter: loop (continue, done или blocked), iteration, approved_plan, next_action.
 "@
     return ($text -replace '"', "'")
@@ -126,6 +127,7 @@ function Build-ResumePrompt([int]$Iteration, [string]$Plan, [string]$NextAction)
     $text = @"
 RESUME-режим цикла session-loop «ЦифровойНаряд». Итерация $Iteration. Это продолжение по уже утверждённому плану $planRef.
 Прочитай свежий бриф: последний файл .opencode/handoff/ (frontmatter loop, iteration, approved_plan, next_action) и сверь его с docs/reports/STATUS.md и git log (пункт 0 ритуала старта в AGENTS.md).
+Проверяй .opencode/** (handoff, session/config.json, loop/state) инструментами Read либо Bash (Test-Path, Get-Content, Get-ChildItem) — НЕ полагайся на Glob: он не видит dot-папки, и его «0 совпадений» не доказывает, что брифов/конфига нет.
 Правила resume-режима: pre-approval НЕ повторяй; план не пересматривай; scope не расширяй. Сразу выполни next_action: $nextAct — работай только в approved scope.
 Преднастройки сессии подтверждены (запуск драйвером): шаг подтверждения session-bootstrap ПРОПУСТИ; вопрос «подтвердить/изменить» не задавай — инструмент question в неинтерактивной сессии недоступен; сразу продолжай работу.
 Задача вне approved scope — записать handoff с loop: blocked и вопросом пользователю, ход завершить.
@@ -136,8 +138,8 @@ RESUME-режим цикла session-loop «ЦифровойНаряд». Ите
 }
 
 function Invoke-OpenCodeIteration([string]$Prompt, [int]$Iteration) {
-    $outLog = Join-Path $LogsDir ('iter-{0}.out.log' -f $Iteration)
-    $errLog = Join-Path $LogsDir ('iter-{0}.err.log' -f $Iteration)
+    $outLog = Join-Path $LogsDir ('iter-{0}-{1}.out.log' -f $stamp, $Iteration)
+    $errLog = Join-Path $LogsDir ('iter-{0}-{1}.err.log' -f $stamp, $Iteration)
 
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = 'cmd.exe'
@@ -238,9 +240,15 @@ for ($slot = 1; $slot -le $MaxIterations; $slot++) {
         Log ('Итерация ' + $iteration + ': COLD-старт')
         $prompt = Build-ColdPrompt -Iteration $iteration
     }
-    $promptLog = Join-Path $LogsDir ('iter-{0}.prompt.txt' -f $iteration)
+    $promptLog = Join-Path $LogsDir ('iter-{0}-{1}.prompt.txt' -f $stamp, $iteration)
     Set-Content -LiteralPath $promptLog -Value $prompt -Encoding UTF8
     Log ('Промпт (' + $mode + ') сохранён: ' + $promptLog)
+
+    # F2: запоминаем имя последнего брифа ДО запуска итерации — после итерации
+    # результатом считается только файл с другим именем (новый бриф).
+    $preHandoffName = $null
+    $preHandoff = Get-LatestHandoffFile
+    if ($preHandoff) { $preHandoffName = Split-Path -Leaf $preHandoff.FullName }
 
     $newFm = $null
     if ($Dry) {
@@ -265,11 +273,14 @@ for ($slot = 1; $slot -le $MaxIterations; $slot++) {
             $exitCode = 4
             break
         }
-        Log ('opencode завершился: exit=' + $result.ExitCode + '; логи iter-' + $iteration + '.out.log / iter-' + $iteration + '.err.log')
+        Log ('opencode завершился: exit=' + $result.ExitCode + '; логи iter-' + $stamp + '-' + $iteration + '.out.log / iter-' + $stamp + '-' + $iteration + '.err.log')
         $latestAfter = Get-LatestHandoffFile
-        if (-not $latestAfter) {
-            Save-LoopState -Iteration $iteration -Loop 'error' -Plan $plan -Phase 'no-handoff'
-            $stopReason = 'итерация ' + $iteration + ' завершена без handoff — нить потеряна, останов (см. логи итерации)'
+        $latestAfterName = $null
+        if ($latestAfter) { $latestAfterName = Split-Path -Leaf $latestAfter.FullName }
+        if (-not $latestAfter -or $latestAfterName -eq $preHandoffName) {
+            # Нового брифа нет (или это прежний чужой файл) — state.json НЕ перезаписываем,
+            # чтобы не затереть план старым брифом.
+            $stopReason = 'итерация ' + $iteration + ' завершена без нового handoff — нить потеряна, останов (см. логи итерации)'
             $exitCode = 1
             break
         }
