@@ -23,6 +23,24 @@
 
 ## Последний завершённый этап
 
+- **21.10.2026 — Этап 35: compaction-агент настроен под handoff-бриф.**
+  В `opencode.json` добавлен ключ `agents.compaction.system` — промпт встроенному
+  скрытому агенту штатного компакшена: backbone — свежий бриф из
+  `.opencode/handoff/` (перенос frontmatter `loop`/`iteration`/`approved_plan`/
+  `session_config`/`next_action`), структура summary (in-flight и почему,
+  `next_action`, ссылки путями без копий, блокеры, решения, скиллы), русский
+  язык, редакция секретов, запрет деплоя и правок дерева. Программного
+  компакшена в плагине по-прежнему нет (Этап 34) — промпт делает handoff-aware
+  только штатный/ручной компакшен; приоритет по ADR-012 у handoff → restart.
+  Правка лежала в рабочем дереве с 19.10.2026 без документации. **Проверки:**
+  `opencode.json` парсится; `opencode debug config` резолвит текст в
+  `agent.compaction.prompt`; `opencode agent list` — `compaction` есть,
+  `read`/`bash` разрешены; `agents` — актуальный ключ схемы (`agent`
+  deprecated), `system` входит в `Config.AgentEncoded`. Раздел «Штатный
+  компакшен» синхронизирован в `docs/specs/agent-loop.md`. `server/**` не
+  менялся — `npm run build`/`check` не требовались. **Коммит:** см. git log
+  (тег не ставился).
+
 - **21.10.2026 — Этап 34: handoff-threshold без программного компакшена.**
   Причина — ошибка `ConnectionRefused` от **устаревшего экземпляра плагина** в
   процессе сессии: файл `.opencode/plugin/handoff-threshold.ts` изменён
