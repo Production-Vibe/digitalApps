@@ -23,6 +23,21 @@
 
 ## Последний завершённый этап
 
+- **21.10.2026 — Этап 33: ужесточение resume-промпта против дефекта D1.**
+  Дефект D1 (наблюдение живого smoke Этапа 32): модель в resume-режиме
+  якорилась на файл `approved_plan`-брифа вместо поля `next_action` свежего
+  брифа. Устранён формулировкой промптов драйвера
+  (`.opencode/loop/ralph-loop.ps1`, `Build-ResumePrompt`/`Build-ColdPrompt`):
+  `approved_plan` — только границы scope, единственный источник «что делать» —
+  `next_action` самого свежего брифа, при противоречии порядок действий задаёт
+  `next_action` (scope не расширяется). Раздел «Источник действия»
+  синхронизирован в `docs/specs/agent-loop.md`. Код драйвера F1–F3 закоммичен
+  ранее (`55863ad`, тег `v0.32-loop-driver-fixes`), спека — `56b2a95`.
+  `server/**` не менялся. **Коммит/тег:** `4cb4a10` «fix: ужесточить
+  resume-промпт против D1 — источник действия next_action (Этап 33)», тег
+  **`v0.33-d1-resume-prompt`**
+  (`.artifacts/verification/commit-d1-resume-prompt-verify.md`).
+
 - **19.10.2026 — Этап 32: правки драйвера session-loop после живого smoke-теста
   handoff (F1+F2+F3) — вердикт PASS.** Живой smoke-тест механики handoff 19.10
   выявил дефекты: (а) Glob-тул opencode **не видит dot-папки** — свежая сессия
@@ -1192,9 +1207,17 @@
    закрыт 19.10.2026: живой smoke PASS 7/7**
    (`.artifacts/verification/ralph-loop-live-smoke.md`) — RESUME-итерация 5,
    exit 3, маркер создан, новый бриф принят, гигиена выполнена.
-   **Осталось по согласию:** коммит `ralph-loop.ps1` (+тег `v0.32-*`) и
-   актуализация `docs/specs/agent-loop.md`; (опц.) ужесточить resume-промпт
-   против D1 (якорь на `approved_plan`-бриф) — по результатам наблюдений.
+   **Остаток этапа (коммит + тег + спека) закрыт:** `ralph-loop.ps1` →
+   коммит `55863ad` (тег `v0.32-loop-driver-fixes`), актуализация
+   `docs/specs/agent-loop.md` → `56b2a95`.
+0. [x] **(опц.) Ужесточить resume-промпт против D1 — закрыто в Этапе 33
+   (21.10.2026).** Якорь на `approved_plan`-бриф устранён: промпты драйвера
+   требуют брать единственный источник действия из `next_action` самого
+   свежего брифа, при противоречии порядок действий задаёт `next_action`
+   (scope не расширяется); раздел «Источник действия» в
+   `docs/specs/agent-loop.md` синхронизирован. Коммит `4cb4a10`, тег
+   `v0.33-d1-resume-prompt`
+   (`.artifacts/verification/commit-d1-resume-prompt-verify.md`).
 0. [x] **Преднастройки сессии (session-bootstrap, Этап 29)**: контракт
    `instructions/session-bootstrap.md` (в `opencode.json → instructions`),
    плагин `.opencode/plugin/session-bootstrap.ts` (первый ход, гейт
