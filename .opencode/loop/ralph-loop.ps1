@@ -111,7 +111,7 @@ function Build-ColdPrompt([int]$Iteration) {
     $text = @"
 Холодный старт цикла session-loop «ЦифровойНаряд». Итерация $Iteration. Режим COLD: свежего resume-брифа нет или он не согласован со state.json.
 Задача цикла: $Task
-Действия: пройди pre-approval (уточни цель и scope либо зафиксируй уже согласованный план), зафиксируй утверждённый план в docs/specs/ или .opencode/design/ — это approved_plan. Далее исполняй только утверждённый scope.
+Действия: пройди pre-approval (уточни цель и scope либо зафиксируй уже согласованный план), зафиксируй утверждённый план в docs/specs/ или .opencode/design/ — это approved_plan. Далее исполняй только утверждённый scope: план задаёт границы, конкретное действие — ближайший пункт этого же плана (или next_action свежего брифа, если он есть), а не задачи из произвольных файлов.
 Неинтерактивный запуск: если .opencode/session/config.json уже существует — преднастройки повторно НЕ опрашивай и вопросов не задавай, зафиксируй согласованный план/разумные дефолты и продолжай работу.
 Проверяй .opencode/** (свежие брифы .opencode/handoff/, .opencode/session/config.json, .opencode/loop/state.json) инструментами Read либо Bash (Test-Path, Get-Content, Get-ChildItem) — НЕ полагайся на Glob: он не видит dot-папки, и его «0 совпадений» не доказывает, что файлов нет.
 На границе фазы, при вопросе пользователю или когда контекст достигнет порога $thrText — заверши ход командой /handoff с актуальным frontmatter: loop (continue, done или blocked), iteration, approved_plan, next_action.
@@ -125,10 +125,10 @@ function Build-ResumePrompt([int]$Iteration, [string]$Plan, [string]$NextAction)
     $nextAct = $NextAction
     if ([string]::IsNullOrWhiteSpace($nextAct)) { $nextAct = '(из брифа)' }
     $text = @"
-RESUME-режим цикла session-loop «ЦифровойНаряд». Итерация $Iteration. Это продолжение по уже утверждённому плану $planRef.
-Прочитай свежий бриф: последний файл .opencode/handoff/ (frontmatter loop, iteration, approved_plan, next_action) и сверь его с docs/reports/STATUS.md и git log (пункт 0 ритуала старта в AGENTS.md).
+RESUME-режим цикла session-loop «ЦифровойНаряд». Итерация $Iteration. Утверждённый план: $planRef — это только ГРАНИЦА одобренного scope (что можно/нельзя трогать, что уже согласовано), а НЕ пошаговая задача: файл плана читай ради границ, НЕ выполняй описанные в нём задачи/фазы, если они не продублированы в next_action свежего брифа.
+ЕДИНСТВЕННЫЙ источник «что делать прямо сейчас» — поле next_action САМОГО СВЕЖЕГО брифа: последнего файла .opencode/handoff/ (листинг через Bash/Read, frontmatter loop, iteration, approved_plan, next_action); сверь его с docs/reports/STATUS.md и git log (пункт 0 ритуала старта в AGENTS.md).
 Проверяй .opencode/** (handoff, session/config.json, loop/state) инструментами Read либо Bash (Test-Path, Get-Content, Get-ChildItem) — НЕ полагайся на Glob: он не видит dot-папки, и его «0 совпадений» не доказывает, что брифов/конфига нет.
-Правила resume-режима: pre-approval НЕ повторяй; план не пересматривай; scope не расширяй. Сразу выполни next_action: $nextAct — работай только в approved scope.
+Правила resume-режима: pre-approval НЕ повторяй; план не пересматривай; scope не расширяй. Сразу выполни next_action: $nextAct — работай только в approved scope. Противоречие плана и next_action → приоритет у next_action свежего брифа в смысле порядка действий; scope от этого не расширяется.
 Преднастройки сессии подтверждены (запуск драйвером): шаг подтверждения session-bootstrap ПРОПУСТИ; вопрос «подтвердить/изменить» не задавай — инструмент question в неинтерактивной сессии недоступен; сразу продолжай работу.
 Задача вне approved scope — записать handoff с loop: blocked и вопросом пользователю, ход завершить.
 При завершении фазы или когда контекст достигнет порога $thrText — записать handoff с актуальным frontmatter (loop, iteration, approved_plan, next_action) и завершить ход.
