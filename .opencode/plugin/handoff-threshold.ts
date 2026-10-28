@@ -6,47 +6,76 @@
 // 1) experimental.chat.messages.transform:
 //   * действует только для агента orchestrator (пустой agent = дефолтная
 //     сессия orchestrator — та же гейт-семантика, что у argos/session-bootstrap);
-//   * сравнивает долю заполнения контекста с порогом (env
-//     ND_HANDOFF_THRESHOLD — доля 0..1, по умолчанию 0.48) и при
-//     ratio >= порога дописывает в КОНЕЦ последнего user-сообщения
-//     императивное напоминание: немедленно выполнить /handoff и сразу после
-//     записи брифа завершить ход без новых инструментов;
+//   * сравнивает долю заполнения контекста с ДВУМЯ порогами:
+//     — НИЖНИЙ (env ND_HANDOFF_THRESHOLD — доля 0..1, по умолчанию 0.50):
+//       ratio >= порога дописывает в КОНЕЦ последнего user-сообщения
+//       императивное напоминание: немедленно выполнить /handoff и сразу после
+//       записи брифа завершить ход без новых инструментов (маркер REMINDER_MARK);
+//     — ВЕРХНИЙ, порог перезапуска (env ND_RESTART_THRESHOLD, дефолт
+//       DEFAULT_RESTART_THRESHOLD = 0.80): ratio >= порога дополнительно
+//       дописывает императив «контекст на пределе — допиши бриф и остановись,
+//       сессия будет перезапущена автоматически» (маркер RESTART_MARK) и
+//       армирует перезапуск в машине состояний (restartArmed);
 //   * помечает сессию фазой pending (см. машину состояний ниже).
 //
 // 2) event:
 //   * при событии «session idle» (session.idle либо session.status со
-//     status.type="idle") для сессии в фазе pending проверяет наличие СВЕЖЕГО
-//     handoff-брифа: файл handoff-*.md в .opencode/handoff/ с mtime позже
-//     времени первой инъекции напоминания (mtime-гейт);
-//   * при наличии свежего брифа ОДИН РАЗ переводит фазу в spent (цикл
-//     напоминаний закрыт до нового пересечения порога); без свежего брифа
-//     фаза остаётся pending и напоминания продолжают доставляться. Гейт по
-//     orchestrator для event-пути обеспечивается машиной состояний: состояния
-//     pending появляются только у сессий, прошедших гейт агента в transform, —
-//     субагенты не затрагиваются.
+//     status.type="idle") для сессии в restartArmed (и фаза не restarting) —
+//     ВЕРХНЯЯ idle-граница: при наличии СВЕЖЕГО handoff-брифа (файл handoff-*.md
+//     в .opencode/handoff/ с mtime позже времени первой инъекции напоминания)
+//     атомарно пишется маркер перезапуска .opencode/loop/restart-request.json
+//     (схема version 1, см. buildRestartMarker), фаза становится restarting и
+//     через 250 мс процесс завершается (process.exit(0)) — драйвер цикла
+//     подхватывает маркер и стартует свежую сессию. БЕЗ свежего брифа маркер
+//     не пишется и процесс не завершается (нить не теряем): в лог уходит
+//     «restart skipped: no fresh brief»;
+//   * иначе, для сессии в фазе pending — прежняя логика закрытия цикла
+//     напоминаний: при наличии свежего брифа ОДИН РАЗ фаза становится spent
+//     (цикл напоминаний закрыт до нового пересечения порога); без свежего
+//     брифа фаза остаётся pending и напоминания продолжают доставляться.
+//     Гейт по orchestrator для event-пути обеспечивается машиной состояний:
+//     состояния pending/restartArmed появляются только у сессий, прошедших
+//     гейт агента в transform, — субагенты не затрагиваются.
+//
+// Перезапуск ВЫКЛЮЧЕН (верхний порог не действует; нижнее напоминание на 0.50
+// при этом продолжает работать всегда), когда:
+//   * env ND_RESTART_DISABLE = 1|true|yes|on (без учёта регистра);
+//   * env ND_LOOP_DRIVER = 1|true|yes|on — сессия запущена драйвером цикла
+//     (у драйвера свой цикл перезапуска, маркер ему не нужен).
+// Порог перезапуска, не прошедший валидацию (пусто/мусор/<= нижнего порога/> 1),
+// заменяется дефолтом 0.80 (parseRestartThreshold).
+//
+// Маркер перезапуска (.opencode/loop/restart-request.json, UTF-8, атомарно —
+// запись в *.tmp + renameSync): { version: 1, reason: "context_restart",
+// sessionID, ratio (3 знака после запятой), percent (round(ratio*100)), brief
+// (путь брифа относительно корня репо, прямые слэши), createdAt (ISO-8601),
+// createdAtMs, nonce (crypto.randomUUID()), pid }. ratio в маркере —
+// последнее измеренное значение (state.lastRatio).
 //
 // Программный компакшен УДАЛЁН: он выполнял HTTP-вызов к самому
 // opencode-серверу (POST /api/session/{id}/compact через v2-клиент SDK), что
 // в интерактивной сессии давало ConnectionRefused и триггерило
 // free-tier-проверку OpenCode. Цикл session-loop стартует свежую сессию на
-// каждой итерации — компакшен не нужен; idle-ветка только закрывает цикл
-// напоминаний по свежему брифу.
+// каждой итерации — компакшен не нужен; idle-ветка закрывает цикл напоминаний
+// по свежему брифу либо, на верхней границе, пишет маркер перезапуска.
 //
 // Идемпотентность:
 //   * закрытие цикла напоминаний — не более одного раза на одно пересечение
-//     порога (фаза spent);
-//   * инъекция — на КАЖДОМ шаге (model-запросе), пока ratio >= порога и
-//     фаза не spent: трансформ вызывается один раз на шаг цикла, мутации
-//     снапшота не персистятся в БД (.artifacts/plugin-debug-opencode-
+//     порога (фаза spent); маркер перезапуска — не более одного раза на
+//     сессию (фаза restarting);
+//   * инъекция — на КАЖДОМ шаге (model-запросе), пока ratio >= нижнего порога
+//     и фаза не spent/restarting: трансформ вызывается один раз на шаг цикла,
+//     мутации снапшота не персистятся в БД (.artifacts/plugin-debug-opencode-
 //     semantics.md, (a), (d) п.3) — при инъекции только на первом шаге
 //     модель на шагах 2+ не видела бы напоминания вообще. Накопление
 //     исключено: каждый шаг получает свежий снапшот из БД без нашего
-//     текста, а внутри одного снапшота дубль отсекает маркер REMINDER_MARK
-//     (та же схема, что у argos-преамбулы — она тоже мутирует каждый шаг);
-//   * сброс к armed происходит только при ratio < порога (новое
-//     пересечение), а не по каждому вызову; injectedAt остаётся временем
-//     ПЕРВОЙ инъекции пересечения — гейт свежести брифа (mtime) считается
-//     от него и не сдвигается ре-инъекциями.
+//     текста, а внутри одного снапшота дубль отсекает маркер (REMINDER_MARK
+//     у напоминания, RESTART_MARK у императива перезапуска; та же схема,
+//     что у argos-преамбулы — она тоже мутирует каждый шаг);
+//   * сброс к armed (вместе с restartArmed/lastRatio) происходит только при
+//     ratio < НИЖНЕГО порога (новое пересечение), а не по каждому вызову;
+//     injectedAt остаётся временем ПЕРВОЙ инъекции пересечения — гейт свежести
+//     брифа (mtime) считается от него и не сдвигается ре-инъекциями.
 //
 // Источник usage: сумма tokens последнего assistant-сообщения с ненулевым
 // usage (input + output + reasoning + cache.read + cache.write) и лимит окна
@@ -67,14 +96,14 @@
 //
 // Экспорт модуля — только default (плагин): opencode трактует любые другие
 // именованные экспорты как отдельные плагины (см. .artifacts/research/
-// opencode-plugin-loop.md, п.6), поэтому чистые функции порога/машины
-// состояний доступны через свойство plugin.pure
+// opencode-plugin-loop.md, п.6), поэтому чистые функции порогов/машины
+// состояний/маркера доступны через свойство plugin.pure
 // (probe: .artifacts/probe-handoff-threshold.ts).
 
 import type { Plugin, PluginInput, Hooks } from "@opencode-ai/plugin";
 import type { AssistantMessage, Event, Part, TextPart, UserMessage } from "@opencode-ai/sdk";
-import { readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 type TransformHook = NonNullable<Hooks["experimental.chat.messages.transform"]>;
 type TransformOutput = Parameters<TransformHook>[1];
@@ -88,22 +117,43 @@ type UsageSnapshot = {
 };
 
 // Фаза пересечения порога для одной сессии:
-//   armed   — порог не пересечён (дефолт, состояние отсутствует в Map);
-//   pending — напоминание инъецировано, ждём свежий бриф + idle → закрытие
-//             цикла напоминаний;
-//   spent   — цикл напоминаний закрыт по свежему брифу (до нового
-//             пересечения порога: ratio < порога удаляет состояние → armed).
+//   armed      — порог не пересечён (дефолт, состояние отсутствует в Map);
+//   pending    — напоминание инъецировано, ждём свежий бриф + idle → закрытие
+//                цикла напоминаний;
+//   spent      — цикл напоминаний закрыт по свежему брифу (до нового
+//                пересечения порога: ratio < порога удаляет состояние → armed);
+//   restarting — верхний порог пересечён и idle-граница записала маркер
+//                перезапуска: процесс уходит на завершение (process.exit(0)).
 type SessionState = {
-  phase: "armed" | "pending" | "spent";
+  phase: "armed" | "pending" | "spent" | "restarting";
   injectedAt: number; // время ПЕРВОЙ инъекции пересечения — гейт mtime брифа
   lastMessageID: string | null; // id user-сообщения последней инъекции (диагностика)
+  restartArmed: boolean; // верхний порог пересечён — кандидат на перезапуск на idle
+  lastRatio: number; // последнее измеренное ratio (для маркера перезапуска)
 };
 
-const DEFAULT_THRESHOLD = 0.48;
+// Маркер перезапуска для драйвера цикла (schema v1): собирается чистой
+// buildRestartMarker, пишется атомарно writeRestartMarker.
+type RestartMarker = {
+  version: 1;
+  reason: "context_restart";
+  sessionID: string;
+  ratio: number;
+  percent: number;
+  brief: string;
+  createdAt: string;
+  createdAtMs: number;
+  nonce: string;
+  pid: number;
+};
+
+const DEFAULT_THRESHOLD = 0.50;
+const DEFAULT_RESTART_THRESHOLD = 0.80;
 const FALLBACK_CONTEXT_LIMIT = 200_000;
 const CHARS_PER_TOKEN = 4;
 const ORCHESTRATOR_AGENT = "orchestrator";
 const HANDOFF_DIR_RELATIVE = join(".opencode", "handoff");
+const RESTART_MARKER_RELATIVE = ".opencode/loop/restart-request.json";
 const BRIEF_FILENAME_RE = /^handoff-.*\.md$/i;
 const REMINDER_MARK = "Это напоминание: на разумной границе";
 const REMINDER_TAIL =
@@ -112,6 +162,15 @@ const REMINDER_TAIL =
   "СРАЗУ ПОСЛЕ ЗАПИСИ БРИФА ЗАВЕРШИ ТЕКУЩИЙ ХОД БЕЗ НОВЫХ ИНСТРУМЕНТОВ. " +
   "Не продолжай реализацию, не вызывай dispatch/register/execute. " +
   "Если бриф уже записан — просто закончи ход.";
+const RESTART_MARK = "Это напоминание: контекст на пределе";
+const RESTART_TAIL =
+  "Немедленно допиши handoff-бриф " +
+  "(frontmatter loop/iteration/approved_plan/session_config/next_action) " +
+  "и остановись — сессия будет перезапущена автоматически.";
+const RESTART_EXIT_DELAY_MS = 250;
+const RESTART_DISABLE_ENV = "ND_RESTART_DISABLE";
+const RESTART_DRIVER_ENV = "ND_LOOP_DRIVER";
+const RESTART_TRUTHY = new Set(["1", "true", "yes", "on"]);
 
 function parseThreshold(raw: string | undefined): number {
   if (raw == null) return DEFAULT_THRESHOLD;
@@ -120,13 +179,81 @@ function parseThreshold(raw: string | undefined): number {
   return value;
 }
 
+// Разбор env-порога перезапуска. Чистая: невалидное/пустое значение, доля
+// <= нижнего порога (ND_HANDOFF_THRESHOLD) или > 1 → дефолт (0.80).
+function parseRestartThreshold(raw: string | undefined, handoffThreshold: number): number {
+  if (raw == null) return DEFAULT_RESTART_THRESHOLD;
+  const value = Number(raw.trim());
+  if (!Number.isFinite(value) || value <= 0 || value > 1 || value <= handoffThreshold) {
+    return DEFAULT_RESTART_THRESHOLD;
+  }
+  return value;
+}
+
+// Значение env-флага трактуется как «истина»: 1|true|yes|on (без учёта регистра).
+function isTruthyEnv(raw: string | undefined): boolean {
+  if (raw == null) return false;
+  return RESTART_TRUTHY.has(raw.trim().toLowerCase());
+}
+
+// Перезапуск включён, пока не заданы отключающие флаги: ND_RESTART_DISABLE
+// или ND_LOOP_DRIVER (драйвер цикла имеет свой цикл перезапуска). Чистая:
+// env читается только из аргумента.
+function parseRestartEnabled(env: Record<string, string | undefined>): boolean {
+  return !isTruthyEnv(env[RESTART_DISABLE_ENV]) && !isTruthyEnv(env[RESTART_DRIVER_ENV]);
+}
+
 function shouldRemind(ratio: number, threshold: number): boolean {
   return ratio >= threshold;
+}
+
+// Верхний порог пересечён (и перезапуск включён). Чистая.
+function shouldRestart(ratio: number, restartThreshold: number, enabled = true): boolean {
+  return enabled && ratio >= restartThreshold;
 }
 
 function formatReminder(ratio: number): string {
   const percent = Math.min(100, Math.max(0, Math.round(ratio * 100)));
   return `Контекст заполнен на ~${percent}%. ${REMINDER_TAIL}`;
+}
+
+// Текст императива верхней границы: начинается с RESTART_MARK (дедуп в
+// снапшоте по своему маркеру). Чистая.
+function formatRestartReminder(ratio: number): string {
+  const percent = Math.min(100, Math.max(0, Math.round(ratio * 100)));
+  return `${RESTART_MARK} (~${percent}%). ${RESTART_TAIL}`;
+}
+
+// Приведение пути к прямым слэшам (для поля brief маркера). Чистая.
+function toPosix(path: string): string {
+  return path.split("\\").join("/");
+}
+
+// Маркер перезапуска для драйвера цикла. Чистая: всё случайное/окружение —
+// в аргументах с дефолтами (nonce — crypto.randomUUID(), pid — process.pid);
+// ratio округляется до 3 знаков, percent = round(ratio*100) от него же.
+function buildRestartMarker(args: {
+  sessionID: string;
+  ratio: number;
+  briefFile: string;
+  nowMs?: number;
+  nonce?: string;
+  pid?: number;
+}): RestartMarker {
+  const nowMs = args.nowMs ?? Date.now();
+  const ratio3 = Math.round(args.ratio * 1000) / 1000;
+  return {
+    version: 1,
+    reason: "context_restart",
+    sessionID: args.sessionID,
+    ratio: ratio3,
+    percent: Math.round(ratio3 * 100),
+    brief: toPosix(join(HANDOFF_DIR_RELATIVE, args.briefFile)),
+    createdAt: new Date(nowMs).toISOString(),
+    createdAtMs: nowMs,
+    nonce: args.nonce ?? crypto.randomUUID(),
+    pid: args.pid ?? process.pid,
+  };
 }
 
 function usageFromMessages(messages: Entry[]): UsageSnapshot | null {
@@ -177,7 +304,13 @@ function estimateFromVolume(messages: Entry[]): number {
 }
 
 function newSessionState(): SessionState {
-  return { phase: "armed", injectedAt: 0, lastMessageID: null };
+  return {
+    phase: "armed",
+    injectedAt: 0,
+    lastMessageID: null,
+    restartArmed: false,
+    lastRatio: 0,
+  };
 }
 
 // Машина состояний пересечения: решает, инъецировать ли напоминание в этот
@@ -189,12 +322,19 @@ function decideInject(
   now: number,
 ): { inject: boolean; state: SessionState } {
   if (!crossed) return { inject: false, state: newSessionState() };
-  // spent — цикл напоминаний закрыт, напоминание больше не нужно
-  if (state.phase === "spent") return { inject: false, state };
+  // spent/restarting — цикл напоминаний закрыт либо сессия уходит на
+  // перезапуск, напоминание больше не нужно
+  if (state.phase === "spent" || state.phase === "restarting") return { inject: false, state };
   if (state.phase === "armed") {
     return {
       inject: true,
-      state: { phase: "pending", injectedAt: now, lastMessageID: messageID },
+      state: {
+        phase: "pending",
+        injectedAt: now,
+        lastMessageID: messageID,
+        restartArmed: false,
+        lastRatio: 0,
+      },
     };
   }
   // pending — инъецируем на каждом шаге (снапшоты не персистятся, см.
@@ -227,25 +367,42 @@ function idleSessionID(event: Event): string | null {
   return null;
 }
 
-// mtime самого свежего handoff-брифа в каталоге (мс), либо -1 (каталога нет
-// или он не читается). Императивная fs-обёртка — вне plugin.pure.
-function newestBriefMtimeMs(handoffDir: string): number {
+// Имя и mtime самого свежего handoff-брифа в каталоге, либо null (каталога
+// нет или он не читается). Императивная fs-обёртка — вне plugin.pure.
+function newestBrief(handoffDir: string): { name: string; mtimeMs: number } | null {
   try {
-    let newest = -1;
+    let best: { name: string; mtimeMs: number } | null = null;
     for (const name of readdirSync(handoffDir)) {
       if (!isBriefFileName(name)) continue;
       const mtimeMs = statSync(join(handoffDir, name)).mtimeMs;
-      if (mtimeMs > newest) newest = mtimeMs;
+      if (!best || mtimeMs > best.mtimeMs) best = { name, mtimeMs };
     }
-    return newest;
+    return best;
   } catch {
-    return -1;
+    return null;
   }
 }
 
-function appendReminder(entry: Entry, reminder: string): void {
+function newestBriefMtimeMs(handoffDir: string): number {
+  return newestBrief(handoffDir)?.mtimeMs ?? -1;
+}
+
+// Атомарная запись маркера перезапуска: временный файл рядом + renameSync.
+// Императивная fs-обёртка — вне plugin.pure.
+function writeRestartMarker(markerPath: string, marker: RestartMarker): void {
+  mkdirSync(dirname(markerPath), { recursive: true });
+  const tmpPath = `${markerPath}.tmp`;
+  writeFileSync(tmpPath, `${JSON.stringify(marker, null, 2)}\n`, "utf8");
+  renameSync(tmpPath, markerPath);
+}
+
+// Дописывает текст в КОНЕЦ последнего text-парт последнего user-сообщения
+// (или создаёт text-часть, если text-частей нет); дедуп — по маркеру в
+// рамках снапшота (default REMINDER_MARK — обратная совместимость; императив
+// перезапуска передаёт свой RESTART_MARK).
+function appendReminder(entry: Entry, reminder: string, mark: string = REMINDER_MARK): void {
   const texts = entry.parts.filter((part): part is TextPart => part.type === "text");
-  if (texts.some((part) => part.text.includes(REMINDER_MARK))) return; // уже подмешано
+  if (texts.some((part) => part.text.includes(mark))) return; // уже подмешано
   if (texts.length > 0) {
     const last = texts[texts.length - 1];
     last.text = `${last.text.replace(/\s+$/, "")}\n\n${reminder}`;
@@ -262,6 +419,8 @@ function appendReminder(entry: Entry, reminder: string): void {
 
 const handoffThreshold: Plugin = async (input: PluginInput): Promise<Hooks> => {
   const threshold = parseThreshold(process.env.ND_HANDOFF_THRESHOLD);
+  const restartEnabled = parseRestartEnabled(process.env);
+  const restartThreshold = parseRestartThreshold(process.env.ND_RESTART_THRESHOLD, threshold);
   const limitCache = new Map<string, number>();
   const client = input.client;
   const baseDirectory = input.directory || process.cwd();
@@ -282,6 +441,36 @@ const handoffThreshold: Plugin = async (input: PluginInput): Promise<Hooks> => {
       console.log(
         "[handoff-threshold] свежий handoff-бриф обнаружен — цикл напоминаний закрыт (программный компакшен удалён)",
       );
+    } catch (err) {
+      console.error("[handoff-threshold]", err);
+    }
+  }
+
+  // Верхняя idle-граница перезапуска: при свежем брифе атомарно пишет маркер
+  // .opencode/loop/restart-request.json, переводит фазу в restarting и через
+  // RESTART_EXIT_DELAY_MS завершает процесс (драйвер цикла подхватит маркер и
+  // стартует свежую сессию). БЕЗ свежего брифа — тишина, маркер не пишется и
+  // процесс не завершается (нить не теряем). Синхронная fs-проверка + запись;
+  // ошибки гасятся.
+  function requestRestart(sessionID: string, state: SessionState): void {
+    try {
+      const brief = newestBrief(handoffDir);
+      if (!brief || !isFreshBrief(brief.mtimeMs, state.injectedAt)) {
+        console.log("[handoff-threshold] restart skipped: no fresh brief");
+        return;
+      }
+      const marker = buildRestartMarker({
+        sessionID,
+        ratio: state.lastRatio,
+        briefFile: brief.name,
+      });
+      const markerPath = join(baseDirectory, RESTART_MARKER_RELATIVE);
+      writeRestartMarker(markerPath, marker);
+      states.set(sessionID, { ...state, phase: "restarting" });
+      console.log(
+        `[handoff-threshold] restart marker written ${markerPath} (контекст ~${marker.percent}%)`,
+      );
+      setTimeout(() => process.exit(0), RESTART_EXIT_DELAY_MS);
     } catch (err) {
       console.error("[handoff-threshold]", err);
     }
@@ -315,14 +504,20 @@ const handoffThreshold: Plugin = async (input: PluginInput): Promise<Hooks> => {
         states.delete(sessionID); // ratio ниже порога → возврат к armed
         return;
       }
-      const decision = decideInject(
-        states.get(sessionID) ?? newSessionState(),
-        crossed,
-        lastUser.info.id,
-        Date.now(),
-      );
+      const prev = states.get(sessionID) ?? newSessionState();
+      const decision = decideInject(prev, crossed, lastUser.info.id, Date.now());
       if (decision.inject) appendReminder(lastUser, formatReminder(ratio));
-      states.set(sessionID, decision.state);
+      // верхний порог: императив «контекст на пределе» на каждом шаге и
+      // армирование перезапуска (гейт вкл/выкл читается при старте плагина)
+      const restartCrossed = shouldRestart(ratio, restartThreshold, restartEnabled);
+      if (restartCrossed && decision.state.phase !== "restarting") {
+        appendReminder(lastUser, formatRestartReminder(ratio), RESTART_MARK);
+      }
+      states.set(sessionID, {
+        ...decision.state,
+        restartArmed: prev.restartArmed || restartCrossed,
+        lastRatio: ratio,
+      });
     } catch (err) {
       console.error("[handoff-threshold]", err);
     }
@@ -333,7 +528,13 @@ const handoffThreshold: Plugin = async (input: PluginInput): Promise<Hooks> => {
       const sessionID = idleSessionID(event);
       if (!sessionID) return;
       const state = states.get(sessionID);
-      if (!state || state.phase !== "pending") return;
+      if (!state) return;
+      // верхняя idle-граница: restartArmed + свежий бриф → маркер + выход
+      if (state.restartArmed && state.phase !== "restarting") {
+        requestRestart(sessionID, state);
+        return;
+      }
+      if (state.phase !== "pending") return;
       closeCycleOnIdle(sessionID);
     } catch (err) {
       console.error("[handoff-threshold]", err);
@@ -372,15 +573,24 @@ const handoffThreshold: Plugin = async (input: PluginInput): Promise<Hooks> => {
 const plugin = Object.assign(handoffThreshold, {
   pure: {
     DEFAULT_THRESHOLD,
+    DEFAULT_RESTART_THRESHOLD,
     FALLBACK_CONTEXT_LIMIT,
     CHARS_PER_TOKEN,
     ORCHESTRATOR_AGENT,
     HANDOFF_DIR_RELATIVE,
+    RESTART_MARKER_RELATIVE,
     REMINDER_MARK,
     REMINDER_TAIL,
+    RESTART_MARK,
+    RESTART_TAIL,
     parseThreshold,
+    parseRestartThreshold,
+    parseRestartEnabled,
     shouldRemind,
+    shouldRestart,
     formatReminder,
+    formatRestartReminder,
+    buildRestartMarker,
     usageFromMessages,
     estimateFromVolume,
     newSessionState,

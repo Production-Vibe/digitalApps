@@ -10,7 +10,7 @@ param(
     [ValidateRange(1, 240)]
     [int]$TimeoutMinutes = 30,
     [ValidateRange(0.01, 0.99)]
-    [double]$Threshold = 0.58,
+    [double]$Threshold = 0.50,
     [switch]$Dry
 )
 
@@ -113,6 +113,7 @@ function Build-ColdPrompt([int]$Iteration) {
 Задача цикла: $Task
 Действия: пройди pre-approval (уточни цель и scope либо зафиксируй уже согласованный план), зафиксируй утверждённый план в docs/specs/ или .opencode/design/ — это approved_plan. Далее исполняй только утверждённый scope: план задаёт границы, конкретное действие — ближайший пункт этого же плана (или next_action свежего брифа, если он есть), а не задачи из произвольных файлов.
 Неинтерактивный запуск: если .opencode/session/config.json уже существует — преднастройки повторно НЕ опрашивай и вопросов не задавай, зафиксируй согласованный план/разумные дефолты и продолжай работу.
+Инструмент question в неинтерактивной сессии НЕДОСТУПЕН: не вызывай его, не задавай вопросов текстом и не показывай конфиг преднастроек — любая попытка уточнения завершает ход без брифа и останавливает цикл.
 Проверяй .opencode/** (свежие брифы .opencode/handoff/, .opencode/session/config.json, .opencode/loop/state.json) инструментами Read либо Bash (Test-Path, Get-Content, Get-ChildItem) — НЕ полагайся на Glob: он не видит dot-папки, и его «0 совпадений» не доказывает, что файлов нет.
 На границе фазы, при вопросе пользователю или когда контекст достигнет порога $thrText — заверши ход командой /handoff с актуальным frontmatter: loop (continue, done или blocked), iteration, approved_plan, next_action.
 "@
@@ -130,6 +131,7 @@ RESUME-режим цикла session-loop «ЦифровойНаряд». Ите
 Проверяй .opencode/** (handoff, session/config.json, loop/state) инструментами Read либо Bash (Test-Path, Get-Content, Get-ChildItem) — НЕ полагайся на Glob: он не видит dot-папки, и его «0 совпадений» не доказывает, что брифов/конфига нет.
 Правила resume-режима: pre-approval НЕ повторяй; план не пересматривай; scope не расширяй. Сразу выполни next_action: $nextAct — работай только в approved scope. Противоречие плана и next_action → приоритет у next_action свежего брифа в смысле порядка действий; scope от этого не расширяется.
 Преднастройки сессии подтверждены (запуск драйвером): шаг подтверждения session-bootstrap ПРОПУСТИ; вопрос «подтвердить/изменить» не задавай — инструмент question в неинтерактивной сессии недоступен; сразу продолжай работу.
+Инструмент question НЕ вызывай и конфиг преднастроек НЕ показывай: любая попытка уточнения завершает ход без брифа и останавливает цикл.
 Задача вне approved scope — записать handoff с loop: blocked и вопросом пользователю, ход завершить.
 При завершении фазы или когда контекст достигнет порога $thrText — записать handoff с актуальным frontmatter (loop, iteration, approved_plan, next_action) и завершить ход.
 Общая задача цикла: $Task
@@ -153,6 +155,9 @@ function Invoke-OpenCodeIteration([string]$Prompt, [int]$Iteration) {
     $psi.CreateNoWindow = $true
     $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
     $psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8
+    # Признак неинтерактивного исполнения: плагин session-bootstrap не
+    # напоминает о преднастройках (question в --auto недоступен).
+    $psi.EnvironmentVariables['ND_LOOP_DRIVER'] = '1'
 
     $proc = [System.Diagnostics.Process]::Start($psi)
     Log ('opencode запущен, PID=' + $proc.Id)
@@ -197,14 +202,22 @@ for ($slot = 1; $slot -le $MaxIterations; $slot++) {
     if ($latest) {
         $preFm = Get-Frontmatter $latest.FullName
         if ($preFm) {
-            if ($preFm['loop'] -eq 'done') {
-                $stopReason = 'loop: done в брифе ' + $latest.Name + ' — цикл закрыт'
-                $exitCode = 0
-                break
-            }
-            if ($preFm['loop'] -eq 'blocked') {
-                $stopReason = 'loop: blocked в брифе ' + $latest.Name + ' — ход за пользователем'
-                $exitCode = 2
+            if ($preFm['loop'] -eq 'done' -or $preFm['loop'] -eq 'blocked') {
+                # Обход D3: state синхронизируется с брифом (номер и статус — из
+                # frontmatter), а не с внутренним счётчиком драйвера.
+                $preIter = 0
+                if ($preFm.ContainsKey('iteration') -and [int]::TryParse([string]$preFm['iteration'], [ref]$preIter)) {
+                    $prePlan = ''
+                    if ($preFm.ContainsKey('approved_plan')) { $prePlan = $preFm['approved_plan'] }
+                    Save-LoopState -Iteration $preIter -Loop $preFm['loop'] -Plan $prePlan -Phase $preFm['loop']
+                }
+                if ($preFm['loop'] -eq 'done') {
+                    $stopReason = 'loop: done в брифе ' + $latest.Name + ' — цикл закрыт'
+                    $exitCode = 0
+                } else {
+                    $stopReason = 'loop: blocked в брифе ' + $latest.Name + ' — ход за пользователем'
+                    $exitCode = 2
+                }
                 break
             }
         }
@@ -297,8 +310,13 @@ for ($slot = 1; $slot -le $MaxIterations; $slot++) {
     $newLoop = $newFm['loop']
     $newPlan = $plan
     if ($newFm.ContainsKey('approved_plan')) { $newPlan = $newFm['approved_plan'] }
-    Save-LoopState -Iteration $iteration -Loop $newLoop -Plan $newPlan -Phase $newLoop
-    Log ('Состояние: iteration=' + $iteration + ' loop=' + $newLoop)
+    $stateIter = $iteration
+    if ($newFm.ContainsKey('iteration')) {
+        $briefIter = 0
+        if ([int]::TryParse([string]$newFm['iteration'], [ref]$briefIter)) { $stateIter = $briefIter }
+    }
+    Save-LoopState -Iteration $stateIter -Loop $newLoop -Plan $newPlan -Phase $newLoop
+    Log ('Состояние: iteration=' + $stateIter + ' loop=' + $newLoop)
 
     if ($newLoop -eq 'done') {
         $stopReason = 'loop: done на итерации ' + $iteration + ' — цикл завершён'

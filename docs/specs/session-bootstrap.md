@@ -45,7 +45,7 @@
 ```json
 {
   "mode": "interactive",
-  "driver": { "enabled": false, "threshold": 0.58, "maxIterations": 10, "timeoutMinutes": 30 },
+  "driver": { "enabled": false, "threshold": 0.50, "maxIterations": 10, "timeoutMinutes": 30 },
   "autonomy": "approve-once",
   "permissions": { "deploy": false, "commit": false, "autoCommit": false, "push": false },
   "context": { "scope": "", "language": "ru", "skills": [], "agent": "orchestrator" },
@@ -57,7 +57,7 @@
 |---|---|---|---|
 | **A** | `mode` | `interactive` (**дефолт**) \| `driver` | диалог с пользователем или работа циклом драйвера |
 | A | `driver.enabled` | `false` (**дефолт**) | активен ли драйвер-контур |
-| A | `driver.threshold` | `0.58` (**дефолт**) | порог handoff-плагина (доля контекста) |
+| A | `driver.threshold` | `0.50` (**дефолт**) | порог handoff-плагина (доля контекста) |
 | A | `driver.maxIterations` | `10` (**дефолт**) | лимит итераций цикла |
 | A | `driver.timeoutMinutes` | `30` (**дефолт**) | таймаут одной итерации |
 | **B** | `autonomy` | `approve-once` (**дефолт**) \| `pause-each-barrier` | одним вопросом утвердить план и границы или пауза на каждом барьере (коммит, деплой, выход за scope) |
@@ -99,7 +99,7 @@
 **«подтвердить / изменить»**. «Подтвердить» — конфиг остаётся как есть
 (`updatedAt` не обновляется); «изменить» — уточняются только названные поля.
 
-**Неинтерактивный режим (драйвер):** когда сессия запущена драйвером session-loop и tool `question` недоступен, подтверждение преднастроек не запрашивается — конфиг считается подтверждённым, работа идёт сразу с `next_action` (см. `instructions/session-bootstrap.md`; дефект живого прогона 16.10.2026).
+**Неинтерактивный режим (драйвер):** когда сессия запущена драйвером session-loop и tool `question` недоступен, подтверждение преднастроек не запрашивается — конфиг считается подтверждённым, работа идёт сразу с `next_action` (см. `instructions/session-bootstrap.md`; дефект живого прогона 16.10.2026). Драйвер выставляет дочернему процессу `ND_LOOP_DRIVER=1`; плагин `session-bootstrap` при этом флаге (`isDriverMode`) напоминание первого хода не вставляет — иначе в `--auto` сессия получает «спроси через question tool» и завершает ход без брифа (наблюдение 22.10.2026).
 
 ## Связь с циклом session-loop
 

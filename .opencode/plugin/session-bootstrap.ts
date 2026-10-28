@@ -48,9 +48,16 @@ type Entry = TransformOutput["messages"][number];
 const ORCHESTRATOR_AGENT = "orchestrator";
 const CONFIG_RELATIVE = ".opencode/session/config.json";
 const CONTRACT = "instructions/session-bootstrap.md";
+const DRIVER_ENV = "ND_LOOP_DRIVER";
 const REMINDER_MARK = "Первый ход:";
 const REMINDER_WITH_CONFIG = `Первый ход: покажи унаследованный конфиг сессии и спроси подтверждение/изменение (${CONTRACT}).`;
 const REMINDER_WITHOUT_CONFIG = `Первый ход: выдай преднастройки сессии через question tool (${CONTRACT}).`;
+
+// Драйвер цикла запускает неинтерактивную сессию без инструмента question:
+// напоминание о преднастройках там вредно (ход завершается без брифа).
+function isDriverMode(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env[DRIVER_ENV] === "1";
+}
 
 function isFirstTurn(messages: Entry[]): boolean {
   return !messages.some((entry) => entry.info.role === "assistant");
@@ -114,6 +121,9 @@ const sessionBootstrap: Plugin = async (input: PluginInput): Promise<Hooks> => {
       // первый ход = в сессии ещё нет ни одного assistant-ответа
       if (!isFirstTurn(messages)) return;
 
+      // неинтерактивный запуск драйвером: преднастройки подтверждены заранее
+      if (isDriverMode()) return;
+
       appendReminder(lastUser, resolveReminder(configExistsAt(baseDirectory)));
     } catch (err) {
       console.error("[session-bootstrap]", err);
@@ -128,10 +138,12 @@ const plugin = Object.assign(sessionBootstrap, {
     ORCHESTRATOR_AGENT,
     CONFIG_RELATIVE,
     CONTRACT,
+    DRIVER_ENV,
     REMINDER_MARK,
     REMINDER_WITH_CONFIG,
     REMINDER_WITHOUT_CONFIG,
     isFirstTurn,
+    isDriverMode,
     resolveReminder,
     isAlreadyInjected,
     appendReminder,

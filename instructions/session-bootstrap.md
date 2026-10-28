@@ -25,7 +25,7 @@
 ```json
 {
   "mode": "interactive",
-  "driver": { "enabled": false, "threshold": 0.58, "maxIterations": 10, "timeoutMinutes": 30 },
+  "driver": { "enabled": false, "threshold": 0.50, "maxIterations": 10, "timeoutMinutes": 30 },
   "autonomy": "approve-once",
   "permissions": { "deploy": false, "commit": false, "autoCommit": false, "push": false },
   "context": { "scope": "", "language": "ru", "skills": [], "agent": "orchestrator" },
@@ -38,7 +38,7 @@
 - `mode` — `interactive` (диалог с пользователем; **дефолт**) или `driver`
   (работа идёт циклом через `.opencode/loop/ralph-loop.ps1`).
 - `driver` — `{ enabled, threshold, maxIterations, timeoutMinutes }`;
-  дефолты: `enabled: false`, `threshold: 0.58` (порог handoff-плагина),
+  дефолты: `enabled: false`, `threshold: 0.50` (порог handoff-плагина),
   `maxIterations: 10`, `timeoutMinutes: 30`. Заполняется осмысленно, только
   когда выбран `mode: driver`; при `interactive` остаётся дефолтным.
 
@@ -77,7 +77,7 @@
 (updatedAt обновлять не нужно); «изменить» — уточняются только названные
 поля.
 
-**Неинтерактивное исполнение (драйвер).** Если сессия запущена драйвером цикла (`opencode run --agent orchestrator --auto`, tool `question` недоступен), шаг подтверждения **пропускается**: конфиг считается подтверждённым, работа идёт сразу с `next_action` из брифа. Задавать вопрос «подтвердить/изменить» нечем — попытка означает завершение хода без брифа и остановку цикла. Опрос преднастроек в этом режиме не проводится.
+**Неинтерактивное исполнение (драйвер).** Если сессия запущена драйвером цикла (`opencode run --agent orchestrator --auto`, tool `question` недоступен), шаг подтверждения **пропускается**: конфиг считается подтверждённым, работа идёт сразу с `next_action` из брифа. Задавать вопрос «подтвердить/изменить» нечем — попытка означает завершение хода без брифа и остановку цикла. Опрос преднастроек в этом режиме не проводится. Драйвер выставляет дочернему процессу `ND_LOOP_DRIVER=1`, и плагин `.opencode/plugin/session-bootstrap.ts` в этом режиме напоминание первого хода не вставляет вовсе.
 
 ## Запись конфига
 

@@ -27,3 +27,5 @@
 .opencode/loop/logs/
 .opencode/loop/state.json
 .opencode/loop/dry-run/
+.opencode/loop/restart-request.json
+.opencode/loop/restart-request.json.tmp
